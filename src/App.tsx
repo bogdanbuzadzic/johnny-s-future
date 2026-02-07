@@ -7,6 +7,7 @@ import { TabBar } from "@/components/TabBar";
 import { HomeScreen } from "@/components/screens/HomeScreen";
 import { PlaceholderScreen } from "@/components/screens/PlaceholderScreen";
 import { GoalsScreen } from "@/components/screens/GoalsScreen";
+import { BudgetScreen } from "@/components/screens/BudgetScreen";
 import { TimelineSheet } from "@/components/sheets/TimelineSheet";
 import { TodayDrawer } from "@/components/sheets/TodayDrawer";
 
@@ -22,7 +23,7 @@ function AppContent() {
       case 1:
         return <PlaceholderScreen title="Financial Tetris" message="Financial Tetris coming soon" />;
       case 2:
-        return <PlaceholderScreen title="Budget" message="Budget tool coming soon" />;
+        return <BudgetScreen />;
       case 3:
         return <GoalsScreen />;
       case 4:
