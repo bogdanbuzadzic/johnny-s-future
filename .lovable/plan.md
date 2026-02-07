@@ -1,162 +1,312 @@
 
 
-# JFB (Johnny F. Banks) Prototype - Implementation Plan
+# Budget Tool Implementation Plan
 
 ## Overview
-A fully interactive mobile-first personal finance prototype featuring Johnny the pixel-art piggy bank as your financial co-pilot. Complete with a draggable timeline chart, what-if financial simulations, and goal tracking.
+
+A fully functional budgeting tool for the JFB app that replaces the placeholder on tab 3. The tool starts empty, allows users to build their budget from scratch via a setup wizard, and persists all data to localStorage. All numbers calculate dynamically with zero hardcoded demo data.
 
 ---
 
-## Phase 1: Foundation & Design System
+## Architecture
 
-### Setup
-- Install Framer Motion for spring animations and gestures
-- Copy Johnny mascot image to project assets
-- Configure Inter font via Google Fonts
+### New Files to Create
 
-### Global Design System
-- Fixed full-viewport gradient background (#B4A6B8 → #9B80B4)
-- Frosted glass utility classes (white 20-30% opacity + backdrop blur)
-- Custom Tailwind colors: primary purple (#8B5CF6), pink accent (#FF6B9D), green positive (#34C759), amber attention (#FF9F0A)
-- Typography scale matching spec (40px hero, 18px titles, 14px body, 12px labels)
+```text
+src/context/BudgetContext.tsx          # Budget state management + localStorage
+src/components/screens/BudgetScreen.tsx # Main budget screen with 3 tabs
+src/components/budget/SetupWizard.tsx   # First-time setup flow (4 steps)
+src/components/budget/OverviewTab.tsx   # Flex hero, breakdown, weekly pulse
+src/components/budget/CategoriesTab.tsx # Category list with expand/edit
+src/components/budget/IncomeTab.tsx     # Month navigator, income list
+src/components/budget/AddTransactionSheet.tsx  # FAB transaction sheet
+src/components/budget/FixedExpensesSheet.tsx   # Edit fixed expenses
+src/components/budget/EditBudgetSheet.tsx      # Settings/reset sheet
+src/components/budget/NumberKeypad.tsx  # Custom 4x3 keypad component
+src/components/budget/ProgressRing.tsx  # Reusable SVG progress ring
+```
 
----
+### Files to Modify
 
-## Phase 2: App Shell & Navigation
-
-### State Management
-- Central AppContext with all app state (activeTab, sheet visibility, timeline data, goals, simulations)
-- Generated baseline net worth data from Feb 2026 → Feb 2029
-
-### Bottom Tab Bar
-- 5 tabs: Home, Tetris, Budget, Goals, Profile
-- Frosted glass styling, fixed bottom position
-- Active/inactive icon states (full white vs 40% opacity)
-- Placeholder screens for Tetris, Budget, and Profile tabs
+```text
+src/App.tsx  # Replace Budget PlaceholderScreen with BudgetScreen wrapped in BudgetProvider
+```
 
 ---
 
-## Phase 3: HomeScreen
+## Data Model
 
-### Layout Components
-- Top bar with settings pill (left), "Today: €1,340 left" tappable pill (center), edit pill (right)
-- Johnny mascot (120x120px) with gentle bobbing animation (translateY keyframes)
-- "Your Financial Co-pilot" subtitle
+### Types
 
-### Action Area
-- Pulsing chevron-up hint for swipe gesture
-- Two action chips: "Plan my future" and "What can I afford?"
-- Ask Johnny input bar with toast feedback
+```typescript
+type Transaction = {
+  id: string;              // crypto.randomUUID()
+  amount: number;          // always positive
+  type: 'expense' | 'income';
+  categoryId: string;
+  description: string;
+  date: string;            // ISO date
+  isRecurring: boolean;
+  recurringFrequency?: 'weekly' | 'biweekly' | 'monthly';
+};
 
-### Gestures
-- Swipe up detection → opens TimelineSheet
-- Swipe down detection → opens TodayDrawer
-- Tap handlers on all interactive elements
+type Category = {
+  id: string;
+  name: string;
+  icon: string;            // Lucide icon name
+  monthlyBudget: number;
+  type: 'expense' | 'fixed' | 'savings';
+  sortOrder: number;
+};
 
----
+type BudgetConfig = {
+  monthlyIncome: number;
+  monthlySavingsTarget: number;
+  setupComplete: boolean;
+};
+```
 
-## Phase 4: TimelineSheet (The Core Feature)
+### Computed Values (recalculated on every state change)
 
-### Sheet Mechanics
-- Bottom sheet sliding up to 90% viewport
-- Drag handle to dismiss with Framer Motion drag gestures
-- Frosted glass overlay
-
-### Header & Today Card
-- Time range toggle pills (1Y / 3Y / 5Y) affecting chart data
-- Current net worth display (€12,450) with positive change pill
-
-### Interactive Timeline Chart (Recharts)
-- AreaChart with gradient stroke (purple → pink) and 15% fill
-- Monthly data points with realistic growth patterns
-- Quarter labels on X-axis, € values on Y-axis
-
-### Draggable Scrubber
-- 24px circle that follows the curve
-- Horizontal drag/touch mapped to data points
-- Floating tooltip showing month, projected value, and delta from today
-- Smooth vertical positioning along the curve
-
-### Goal Markers on Curve
-- Icon circles at specific dates (Laptop Aug 2026, Emergency Fund Oct 2026, Vacation Apr 2027)
-- Tap to show goal popover with progress details
-
-### What-If Simulation Cards
-- Horizontally scrollable row: Get a Raise, Invest, Buy a Car, Have a Baby, Cut Spending, Custom
-- Each card opens configuration bottom sheet with:
-  - Amount input (pre-filled defaults)
-  - Frequency pills (One-time / Monthly / Yearly)
-  - Date picker
-  - Apply button
-
-### Simulation Engine
-- Apply scenarios to recalculate timeline data
-- Render two chart lines: original (dashed, faded) vs simulated (solid gradient)
-- End-point delta display
-- "Simulation Mode" banner with scenario list and individual removal
-- Multiple stacking scenarios supported
+| Value | Formula |
+|-------|---------|
+| totalIncome | budgetConfig.monthlyIncome |
+| totalFixed | sum of monthlyBudget where type === 'fixed' |
+| savingsTarget | budgetConfig.monthlySavingsTarget |
+| flexBudget | totalIncome - totalFixed - savingsTarget |
+| flexSpent | sum of expenses in current month for 'expense' categories |
+| flexRemaining | flexBudget - flexSpent |
+| dailyAllowance | max(0, flexRemaining / daysRemaining) |
+| percentSpent | (flexSpent / flexBudget) * 100 |
+| percentMonth | (dayOfMonth / daysInMonth) * 100 |
+| paceStatus | 'on-track' / 'watch' / 'slow-down' based on thresholds |
 
 ---
 
-## Phase 5: TodayDrawer
+## BudgetContext Implementation
 
-### Sheet Mechanics
-- Top sheet sliding down to ~80% viewport
-- Bottom drag handle to dismiss
+### State Structure
+- `config`: BudgetConfig object
+- `categories`: Category[]
+- `transactions`: Transaction[]
 
-### Content Sections
-- **Month Pulse**: €1,340 available, 65% progress bar, "On track" status
-- **Daily Allowance**: €44/day for next 7 days
-- **Coming Up**: Upcoming bills list (Rent, Phone, Spotify with dates)
-- **Recent Transactions**: Latest spending/income entries with icons and amounts
-- **Johnny's Tip**: Auto-cycling tips every 5 seconds with fade transitions
+### localStorage Persistence
+- Key: `jfb-budget-data`
+- Load on mount, save on every state change
+- Handles missing/corrupted data gracefully
 
----
-
-## Phase 6: GoalsScreen
-
-### Goals List
-- Vertical scrollable list of goal cards
-- Each card shows: icon, name, progress bar, amounts, projected date, monthly contribution
-- Circular progress ring animation (SVG arc)
-
-### Goal Detail Sheet
-- Large icon and progress ring
-- Full goal details
-- "View on Timeline" button (navigates to TimelineSheet and highlights goal)
-- Edit and Delete actions
-
-### Add Goal Flow
-- Icon picker grid (10 icons)
-- Name, target amount, target date inputs
-- Auto-calculated monthly contribution
-- Creates new goal in state
+### Helper Functions
+- addTransaction, deleteTransaction
+- addCategory, updateCategory, deleteCategory
+- updateConfig
+- getCategorySpent(catId, period)
+- getCategoryRemaining(catId, period)
+- getWeekTransactions(weekStart, weekEnd)
+- resetMonth()
 
 ---
 
-## Key Interactions Summary
+## Component Details
 
-| Action | Result |
-|--------|--------|
-| Tap "Plan my future" | Opens TimelineSheet |
-| Tap "What can I afford?" | Opens TimelineSheet scrolled to What-If |
-| Tap "Today" pill | Opens TodayDrawer |
-| Swipe up on home | Opens TimelineSheet |
-| Swipe down on home | Opens TodayDrawer |
-| Drag scrubber on chart | Shows real-time data tooltip |
-| Tap What-If card | Opens config sheet |
-| Apply scenario | Updates chart with two lines |
-| Tap goal on GoalsScreen | Opens detail sheet |
-| "View on Timeline" | Jumps to TimelineSheet, highlights goal |
-| Tab bar taps | Switches between all 5 screens |
+### SetupWizard (4-Step Flow)
+
+Shows when `config.setupComplete === false`
+
+**Step 1: Income**
+- Wallet icon header
+- Large centered amount display (builds via keypad)
+- Custom number keypad (4x3 grid)
+- "Next" button (disabled until amount > 0)
+
+**Step 2: Fixed Expenses**
+- Lock icon header
+- Empty list with "Add expense" button
+- Inline add form: icon picker row, name input, amount input, confirm button
+- Each item shows: icon + name + amount + remove button
+- Running total at bottom
+- Creates Category entries with type='fixed'
+
+**Step 3: Savings**
+- PiggyBank icon header
+- Amount input with keypad
+- Live preview: "This leaves X for spending"
+- Amber warning if negative flex budget
+
+**Step 4: Spending Categories**
+- ShoppingBag icon header
+- Quick-add suggestion pills (Food, Shopping, Transport, etc.)
+- Added categories appear in list with editable budget amounts
+- "Allocated: X of Y" indicator with bar visualization
+- "Done" sets setupComplete=true
+
+### BudgetScreen Main Layout
+
+**Header**
+- Frosted pill tabs: Overview | Categories | Income
+- Sliders icon button (opens EditBudgetSheet)
+
+**FAB (Floating Action Button)**
+- Purple gradient circle, Plus icon
+- Fixed bottom-right, visible on all tabs
+- Opens AddTransactionSheet
+
+### OverviewTab
+
+**Flex Number Hero Card**
+- "Available to spend" label
+- Large flexRemaining value (amber if negative)
+- "of X flex budget" subtitle
+- Progress bar at percentSpent
+- Daily allowance on left, pace status pill on right
+
+**Flex Breakdown Card**
+- Income row (taps to Income tab)
+- Fixed expenses row (taps to FixedExpensesSheet)
+- Savings row (taps to Goals tab)
+- Spent so far row (taps to Categories tab)
+- Available row in bold
+
+**Weekly Pulse**
+- Horizontal scroll of week cards
+- Each shows: week label, spent amount, mini progress
+- Current week has purple border + daily allowance
+- Past weeks muted, future weeks show "Upcoming"
+
+### CategoriesTab
+
+**Toggle**
+- Weekly / Monthly pills at top
+
+**Category Cards**
+- Icon + name + "spent / budget"
+- "X left" indicator (green/amber/red)
+- Progress ring (SVG) + progress bar
+- Tap to expand: shows transactions, "Edit budget" option
+- Tap header again to collapse
+
+**Unallocated Row**
+- Shows if flexBudget minus allocated differs from zero
+
+**Add Category Row**
+- Plus icon, inline form to create new category
+
+### IncomeTab
+
+**Month Navigator**
+- "[Month Year]" with ChevronLeft/Right arrows
+- Changes displayed month
+
+**Summary Card**
+- Income total (green)
+- Expenses total (white)
+- Savings target (purple)
+- Divider + Net result
+
+**Income Entries List**
+- Wallet icon + source + date + amount (green)
+- Swipe left to delete
+- Empty state with "Add income" button
+
+**Add Income Row**
+- Source input, amount, date picker, recurring toggle
+
+### AddTransactionSheet
+
+**Layout**
+- Type toggle: Expense | Income pills
+- Large amount display center
+- Custom 4x3 keypad
+- Category selector (horizontal scroll, expense mode only)
+- Description input with autocomplete from history
+- Date selector: Today | Yesterday | Calendar
+- Recurring toggle with frequency pills
+- Save button with validation
+
+**Behavior**
+- Creates Transaction with unique ID
+- Closes sheet on save
+- All computed values update immediately
+- Brief pulse animation on Flex Number
+
+### FixedExpensesSheet
+
+- Lists all type='fixed' categories
+- Each row: icon + name + amount/month
+- Tap to edit amount inline
+- Swipe left for delete (with confirmation)
+- Total at bottom
+- Add row with inline form
+
+### EditBudgetSheet
+
+- Monthly income (tappable to edit)
+- Savings target (tappable to edit)
+- "Reset month" button (clears transactions, keeps config)
+- "Edit categories" list with drag reorder + swipe delete
+
+### NumberKeypad Component
+
+Reusable 4x3 grid:
+```text
+1   2   3
+4   5   6
+7   8   9
+.   0   ⌫
+```
+
+- Frosted glass circle buttons (52px)
+- Builds amount string: handles decimal, max 2 places after
+- Delete icon from Lucide (backspace)
 
 ---
 
-## Technical Highlights
+## Styling Consistency
 
-- **Framer Motion**: Spring physics on all interactions, gesture detection for swipes, drag controls for scrubber and sheets
-- **Recharts**: Custom AreaChart with gradient strokes, dual-line rendering for simulations, interactive elements overlay
-- **State Management**: React Context for global state (no backend needed for prototype)
-- **Mobile-First**: 375px base, responsive to 768px
-- **Zero Dead Buttons**: Every UI element has a working interaction
+All components follow existing design system:
+- `.glass` class for frosted surfaces
+- `.gradient-primary` for purple-to-pink gradients
+- `rounded-3xl` for cards, `rounded-2xl` for inner elements
+- Lucide icons only (20-24px, 1.5px stroke)
+- White text with /60 and /50 opacity variants
+- Framer Motion for all animations and transitions
+- Inter font throughout
+
+---
+
+## Empty States
+
+| Scenario | Display |
+|----------|---------|
+| No setup done | Full SetupWizard overlay |
+| No transactions in category | "No spending yet" in expanded view |
+| No income entries | "No income recorded" + Add button |
+| Flex budget is 0 | "Set your income to get started" amber |
+| Flex budget negative | "Fixed costs + savings exceed income" amber |
+
+---
+
+## Implementation Sequence
+
+1. **BudgetContext** - Data model, localStorage, computed values
+2. **NumberKeypad** - Reusable keypad component
+3. **SetupWizard** - 4-step onboarding flow
+4. **BudgetScreen** - Tab container layout
+5. **OverviewTab** - Hero card, breakdown, weekly pulse
+6. **CategoriesTab** - Category list with expand/collapse
+7. **IncomeTab** - Month navigator, income list
+8. **AddTransactionSheet** - FAB transaction entry
+9. **FixedExpensesSheet** - Edit fixed costs
+10. **EditBudgetSheet** - Settings and reset
+11. **App.tsx update** - Wire up BudgetScreen with provider
+
+---
+
+## Technical Considerations
+
+- Use `crypto.randomUUID()` for unique IDs (supported in all modern browsers)
+- Date calculations use native Date API with helpers for month/week boundaries
+- localStorage read/write wrapped in try-catch for safety
+- Category icon names stored as strings, resolved via existing iconMap pattern
+- Autocomplete description matching uses case-insensitive startsWith
+- Weekly budget calculated as monthlyBudget / 4.33 (average weeks per month)
 
