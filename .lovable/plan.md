@@ -1,349 +1,367 @@
 
 
-# Today Drawer v3 - Timeline Redesign
+# Today Drawer Micro-Simulations - Implementation Plan
 
 ## Overview
 
-Complete redesign of the Today Drawer content below the Month Pulse and Daily Allowance cards. Replace the existing timeline card with a compact calendar-based view that shows financial activity across days.
+Add interactive simulation features to the Today Drawer that let users explore "what if" scenarios without affecting real data. All simulations are ephemeral (React state only, never localStorage).
 
 ---
 
 ## Architecture
 
-### File Modified
-- `src/components/sheets/TodayDrawer.tsx` - Complete rewrite of content below the two hero cards
+### New File
+- `src/context/SimulationContext.tsx` - Manages simulation state and computed values
 
-### What Gets Removed
-- Unified Timeline Card with date group headers
-- All transaction rows with icon circles
-- "Upcoming" separator section
-- Upcoming bills list
-- "View all transactions" link
-
-### What Gets Added
-- Mini Calendar Strip (horizontal scrollable day cells)
-- Expanded Day Detail (shows when day is tapped)
-- Upcoming Summary Bar (compact "Next 7 days" banner)
-- Spending Sparkline (14-day area chart)
-
-### What Stays Unchanged
-- Month Pulse hero card (lines 131-153)
-- Daily Allowance card (lines 155-159)
-- Johnny's Tip card (lines 260-275)
-- Drawer mechanics (slide from top, drag to dismiss)
-
----
-
-## Component Structure
-
-### 1. Mini Calendar Strip
-
-A single frosted glass card containing a horizontally scrollable week view.
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  Mon   Tue   Wed   Thu   Fri   Sat   Sun   Mon   Tue  ...   │
-│   3     4     5     6     7    [8]    9    10    11   ...   │
-│   ·     ●     ·     ○          ●·    ○     ○                │
-│                               €16                            │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Day Cell Specifications:**
-- Width: 44px, Height: 64px
-- Day abbreviation: 10px `text-white/40`
-- Day number: 16px `text-white` bold
-- Indicator dot below number
-
-**Dot Types:**
-| Activity | Visual |
-|----------|--------|
-| Spending | Filled dot, 4-10px, gradient-primary |
-| Income | Filled dot, 6px, green |
-| Upcoming bill | Hollow circle, 6px, `border-white/30` |
-| No activity | No dot |
-
-**Today Cell:**
-- Background: `bg-white/15`
-- Border: `border border-white/20`
-- Below dot: tiny spend amount in 10px `text-white/50`
-
-**Past Days:**
-- Day name/number: `text-white/30`
-- Dots show historical spending
-
-**Future Days:**
-- Day number: `text-white/50`
-- Hollow dots for bills
-- Below dot: bill amount in 10px `text-white/30`
-
-**Scroll Behavior:**
-- Default: Today centered or slightly left-of-center
-- User can scroll left (past) or right (future)
-- useRef for scroll container, useEffect to scroll to today on mount
-
-### 2. Expanded Day Detail
-
-Appears below calendar strip inside the same card when a day is tapped.
-
-**For Past/Today (transactions):**
-```text
-┌─────────────────────────────────────────────┐
-│ Spent €16.30                                │
-├─────────────────────────────────────────────┤
-│ UtensilsCrossed  Uber Eats         -€12.50  │
-│ Coffee           Coffee Shop        -€3.80  │
-└─────────────────────────────────────────────┘
-```
-
-- Summary header: 12px `text-white/50`
-- Transaction rows: icon 16px `text-white/60`, name 13px, amount 13px
-- Max 4 rows, then "and X more" link
-
-**For Future (upcoming bills):**
-```text
-┌─────────────────────────────────────────────┐
-│ €450 due                                    │
-├─────────────────────────────────────────────┤
-│ Home  Rent                           €450   │
-│       due                                   │
-└─────────────────────────────────────────────┘
-```
-
-- Icon 16px `text-white/40`, name 13px `text-white/60`
-- "due" label 10px `text-white/30`
-- Amount 13px `text-white/40`
-
-**For Empty Days:**
-- "No activity" centered in 12px `text-white/30`
-
-**Interaction:**
-- Today auto-expanded on drawer open
-- Tapping another day collapses previous, expands new
-- AnimatePresence for smooth expand/collapse
-
-### 3. Upcoming Summary Bar
-
-Compact banner below the calendar card.
-
-```text
-┌─────────────────────────────────────────────┐
-│ Clock  Next 7 days                 €485 due │
-└─────────────────────────────────────────────┘
-```
-
-- Height: ~44px
-- Left: Clock icon (16px) + "Next 7 days" in 13px `text-white/60`
-- Right: "€485 due" in 13px `text-white`
-- Frosted glass styling (`glass-light rounded-2xl`)
-- Tap to scroll calendar to show next 7 days
-
-### 4. Spending Sparkline
-
-Small frosted card with a 14-day spending trend chart.
-
-```text
-┌─────────────────────────────────────────────┐
-│                   ╱╲                        │
-│     ╱╲    ╱╲    ╱  ╲   ╱╲                   │
-│   ╱    ╲╱    ╲╱      ╲╱  ●                  │
-│ ╱                                           │
-├─────────────────────────────────────────────┤
-│ Past 2 weeks                    avg €24/day │
-└─────────────────────────────────────────────┘
-```
-
-- Card height: ~80px
-- Uses Recharts AreaChart (already installed)
-- Area fill: purple-to-pink gradient at 20% opacity
-- Line: `stroke-white/40`, 1.5px
-- Today marker: small white dot on line
-- Footer: "Past 2 weeks" left, "avg €X/day" right in 10px `text-white/30`
-- No axes, no labels, purely visual
+### Modified File  
+- `src/components/sheets/TodayDrawer.tsx` - Add all simulation UI components
 
 ---
 
 ## Data Model
 
-### Mock Data Structure
-
+### Simulation Type
 ```typescript
-// Day with financial activity
-interface DayData {
-  date: Date;
-  dayName: string;      // "Mon", "Tue", etc.
-  dayNumber: number;    // 1-31
-  isToday: boolean;
-  isPast: boolean;
-  isFuture: boolean;
-  transactions: DayTransaction[];
-  upcomingBills: DayBill[];
-  totalSpent: number;
-  totalIncome: number;
-  totalBillsDue: number;
-}
-
-interface DayTransaction {
-  icon: LucideIcon;
-  name: string;
-  amount: number;       // negative for expenses
-}
-
-interface DayBill {
-  icon: LucideIcon;
-  name: string;
+type Simulation = {
+  id: string;
+  type: 'spend' | 'cancel-bill';
   amount: number;
-}
-
-// Sparkline data point
-interface SparklinePoint {
-  day: number;
-  amount: number;
-  isToday: boolean;
-}
-```
-
-### Data Generation
-
-Generate 21 days of data: 14 past + today + 6 future
-
-**Past Days (mock spending):**
-- Feb 8 (today): €16.30 (Uber Eats €12.50, Coffee €3.80)
-- Feb 7: €0 (no activity)
-- Feb 6: €35.00 (Bus Pass)
-- Feb 5: €28.50 (Groceries)
-- Feb 4: €8.90 (Coffee, Snacks)
-- Feb 1: €450 expense (Rent) + €2400 income (Salary)
-- Earlier days: random amounts 0-50
-
-**Future Days (upcoming bills):**
-- Feb 28: Rent €450
-- Mar 1: Phone €25
-- Mar 3: Spotify €10
-
----
-
-## Technical Implementation
-
-### State Management
-
-```typescript
-const [selectedDay, setSelectedDay] = useState<Date>(new Date());
-const scrollRef = useRef<HTMLDivElement>(null);
-```
-
-### Scroll to Today
-
-```typescript
-useEffect(() => {
-  if (open && scrollRef.current) {
-    // Scroll to position today in center
-    const todayIndex = days.findIndex(d => d.isToday);
-    const scrollPosition = (todayIndex * 44) - (scrollRef.current.offsetWidth / 2) + 22;
-    scrollRef.current.scrollTo({ left: scrollPosition, behavior: 'smooth' });
-  }
-}, [open]);
-```
-
-### Dot Size Calculation
-
-```typescript
-const getDotSize = (amount: number): number => {
-  // Scale 4-10px based on amount relative to max spending
-  const maxSpend = 50;
-  const normalized = Math.min(Math.abs(amount) / maxSpend, 1);
-  return 4 + (normalized * 6);
+  date: string;           // ISO date string
+  description: string;    // "Concert tickets" or "Skip Spotify"
+  targetDayIndex: number; // Index in days array
 };
 ```
 
-### Sparkline with Recharts
-
+### SimulationContext Provides
 ```typescript
-<AreaChart data={sparklineData} width={300} height={50}>
-  <defs>
-    <linearGradient id="sparklineGradient" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor="hsl(262, 80%, 66%)" stopOpacity={0.2} />
-      <stop offset="100%" stopColor="hsl(342, 100%, 71%)" stopOpacity={0.2} />
-    </linearGradient>
-  </defs>
-  <Area
-    type="monotone"
-    dataKey="amount"
-    stroke="rgba(255,255,255,0.4)"
-    strokeWidth={1.5}
-    fill="url(#sparklineGradient)"
-  />
-</AreaChart>
+{
+  activeSimulations: Simulation[];
+  isSimulating: boolean;
+  addSimulation: (sim: Omit<Simulation, 'id'>) => void;
+  removeSimulation: (id: string) => void;
+  clearAllSimulations: () => void;
+  
+  // Computed values layered on top of real data
+  simulatedFlexRemaining: number;
+  simulatedDailyAllowance: number;
+  getSimulatedDaySpending: (dayIndex: number) => number;
+  getDayHasSimulation: (dayIndex: number) => boolean;
+  getDaySimulations: (dayIndex: number) => Simulation[];
+}
 ```
 
 ---
 
-## Animation Details
+## Component Structure
 
-### Day Cell Tap
-- Subtle scale on tap: `whileTap={{ scale: 0.95 }}`
+### 1. Simulation Banner (NEW)
 
-### Expanded Detail
-- AnimatePresence with height animation
-- Slide down from 0 height to auto
-- Duration: 200ms ease-out
-
-### Selected Day Indicator
-- Animated underline or glow effect on selected day
-
----
-
-## Layout Summary
+Appears below Month Pulse when `isSimulating === true`.
 
 ```text
 ┌─────────────────────────────────────────────┐
-│          Month Pulse Hero Card              │  (unchanged)
-│          €1,340 available                   │
+│ ✨ Simulating: €200 on Thursday          ✕  │
 └─────────────────────────────────────────────┘
+```
 
+**Specifications:**
+- Height: 36px
+- Frosted glass (`glass-light rounded-2xl`)
+- Left: Sparkles icon (16px) + simulation summary text (13px white)
+- Right: X icon to clear all simulations
+- Multiple simulations: "Simulating: 2 expenses" with dropdown on tap showing each
+
+---
+
+### 2. Interactive Daily Allowance Card (MODIFIED)
+
+Transform existing static card into expandable simulator.
+
+**Default State (unchanged visually):**
+```text
 ┌─────────────────────────────────────────────┐
-│          Daily Allowance Card               │  (unchanged)
-│          €44 / day                          │
+│ €44 / day                                   │
+│ remaining for the next 7 days               │
 └─────────────────────────────────────────────┘
+```
 
+**Expanded State (on tap):**
+```text
 ┌─────────────────────────────────────────────┐
-│  ◀ Mon  Tue  Wed  Thu  Fri [Sat] Sun  Mon ▶ │  NEW: Calendar Strip
-│     3    4    5    6    7   [8]   9   10    │
-│     ●    ·    ●    ·    ○    ●·   ○    ○    │
-│                             €16             │
+│ €44 / day                                   │
 ├─────────────────────────────────────────────┤
-│  Spent €16.30                               │  NEW: Expanded Detail
-│  🍽 Uber Eats                      -€12.50  │
-│  ☕ Coffee Shop                     -€3.80  │
+│ € [___How much would you spend?___]         │
+│                                             │
+│ [€20] [€50] [€100] [€200]                   │
+│                                             │
+│ ✓ You can afford this                       │
+│ Daily budget stays at €42/day for 7 days    │
+│                                             │
+│                              Cancel         │
 └─────────────────────────────────────────────┘
+```
 
-┌─────────────────────────────────────────────┐
-│ 🕐 Next 7 days                     €485 due │  NEW: Summary Bar
-└─────────────────────────────────────────────┘
+**State Management:**
+- `isAllowanceExpanded: boolean`
+- `quickSpendAmount: string` (input value)
 
-┌─────────────────────────────────────────────┐
-│            Spending Sparkline               │  NEW: Trend Chart
-│         ╱╲    ╱╲                            │
-│     ╱╲╱    ╲╱    ╲╱●                        │
-│  Past 2 weeks               avg €24/day     │
-└─────────────────────────────────────────────┘
+**Result Logic:**
+| Scenario | Icon | Message | Details |
+|----------|------|---------|---------|
+| Fits in allowance | CheckCircle (green) | "You can afford this" | "Daily budget stays at €X/day for Y days" |
+| Tight but doable | AlertTriangle (amber) | "Tight but doable" | "Your daily budget drops from €44 to €X" + before/after comparison |
+| Over budget | AlertCircle (amber) | "This would put you over budget" | "You'd be €X over for the month" + "Consider: wait X days" |
 
+**Quick Amount Pills:**
+- €20, €50, €100, €200
+- Frosted glass pills (`glass-light rounded-full px-3 py-1.5`)
+- Tap fills input instantly
+
+**Input Styling:**
+- `bg-white/15` background
+- White text, 24px font size
+- "€" prefix label
+- Auto-focus on expand
+
+---
+
+### 3. Future Day "Add Hypothetical" (MODIFIED)
+
+Enhance the expanded day detail for future days.
+
+**Current (future day with no bills):**
+```text
+│ No bills scheduled                          │
+```
+
+**New (future day):**
+```text
+│ No bills scheduled                          │
+│                                             │
+│ + What if I spend...                        │
+```
+
+**When "Add hypothetical" is tapped:**
+```text
+│ € [____] [What for?__________]              │
+│                                             │
+│ [€20] [€50] [€100] [€200]                   │
+│                                             │
+│        [Simulate]                           │
+```
+
+**On "Simulate" tap:**
+- Create simulation entry in SimulationContext
+- Show simulation banner
+- Calendar strip updates with simulated dot
+
+---
+
+### 4. "Skip Bill" Simulation (MODIFIED)
+
+For future days with upcoming bills, add skip option.
+
+**Current bill row:**
+```text
+│ 🏠 Rent                              €450   │
+│    due                                      │
+```
+
+**New bill row:**
+```text
+│ 🏠 Rent                              €450   │
+│    due                                      │
+│ ✂️ What if I skip this?                     │
+```
+
+**On tap:**
+- Add `cancel-bill` simulation
+- Bill's hollow dot becomes green check
+- Green "+€450" tag below day cell
+- Daily allowance increases
+- Banner shows "Simulating: skip Rent (-€450)"
+
+---
+
+### 5. Week-Ahead Forecast Bar (NEW)
+
+Slim visualization between calendar strip and sparkline.
+
+```text
 ┌─────────────────────────────────────────────┐
-│ 🐷                                          │  (unchanged)
-│ Johnny's Tip: You're spending less...       │
+│ [█▓░] [█░░] [███] [██░] [█░░] [█▓░] [██░]  │
+│   S      M     T     W     T     F     S    │
 └─────────────────────────────────────────────┘
+```
+
+**Specifications:**
+- Height: ~48px (32px bar + 16px labels)
+- Frosted glass card (`glass rounded-2xl`)
+- 7 equal-width segments for next 7 days (including today)
+
+**Segment Layers (bottom to top):**
+1. **Known bills** (amber fill): Height proportional to bill/allowance ratio
+2. **Average spending** (purple/30 fill): Based on 14-day average daily spend
+3. **Buffer** (transparent): Remaining space
+
+**During Simulation:**
+- Hypothetical expenses add dashed purple outline section
+- Buffer space shrinks on affected and surrounding days
+- Overflow (expenses > available) turns segment amber with "!" indicator
+
+**Day Labels:**
+- Single letter: "S", "M", "T", "W", "T", "F", "S"
+- 9px `text-white/30`
+
+---
+
+### 6. Calendar Strip Simulation Visuals (MODIFIED)
+
+When simulating, the calendar strip reacts:
+
+**Simulated Spending Dot:**
+- Larger dot size (includes hypothetical amount)
+- Pulsing dashed outline animation
+- CSS: `border: 2px dashed rgba(255,255,255,0.4); animation: pulse 2s infinite`
+
+**Day with Cancelled Bill:**
+- Hollow dot changes to green filled dot
+- Green "+€X" tag below cell
+
+**Insufficient Funds Warning:**
+- Days where bills exceed remaining allowance get amber border
+- Only during active simulation
+
+---
+
+### 7. Sparkline Simulation Extension (MODIFIED)
+
+During simulation, extend the sparkline:
+
+- Add dashed line extension for future 7 days
+- Height based on simulated daily allowance
+- Simulated spending spikes shown as dashed peaks
+
+---
+
+## Visual Indicators for Simulated State
+
+All simulated elements use consistent visual language:
+
+| Element | Style |
+|---------|-------|
+| Simulated amounts | Dashed pulsing outline |
+| Simulated dots | 2px dashed white/40, animation: pulse 2s |
+| Positive simulation | Green/60 text |
+| Negative simulation | Amber/60 text |
+| Simulated numbers | Sparkles icon adjacent |
+
+**CSS Animation:**
+```css
+@keyframes simulation-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.simulation-indicator {
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  animation: simulation-pulse 2s ease-in-out infinite;
+}
 ```
 
 ---
 
-## Implementation Steps
+## State Management
 
-1. Create mock data generator for 21 days
-2. Build calendar strip with horizontal scroll
-3. Implement day cell component with dot indicators
-4. Add expanded detail section with AnimatePresence
-5. Create upcoming summary bar
-6. Integrate Recharts sparkline
-7. Wire up tap interactions and scroll behavior
-8. Test scroll-to-today on drawer open
+### New State in TodayDrawer
+
+```typescript
+// Quick spend simulator (Daily Allowance card)
+const [isAllowanceExpanded, setIsAllowanceExpanded] = useState(false);
+const [quickSpendAmount, setQuickSpendAmount] = useState('');
+
+// Hypothetical expense form (future days)
+const [hypotheticalForm, setHypotheticalForm] = useState<{
+  dayIndex: number;
+  amount: string;
+  description: string;
+} | null>(null);
+```
+
+### SimulationContext State
+
+```typescript
+const [activeSimulations, setActiveSimulations] = useState<Simulation[]>([]);
+
+const addSimulation = (sim: Omit<Simulation, 'id'>) => {
+  setActiveSimulations(prev => [...prev, { ...sim, id: crypto.randomUUID() }]);
+};
+
+const removeSimulation = (id: string) => {
+  setActiveSimulations(prev => prev.filter(s => s.id !== id));
+};
+
+const clearAllSimulations = () => {
+  setActiveSimulations([]);
+};
+```
+
+### Computed Values
+
+```typescript
+const simulatedFlexRemaining = useMemo(() => {
+  const spendSims = activeSimulations.filter(s => s.type === 'spend');
+  const cancelSims = activeSimulations.filter(s => s.type === 'cancel-bill');
+  
+  const totalSpend = spendSims.reduce((sum, s) => sum + s.amount, 0);
+  const totalCancelled = cancelSims.reduce((sum, s) => sum + s.amount, 0);
+  
+  return flexRemaining - totalSpend + totalCancelled;
+}, [activeSimulations, flexRemaining]);
+
+const simulatedDailyAllowance = useMemo(() => {
+  return Math.max(0, simulatedFlexRemaining / daysRemaining);
+}, [simulatedFlexRemaining, daysRemaining]);
+```
+
+---
+
+## Implementation Sequence
+
+1. **Create SimulationContext** - State, actions, computed values
+2. **Add simulation CSS** - Pulsing dashed outline animation
+3. **Modify Daily Allowance card** - Add expand/collapse, input, quick pills, result display
+4. **Add Simulation Banner** - Shows when simulating, X to clear
+5. **Modify future day detail** - Add "What if I spend..." option
+6. **Add hypothetical form** - Amount, description, simulate button
+7. **Add "Skip bill" option** - For upcoming bills in expanded view
+8. **Create Week-Ahead Forecast Bar** - Segmented visualization
+9. **Update calendar strip dots** - Simulation visual indicators
+10. **Update sparkline** - Dashed projection extension
+11. **Wire up all interactions** - Test complete flow
+
+---
+
+## Integration Points
+
+### With BudgetContext
+- Read: `flexRemaining`, `dailyAllowance`, `daysRemaining` for base calculations
+- Read: Mock data values for prototype (since TodayDrawer uses static data)
+
+### With TodayDrawer
+- Wrap content in SimulationProvider
+- Pass simulation state to calendar cells, sparkline, forecast bar
+- Handle expand/collapse of Daily Allowance card
+- Handle hypothetical form in future day details
+
+---
+
+## Technical Notes
+
+- All simulations are ephemeral React state, never persisted
+- Clearing simulations instantly reverts all visuals to real data
+- Multiple simulations can stack (budget calculations compound)
+- Future day simulations require date math for "days until" calculations
+- Forecast bar segments use SVG for precise height control
+- Input auto-focus uses `useRef` + `useEffect` on expand
 
