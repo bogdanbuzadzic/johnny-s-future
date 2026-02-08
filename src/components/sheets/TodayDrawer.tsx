@@ -1,77 +1,161 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { Home, Smartphone, Music, UtensilsCrossed, Coffee, Bus, Wallet, CheckCircle, ArrowRight, LucideIcon } from 'lucide-react';
+import { Home, Smartphone, Music, UtensilsCrossed, Coffee, Bus, Wallet, CheckCircle, Clock, ShoppingCart, LucideIcon } from 'lucide-react';
+import { AreaChart, Area, ResponsiveContainer, ReferenceDot } from 'recharts';
 import johnnyImage from '@/assets/johnny.png';
 
-// Transaction with date grouping
-interface TimelineTransaction {
+// Day data interfaces
+interface DayTransaction {
   icon: LucideIcon;
   name: string;
   amount: number;
-  dateGroup: string;
 }
 
-// Upcoming bill
-interface UpcomingBill {
+interface DayBill {
   icon: LucideIcon;
   name: string;
   amount: number;
-  daysUntil: number;
-  isUrgent: boolean;
 }
 
-// Group transactions by date
-const transactionsByDate: { dateGroup: string; transactions: TimelineTransaction[] }[] = [
-  {
-    dateGroup: 'Today',
-    transactions: [
-      { icon: UtensilsCrossed, name: 'Uber Eats', amount: -12.50, dateGroup: 'Today' },
-      { icon: Coffee, name: 'Coffee Shop', amount: -3.80, dateGroup: 'Today' },
-    ],
-  },
-  {
-    dateGroup: 'Yesterday',
-    transactions: [
-      { icon: Bus, name: 'Bus Pass', amount: -35.00, dateGroup: 'Yesterday' },
-    ],
-  },
-  {
-    dateGroup: 'Feb 1',
-    transactions: [
-      { icon: Wallet, name: 'Salary', amount: 2400.00, dateGroup: 'Feb 1' },
-      { icon: Home, name: 'Rent', amount: -450.00, dateGroup: 'Feb 1' },
-    ],
-  },
-];
+interface DayData {
+  date: Date;
+  dayName: string;
+  dayNumber: number;
+  isToday: boolean;
+  isPast: boolean;
+  isFuture: boolean;
+  transactions: DayTransaction[];
+  upcomingBills: DayBill[];
+  totalSpent: number;
+  totalIncome: number;
+  totalBillsDue: number;
+}
 
-const upcomingBills: UpcomingBill[] = [
-  { icon: Home, name: 'Rent', amount: 450, daysUntil: 20, isUrgent: false },
-  { icon: Smartphone, name: 'Phone Plan', amount: 25, daysUntil: 21, isUrgent: false },
-  { icon: Music, name: 'Spotify', amount: 10, daysUntil: 23, isUrgent: false },
-];
+interface SparklinePoint {
+  day: number;
+  amount: number;
+  isToday: boolean;
+}
+
+// Generate mock data for 21 days
+const generateDaysData = (): DayData[] => {
+  const today = new Date();
+  const days: DayData[] = [];
+  
+  // Generate 14 past days + today + 6 future days
+  for (let i = -14; i <= 6; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const isToday = i === 0;
+    const isPast = i < 0;
+    const isFuture = i > 0;
+    
+    let transactions: DayTransaction[] = [];
+    let upcomingBills: DayBill[] = [];
+    let totalSpent = 0;
+    let totalIncome = 0;
+    let totalBillsDue = 0;
+    
+    // Mock data based on relative day
+    if (isToday) {
+      transactions = [
+        { icon: UtensilsCrossed, name: 'Uber Eats', amount: -12.50 },
+        { icon: Coffee, name: 'Coffee Shop', amount: -3.80 },
+      ];
+      totalSpent = 16.30;
+    } else if (i === -1) {
+      // Yesterday - no activity
+    } else if (i === -2) {
+      transactions = [
+        { icon: Bus, name: 'Bus Pass', amount: -35.00 },
+      ];
+      totalSpent = 35.00;
+    } else if (i === -3) {
+      transactions = [
+        { icon: ShoppingCart, name: 'Groceries', amount: -28.50 },
+      ];
+      totalSpent = 28.50;
+    } else if (i === -4) {
+      transactions = [
+        { icon: Coffee, name: 'Coffee', amount: -4.50 },
+        { icon: UtensilsCrossed, name: 'Snacks', amount: -4.40 },
+      ];
+      totalSpent = 8.90;
+    } else if (i === -7) {
+      // Feb 1 equivalent
+      transactions = [
+        { icon: Wallet, name: 'Salary', amount: 2400.00 },
+        { icon: Home, name: 'Rent', amount: -450.00 },
+      ];
+      totalSpent = 450.00;
+      totalIncome = 2400.00;
+    } else if (isPast && i < -7) {
+      // Random past spending
+      const randomSpend = Math.random() * 45 + 5;
+      if (Math.random() > 0.3) {
+        transactions = [
+          { icon: Coffee, name: 'Various', amount: -randomSpend },
+        ];
+        totalSpent = randomSpend;
+      }
+    }
+    
+    // Future days with bills
+    if (i === 20) {
+      upcomingBills = [{ icon: Home, name: 'Rent', amount: 450 }];
+      totalBillsDue = 450;
+    } else if (i === 21) {
+      upcomingBills = [{ icon: Smartphone, name: 'Phone', amount: 25 }];
+      totalBillsDue = 25;
+    } else if (i === 23) {
+      upcomingBills = [{ icon: Music, name: 'Spotify', amount: 10 }];
+      totalBillsDue = 10;
+    }
+    
+    days.push({
+      date,
+      dayName: dayNames[date.getDay()],
+      dayNumber: date.getDate(),
+      isToday,
+      isPast,
+      isFuture,
+      transactions,
+      upcomingBills,
+      totalSpent,
+      totalIncome,
+      totalBillsDue,
+    });
+  }
+  
+  return days;
+};
+
+// Generate sparkline data (past 14 days)
+const generateSparklineData = (days: DayData[]): SparklinePoint[] => {
+  return days
+    .filter(d => d.isPast || d.isToday)
+    .slice(-14)
+    .map((day, index) => ({
+      day: index,
+      amount: day.totalSpent || 0,
+      isToday: day.isToday,
+    }));
+};
+
+// Calculate dot size based on spending
+const getDotSize = (amount: number): number => {
+  const maxSpend = 50;
+  const normalized = Math.min(Math.abs(amount) / maxSpend, 1);
+  return 4 + (normalized * 6);
+};
 
 const johnnyTips = [
   "You're spending less on food this week. Keep it up!",
   "Emergency fund is 40% there. Closer than you think!",
   "At this pace, vacation goal done by December.",
 ];
-
-// Helper to get daily total
-const getDayTotal = (transactions: TimelineTransaction[]): number => {
-  return transactions.reduce((sum, tx) => sum + tx.amount, 0);
-};
-
-// Helper to format daily total
-const formatDayTotal = (total: number): { text: string; isPositive: boolean } => {
-  const absTotal = Math.abs(total);
-  if (total >= 0) {
-    return { text: `€${absTotal.toLocaleString()} received`, isPositive: true };
-  }
-  return { text: `€${absTotal.toFixed(2)} spent`, isPositive: false };
-};
-
-// Total upcoming
-const totalUpcoming = upcomingBills.reduce((sum, bill) => sum + bill.amount, 0);
 
 interface TodayDrawerProps {
   open: boolean;
@@ -80,6 +164,20 @@ interface TodayDrawerProps {
 
 export function TodayDrawer({ open, onClose }: TodayDrawerProps) {
   const [currentTip, setCurrentTip] = useState(0);
+  const [days] = useState<DayData[]>(() => generateDaysData());
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(() => {
+    return days.findIndex(d => d.isToday);
+  });
+  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const sparklineData = generateSparklineData(days);
+  const avgSpending = Math.round(sparklineData.reduce((sum, p) => sum + p.amount, 0) / sparklineData.length);
+  
+  // Calculate next 7 days due
+  const todayIndex = days.findIndex(d => d.isToday);
+  const next7DaysDue = days
+    .slice(todayIndex, todayIndex + 8)
+    .reduce((sum, d) => sum + d.totalBillsDue, 0);
 
   // Cycle through tips
   useEffect(() => {
@@ -92,11 +190,35 @@ export function TodayDrawer({ open, onClose }: TodayDrawerProps) {
     return () => clearInterval(interval);
   }, [open]);
 
+  // Scroll to today when drawer opens
+  useEffect(() => {
+    if (open && scrollRef.current) {
+      const todayIdx = days.findIndex(d => d.isToday);
+      const scrollPosition = (todayIdx * 44) - (scrollRef.current.offsetWidth / 2) + 22;
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ left: scrollPosition, behavior: 'smooth' });
+      }, 100);
+    }
+  }, [open, days]);
+
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.y < -50) {
       onClose();
     }
   };
+
+  const handleDayTap = (index: number) => {
+    setSelectedDayIndex(index);
+  };
+
+  const scrollToNext7Days = () => {
+    if (scrollRef.current) {
+      const scrollPosition = ((todayIndex + 4) * 44) - (scrollRef.current.offsetWidth / 2) + 22;
+      scrollRef.current.scrollTo({ left: scrollPosition, behavior: 'smooth' });
+    }
+  };
+
+  const selectedDay = days[selectedDayIndex];
 
   return (
     <AnimatePresence>
@@ -158,104 +280,214 @@ export function TodayDrawer({ open, onClose }: TodayDrawerProps) {
                 <p className="text-white/60 text-sm mt-1">remaining for the next 7 days</p>
               </div>
 
-              {/* Unified Timeline Card */}
-              <div className="glass rounded-3xl overflow-hidden mb-4">
-                {/* Past Transactions by Date Group */}
-                {transactionsByDate.map((group, groupIndex) => {
-                  const dayTotal = getDayTotal(group.transactions);
-                  const { text: totalText, isPositive } = formatDayTotal(dayTotal);
-                  
-                  return (
-                    <div key={group.dateGroup}>
-                      {/* Date Group Header */}
-                      <div className="flex items-center justify-between px-4 py-3 bg-white/[0.03]">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                          <span className="text-xs text-white/50">{group.dateGroup}</span>
-                        </div>
-                        <span className={`text-xs ${isPositive ? 'text-jfb-green' : 'text-white/70'}`}>
-                          {totalText}
-                        </span>
-                      </div>
-                      
-                      {/* Transactions */}
-                      <div className="px-4">
-                        {group.transactions.map((tx, txIndex) => {
-                          const Icon = tx.icon;
-                          const isIncome = tx.amount > 0;
-                          
-                          return (
-                            <div key={`${group.dateGroup}-${txIndex}`}>
-                              <div className="flex items-center gap-3 py-3">
-                                <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
-                                  <Icon size={18} strokeWidth={1.5} className={isIncome ? 'text-jfb-green' : 'text-white'} />
-                                </div>
-                                <span className="flex-1 text-sm text-white">{tx.name}</span>
-                                <span className={`text-sm font-medium ${isIncome ? 'text-jfb-green' : 'text-white'}`}>
-                                  {isIncome ? '+' : '-'}€{Math.abs(tx.amount).toFixed(2)}
-                                </span>
-                              </div>
-                              {txIndex < group.transactions.length - 1 && (
-                                <div className="h-px bg-white/[0.08]" />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Upcoming Separator */}
-                <div className="relative py-4 px-4">
-                  <div className="absolute inset-x-4 top-1/2 h-px bg-white/20" />
-                  <div className="relative flex justify-center">
-                    <span className="bg-white/10 backdrop-blur-sm px-3 py-1 rounded-full text-[11px] text-white/40 uppercase tracking-wider">
-                      Upcoming
-                    </span>
-                  </div>
-                </div>
-
-                {/* Upcoming Bills */}
-                <div className="px-4">
-                  {upcomingBills.map((bill, index) => {
-                    const Icon = bill.icon;
+              {/* Mini Calendar Strip Card */}
+              <div className="glass rounded-3xl overflow-hidden mb-3">
+                {/* Calendar Strip */}
+                <div 
+                  ref={scrollRef}
+                  className="flex overflow-x-auto scrollbar-hide py-3 px-2"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {days.map((day, index) => {
+                    const isSelected = index === selectedDayIndex;
+                    const hasSpending = day.totalSpent > 0;
+                    const hasIncome = day.totalIncome > 0;
+                    const hasBill = day.totalBillsDue > 0;
+                    const dotSize = hasSpending ? getDotSize(day.totalSpent) : 0;
                     
                     return (
-                      <div key={index}>
-                        <div className="flex items-center gap-3 py-3">
-                          <div className={`w-9 h-9 rounded-full border border-dashed flex items-center justify-center ${
-                            bill.isUrgent ? 'border-amber-500' : 'border-white/15'
-                          }`}>
-                            <Icon size={18} strokeWidth={1.5} className="text-white/70" />
-                          </div>
-                          <div className="flex-1">
-                            <span className="text-sm text-white block">{bill.name}</span>
-                            <span className={`text-xs ${bill.isUrgent ? 'text-amber-500' : 'text-white/40'}`}>
-                              in {bill.daysUntil} days
-                            </span>
-                          </div>
-                          <span className="text-sm text-white/60">€{bill.amount}</span>
+                      <motion.button
+                        key={index}
+                        className={`flex-shrink-0 w-11 h-16 flex flex-col items-center justify-center rounded-xl mx-0.5 ${
+                          day.isToday 
+                            ? 'bg-white/15 border border-white/20' 
+                            : isSelected 
+                              ? 'bg-white/10' 
+                              : ''
+                        }`}
+                        onClick={() => handleDayTap(index)}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        {/* Day name */}
+                        <span className={`text-[10px] ${day.isPast ? 'text-white/30' : 'text-white/40'}`}>
+                          {day.dayName}
+                        </span>
+                        
+                        {/* Day number */}
+                        <span className={`text-base font-bold ${
+                          day.isToday 
+                            ? 'text-white' 
+                            : day.isPast 
+                              ? 'text-white/30' 
+                              : 'text-white/50'
+                        }`}>
+                          {day.dayNumber}
+                        </span>
+                        
+                        {/* Activity indicator */}
+                        <div className="h-3 flex items-center justify-center">
+                          {hasIncome && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-jfb-green" />
+                          )}
+                          {hasSpending && !hasIncome && (
+                            <div 
+                              className="rounded-full gradient-primary"
+                              style={{ width: dotSize, height: dotSize }}
+                            />
+                          )}
+                          {hasBill && !hasSpending && !hasIncome && (
+                            <div className="w-1.5 h-1.5 rounded-full border border-white/30" />
+                          )}
                         </div>
-                        {index < upcomingBills.length - 1 && (
-                          <div className="h-px bg-white/[0.08]" />
+                        
+                        {/* Amount below dot for today or future bills */}
+                        {day.isToday && hasSpending && (
+                          <span className="text-[10px] text-white/50 -mt-0.5">
+                            €{Math.round(day.totalSpent)}
+                          </span>
                         )}
-                      </div>
+                        {day.isFuture && hasBill && (
+                          <span className="text-[10px] text-white/30 -mt-0.5">
+                            €{day.totalBillsDue}
+                          </span>
+                        )}
+                      </motion.button>
                     );
                   })}
                 </div>
 
-                {/* Total Upcoming Row */}
-                <div className="px-4 py-3 border-t border-white/10">
-                  <p className="text-xs text-white/50 text-right">€{totalUpcoming} due this month</p>
-                </div>
+                {/* Expanded Day Detail */}
+                <AnimatePresence mode="wait">
+                  {selectedDay && (
+                    <motion.div
+                      key={selectedDayIndex}
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                      className="overflow-hidden border-t border-white/10"
+                    >
+                      <div className="px-4 py-3">
+                        {/* For past/today - show transactions */}
+                        {(selectedDay.isPast || selectedDay.isToday) && selectedDay.transactions.length > 0 && (
+                          <>
+                            <p className="text-xs text-white/50 mb-2">
+                              Spent €{selectedDay.totalSpent.toFixed(2)}
+                              {selectedDay.totalIncome > 0 && (
+                                <span className="text-jfb-green"> · +€{selectedDay.totalIncome.toLocaleString()} received</span>
+                              )}
+                            </p>
+                            <div className="space-y-2">
+                              {selectedDay.transactions.slice(0, 4).map((tx, i) => {
+                                const Icon = tx.icon;
+                                const isIncome = tx.amount > 0;
+                                return (
+                                  <div key={i} className="flex items-center gap-2">
+                                    <Icon 
+                                      size={16} 
+                                      strokeWidth={1.5} 
+                                      className={isIncome ? 'text-jfb-green' : 'text-white/60'} 
+                                    />
+                                    <span className="flex-1 text-[13px] text-white">{tx.name}</span>
+                                    <span className={`text-[13px] ${isIncome ? 'text-jfb-green' : 'text-white'}`}>
+                                      {isIncome ? '+' : '-'}€{Math.abs(tx.amount).toFixed(2)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              {selectedDay.transactions.length > 4 && (
+                                <p className="text-xs text-white/40">
+                                  and {selectedDay.transactions.length - 4} more
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
+
+                        {/* For future - show upcoming bills */}
+                        {selectedDay.isFuture && selectedDay.upcomingBills.length > 0 && (
+                          <>
+                            <p className="text-xs text-white/50 mb-2">
+                              €{selectedDay.totalBillsDue} due
+                            </p>
+                            <div className="space-y-2">
+                              {selectedDay.upcomingBills.map((bill, i) => {
+                                const Icon = bill.icon;
+                                return (
+                                  <div key={i} className="flex items-center gap-2">
+                                    <Icon size={16} strokeWidth={1.5} className="text-white/40" />
+                                    <div className="flex-1">
+                                      <span className="text-[13px] text-white/60 block">{bill.name}</span>
+                                      <span className="text-[10px] text-white/30">due</span>
+                                    </div>
+                                    <span className="text-[13px] text-white/40">€{bill.amount}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+
+                        {/* No activity */}
+                        {((selectedDay.isPast || selectedDay.isToday) && selectedDay.transactions.length === 0) && (
+                          <p className="text-xs text-white/30 text-center py-2">No activity</p>
+                        )}
+                        {(selectedDay.isFuture && selectedDay.upcomingBills.length === 0) && (
+                          <p className="text-xs text-white/30 text-center py-2">No bills scheduled</p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
-              {/* See All Link */}
-              <button className="w-full flex items-center justify-center gap-1.5 py-2 mb-4">
-                <span className="text-[13px] text-jfb-purple/80">View all transactions</span>
-                <ArrowRight size={14} strokeWidth={1.5} className="text-jfb-purple/80" />
-              </button>
+              {/* Upcoming Summary Bar */}
+              <motion.button
+                className="glass-light rounded-2xl px-4 py-3 mb-3 w-full flex items-center justify-between"
+                onClick={scrollToNext7Days}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className="flex items-center gap-2">
+                  <Clock size={16} strokeWidth={1.5} className="text-white/60" />
+                  <span className="text-[13px] text-white/60">Next 7 days</span>
+                </div>
+                <span className="text-[13px] text-white font-medium">€{next7DaysDue} due</span>
+              </motion.button>
+
+              {/* Spending Sparkline Card */}
+              <div className="glass rounded-2xl p-3 mb-4">
+                <div className="h-12">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={sparklineData} margin={{ top: 5, right: 5, bottom: 0, left: 5 }}>
+                      <defs>
+                        <linearGradient id="sparklineGradient" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="hsl(262, 80%, 66%)" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="hsl(342, 100%, 71%)" stopOpacity={0.3} />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="amount"
+                        stroke="rgba(255,255,255,0.4)"
+                        strokeWidth={1.5}
+                        fill="url(#sparklineGradient)"
+                        dot={false}
+                      />
+                      <ReferenceDot
+                        x={sparklineData.length - 1}
+                        y={sparklineData[sparklineData.length - 1]?.amount || 0}
+                        r={4}
+                        fill="white"
+                        stroke="none"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span className="text-[10px] text-white/30">Past 2 weeks</span>
+                  <span className="text-[10px] text-white/30">avg €{avgSpending}/day</span>
+                </div>
+              </div>
 
               {/* Johnny's Tip */}
               <div className="glass rounded-3xl p-4 flex items-center gap-3">
