@@ -1,21 +1,53 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { Home, Smartphone, Music, UtensilsCrossed, Coffee, Bus, Wallet, CheckCircle } from 'lucide-react';
-import { useApp } from '@/context/AppContext';
+import { Home, Smartphone, Music, UtensilsCrossed, Coffee, Bus, Wallet, CheckCircle, ArrowRight, LucideIcon } from 'lucide-react';
 import johnnyImage from '@/assets/johnny.png';
 
-const upcomingBills = [
-  { icon: Home, name: 'Rent', amount: 450, date: 'Feb 28' },
-  { icon: Smartphone, name: 'Phone Plan', amount: 25, date: 'Mar 1' },
-  { icon: Music, name: 'Spotify', amount: 10, date: 'Mar 3' },
+// Transaction with date grouping
+interface TimelineTransaction {
+  icon: LucideIcon;
+  name: string;
+  amount: number;
+  dateGroup: string;
+}
+
+// Upcoming bill
+interface UpcomingBill {
+  icon: LucideIcon;
+  name: string;
+  amount: number;
+  daysUntil: number;
+  isUrgent: boolean;
+}
+
+// Group transactions by date
+const transactionsByDate: { dateGroup: string; transactions: TimelineTransaction[] }[] = [
+  {
+    dateGroup: 'Today',
+    transactions: [
+      { icon: UtensilsCrossed, name: 'Uber Eats', amount: -12.50, dateGroup: 'Today' },
+      { icon: Coffee, name: 'Coffee Shop', amount: -3.80, dateGroup: 'Today' },
+    ],
+  },
+  {
+    dateGroup: 'Yesterday',
+    transactions: [
+      { icon: Bus, name: 'Bus Pass', amount: -35.00, dateGroup: 'Yesterday' },
+    ],
+  },
+  {
+    dateGroup: 'Feb 1',
+    transactions: [
+      { icon: Wallet, name: 'Salary', amount: 2400.00, dateGroup: 'Feb 1' },
+      { icon: Home, name: 'Rent', amount: -450.00, dateGroup: 'Feb 1' },
+    ],
+  },
 ];
 
-const recentTransactions = [
-  { icon: UtensilsCrossed, name: 'Uber Eats', date: 'Today', amount: -12.50 },
-  { icon: Coffee, name: 'Coffee Shop', date: 'Today', amount: -3.80 },
-  { icon: Bus, name: 'Bus Pass', date: 'Yesterday', amount: -35.00 },
-  { icon: Wallet, name: 'Salary', date: 'Feb 1', amount: 2400.00 },
-  { icon: Home, name: 'Rent', date: 'Feb 1', amount: -450.00 },
+const upcomingBills: UpcomingBill[] = [
+  { icon: Home, name: 'Rent', amount: 450, daysUntil: 20, isUrgent: false },
+  { icon: Smartphone, name: 'Phone Plan', amount: 25, daysUntil: 21, isUrgent: false },
+  { icon: Music, name: 'Spotify', amount: 10, daysUntil: 23, isUrgent: false },
 ];
 
 const johnnyTips = [
@@ -23,6 +55,23 @@ const johnnyTips = [
   "Emergency fund is 40% there. Closer than you think!",
   "At this pace, vacation goal done by December.",
 ];
+
+// Helper to get daily total
+const getDayTotal = (transactions: TimelineTransaction[]): number => {
+  return transactions.reduce((sum, tx) => sum + tx.amount, 0);
+};
+
+// Helper to format daily total
+const formatDayTotal = (total: number): { text: string; isPositive: boolean } => {
+  const absTotal = Math.abs(total);
+  if (total >= 0) {
+    return { text: `€${absTotal.toLocaleString()} received`, isPositive: true };
+  }
+  return { text: `€${absTotal.toFixed(2)} spent`, isPositive: false };
+};
+
+// Total upcoming
+const totalUpcoming = upcomingBills.reduce((sum, bill) => sum + bill.amount, 0);
 
 interface TodayDrawerProps {
   open: boolean;
@@ -64,7 +113,7 @@ export function TodayDrawer({ open, onClose }: TodayDrawerProps) {
           
           {/* Drawer from top */}
           <motion.div
-            className="fixed top-0 left-0 right-0 z-50 glass-dark rounded-b-3xl max-h-[80vh] overflow-auto"
+            className="fixed top-0 left-0 right-0 z-50 glass-dark rounded-b-3xl max-h-[85vh] overflow-auto"
             initial={{ y: '-100%' }}
             animate={{ y: 0 }}
             exit={{ y: '-100%' }}
@@ -109,50 +158,104 @@ export function TodayDrawer({ open, onClose }: TodayDrawerProps) {
                 <p className="text-white/60 text-sm mt-1">remaining for the next 7 days</p>
               </div>
 
-              {/* Coming Up */}
-              <div className="mb-4">
-                <h3 className="text-white/60 text-sm font-medium mb-3">Coming Up</h3>
-                <div className="space-y-2">
+              {/* Unified Timeline Card */}
+              <div className="glass rounded-3xl overflow-hidden mb-4">
+                {/* Past Transactions by Date Group */}
+                {transactionsByDate.map((group, groupIndex) => {
+                  const dayTotal = getDayTotal(group.transactions);
+                  const { text: totalText, isPositive } = formatDayTotal(dayTotal);
+                  
+                  return (
+                    <div key={group.dateGroup}>
+                      {/* Date Group Header */}
+                      <div className="flex items-center justify-between px-4 py-3 bg-white/[0.03]">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          <span className="text-xs text-white/50">{group.dateGroup}</span>
+                        </div>
+                        <span className={`text-xs ${isPositive ? 'text-jfb-green' : 'text-white/70'}`}>
+                          {totalText}
+                        </span>
+                      </div>
+                      
+                      {/* Transactions */}
+                      <div className="px-4">
+                        {group.transactions.map((tx, txIndex) => {
+                          const Icon = tx.icon;
+                          const isIncome = tx.amount > 0;
+                          
+                          return (
+                            <div key={`${group.dateGroup}-${txIndex}`}>
+                              <div className="flex items-center gap-3 py-3">
+                                <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+                                  <Icon size={18} strokeWidth={1.5} className={isIncome ? 'text-jfb-green' : 'text-white'} />
+                                </div>
+                                <span className="flex-1 text-sm text-white">{tx.name}</span>
+                                <span className={`text-sm font-medium ${isIncome ? 'text-jfb-green' : 'text-white'}`}>
+                                  {isIncome ? '+' : '-'}€{Math.abs(tx.amount).toFixed(2)}
+                                </span>
+                              </div>
+                              {txIndex < group.transactions.length - 1 && (
+                                <div className="h-px bg-white/[0.08]" />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Upcoming Separator */}
+                <div className="relative py-4 px-4">
+                  <div className="absolute inset-x-4 top-1/2 h-px bg-white/20" />
+                  <div className="relative flex justify-center">
+                    <span className="bg-white/10 backdrop-blur-sm px-3 py-1 rounded-full text-[11px] text-white/40 uppercase tracking-wider">
+                      Upcoming
+                    </span>
+                  </div>
+                </div>
+
+                {/* Upcoming Bills */}
+                <div className="px-4">
                   {upcomingBills.map((bill, index) => {
                     const Icon = bill.icon;
+                    
                     return (
-                      <div key={index} className="glass rounded-2xl px-4 py-3 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl glass-light flex items-center justify-center">
-                          <Icon size={16} strokeWidth={1.5} className="text-white" />
+                      <div key={index}>
+                        <div className="flex items-center gap-3 py-3">
+                          <div className={`w-9 h-9 rounded-full border border-dashed flex items-center justify-center ${
+                            bill.isUrgent ? 'border-amber-500' : 'border-white/15'
+                          }`}>
+                            <Icon size={18} strokeWidth={1.5} className="text-white/70" />
+                          </div>
+                          <div className="flex-1">
+                            <span className="text-sm text-white block">{bill.name}</span>
+                            <span className={`text-xs ${bill.isUrgent ? 'text-amber-500' : 'text-white/40'}`}>
+                              in {bill.daysUntil} days
+                            </span>
+                          </div>
+                          <span className="text-sm text-white/60">€{bill.amount}</span>
                         </div>
-                        <span className="flex-1 text-white text-sm">{bill.name}</span>
-                        <span className="text-white font-medium text-sm">€{bill.amount}</span>
-                        <span className="text-white/50 text-xs">{bill.date}</span>
+                        {index < upcomingBills.length - 1 && (
+                          <div className="h-px bg-white/[0.08]" />
+                        )}
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Total Upcoming Row */}
+                <div className="px-4 py-3 border-t border-white/10">
+                  <p className="text-xs text-white/50 text-right">€{totalUpcoming} due this month</p>
                 </div>
               </div>
 
-              {/* Recent Transactions */}
-              <div className="mb-4">
-                <h3 className="text-white/60 text-sm font-medium mb-3">Recent Transactions</h3>
-                <div className="space-y-2">
-                  {recentTransactions.map((tx, index) => {
-                    const Icon = tx.icon;
-                    const isPositive = tx.amount > 0;
-                    return (
-                      <div key={index} className="glass rounded-2xl px-4 py-3 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl glass-light flex items-center justify-center">
-                          <Icon size={16} strokeWidth={1.5} className="text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <span className="text-white text-sm block">{tx.name}</span>
-                          <span className="text-white/50 text-xs">{tx.date}</span>
-                        </div>
-                        <span className={`font-medium text-sm ${isPositive ? 'text-jfb-green' : 'text-white'}`}>
-                          {isPositive ? '+' : ''}€{Math.abs(tx.amount).toFixed(2)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* See All Link */}
+              <button className="w-full flex items-center justify-center gap-1.5 py-2 mb-4">
+                <span className="text-[13px] text-jfb-purple/80">View all transactions</span>
+                <ArrowRight size={14} strokeWidth={1.5} className="text-jfb-purple/80" />
+              </button>
 
               {/* Johnny's Tip */}
               <div className="glass rounded-3xl p-4 flex items-center gap-3">
