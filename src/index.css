@@ -146,6 +146,22 @@
   .jfb-pill {
     @apply glass-light rounded-full px-4 py-2 flex items-center gap-2 text-primary-white;
   }
+
+  /* Simulation indicator - pulsing dashed outline */
+  .simulation-indicator {
+    border: 2px dashed rgba(255, 255, 255, 0.4);
+    animation: simulation-pulse 2s ease-in-out infinite;
+  }
+
+  .simulation-dot {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+    animation: simulation-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes simulation-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 @layer base {
