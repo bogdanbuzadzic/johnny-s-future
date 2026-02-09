@@ -47,7 +47,7 @@ const PADDING_BOTTOM = 10;
 // --- Fallback Data ---
 const today = new Date();
 const currentYear = today.getFullYear();
-const currentMonth = today.getMonth(); // 0-indexed
+const currentMonth = today.getMonth();
 
 const FALLBACK_BILLS: BillEvent[] = [
   { name: 'Electricity', amount: 60, icon: Zap, date: new Date(currentYear, currentMonth, 3) },
@@ -62,6 +62,40 @@ const FALLBACK_BILLS: BillEvent[] = [
 const FALLBACK_INCOME: IncomeEvent[] = [
   { name: 'Salary', amount: 2400, icon: Wallet, date: new Date(currentYear, currentMonth + 1, 1) },
 ];
+
+// --- FIX 1: Marker size helper ---
+function getMarkerSize(amount: number) {
+  if (amount < 50) return { w: 16, h: 16, icon: 10, font: 9 };
+  if (amount < 200) return { w: 22, h: 22, icon: 12, font: 9 };
+  return { w: 28, h: 28, icon: 14, font: 10 };
+}
+
+// --- FIX 1: Stagger offset computation ---
+interface MarkerInfo {
+  dayIndex: number;
+  type: 'expense' | 'income';
+  key: string;
+}
+
+function computeStaggerOffsets(markers: MarkerInfo[]): Map<string, number> {
+  const sorted = [...markers].sort((a, b) => a.dayIndex - b.dayIndex);
+  const offsets = new Map<string, number>();
+  
+  for (let i = 0; i < sorted.length; i++) {
+    let offset = 0;
+    // Check all previous markers for proximity
+    for (let j = 0; j < i; j++) {
+      const dist = Math.abs(sorted[i].dayIndex - sorted[j].dayIndex);
+      if (dist <= 2) {
+        const prevOffset = offsets.get(sorted[j].key) || 0;
+        offset = Math.max(offset, prevOffset + 32);
+      }
+    }
+    offsets.set(sorted[i].key, offset);
+  }
+  
+  return offsets;
+}
 
 // --- Helper: Build terrain data ---
 function buildTerrainData(
@@ -84,11 +118,9 @@ function buildTerrainData(
     const isToday = isSameDay(date, today);
     const isFuture = date > today;
 
-    // Find events on this day
     const dayBills = bills.filter(b => isSameDay(b.date, date));
     const dayIncome = incomeEvents.filter(inc => isSameDay(inc.date, date));
 
-    // Check for simulations on this day
     const daySims = simulations.filter(s => s.dayIndex === i);
     const simExpenses = daySims.filter(s => s.type === 'add-expense').reduce((s, x) => s + x.amount, 0);
     const simIncome = daySims.filter(s => s.type === 'add-income').reduce((s, x) => s + x.amount, 0);
@@ -102,7 +134,7 @@ function buildTerrainData(
     balance += incomeAmount;
     balance -= expenseAmount;
 
-    const dailySpend = isPast || isToday ? averageDailySpend : averageDailySpend;
+    const dailySpend = averageDailySpend;
     balance -= dailySpend;
 
     points.push({
@@ -123,7 +155,7 @@ function buildTerrainData(
   return points;
 }
 
-// --- Helper: Build SVG path ---
+// --- FIX 3: Build SVG path with U-valleys ---
 function buildTerrainPath(
   points: TerrainPoint[],
   maxBalance: number,
@@ -150,10 +182,23 @@ function buildTerrainPath(
     const hasTransaction = curr.expenses > 0 || curr.income > 0;
 
     if (hasTransaction) {
-      // Sharp transition: go horizontal to just before this day, then drop/rise
-      const midX = prevX + DAY_WIDTH * 0.3;
-      path += ` L ${midX} ${prevY}`;
-      path += ` L ${x} ${y}`;
+      if (curr.expenses > 0 && curr.income > 0) {
+        // Both on same day - smooth U: drop then rise
+        const midY = Math.max(y, prevY); // valley bottom
+        const cp1x = prevX + DAY_WIDTH * 0.3;
+        const cp2x = prevX + DAY_WIDTH * 0.7;
+        path += ` C ${cp1x} ${prevY} ${cp2x} ${y} ${x} ${y}`;
+      } else if (curr.expenses > 0) {
+        // Drop: ease-in curve (starts slow, accelerates)
+        const cp1x = prevX + DAY_WIDTH * 0.7;
+        const cp2x = x - DAY_WIDTH * 0.2;
+        path += ` C ${cp1x} ${prevY} ${cp2x} ${y} ${x} ${y}`;
+      } else {
+        // Rise: ease-out curve (fast start, gentle landing)
+        const cp1x = prevX + DAY_WIDTH * 0.2;
+        const cp2x = x - DAY_WIDTH * 0.7;
+        path += ` C ${cp1x} ${prevY} ${cp2x} ${y} ${x} ${y}`;
+      }
     } else {
       // Smooth bezier for gradual daily spend
       const cpx1 = prevX + DAY_WIDTH * 0.5;
@@ -162,7 +207,6 @@ function buildTerrainPath(
     }
   }
 
-  // Close path
   const lastX = (points.length - 1) * DAY_WIDTH;
   path += ` L ${lastX} ${height}`;
   path += ' Z';
@@ -195,9 +239,19 @@ function buildSurfacePath(
     const hasTransaction = curr.expenses > 0 || curr.income > 0;
 
     if (hasTransaction) {
-      const midX = prevX + DAY_WIDTH * 0.3;
-      path += ` L ${midX} ${prevY}`;
-      path += ` L ${x} ${y}`;
+      if (curr.expenses > 0 && curr.income > 0) {
+        const cp1x = prevX + DAY_WIDTH * 0.3;
+        const cp2x = prevX + DAY_WIDTH * 0.7;
+        path += ` C ${cp1x} ${prevY} ${cp2x} ${y} ${x} ${y}`;
+      } else if (curr.expenses > 0) {
+        const cp1x = prevX + DAY_WIDTH * 0.7;
+        const cp2x = x - DAY_WIDTH * 0.2;
+        path += ` C ${cp1x} ${prevY} ${cp2x} ${y} ${x} ${y}`;
+      } else {
+        const cp1x = prevX + DAY_WIDTH * 0.2;
+        const cp2x = x - DAY_WIDTH * 0.7;
+        path += ` C ${cp1x} ${prevY} ${cp2x} ${y} ${x} ${y}`;
+      }
     } else {
       const cpx1 = prevX + DAY_WIDTH * 0.5;
       const cpx2 = x - DAY_WIDTH * 0.5;
@@ -311,7 +365,6 @@ export function TerrainPath() {
     
     if (dayIdx <= todayIndex || dayIdx >= points.length) return;
 
-    // Check if tapping on an existing bill obstacle
     const point = points[dayIdx];
     if (point.bills.length > 0) {
       setActiveBubble({
@@ -324,7 +377,6 @@ export function TerrainPath() {
       return;
     }
 
-    // Check if tapping simulated marker
     const simAtDay = terrainSimulations.find(s => s.dayIndex === dayIdx);
     if (simAtDay) {
       removeTerrainSimulation(simAtDay.id);
@@ -405,6 +457,21 @@ export function TerrainPath() {
     return labels.slice(0, 3);
   }, [maxBalance, mapY]);
 
+  // FIX 1: Compute stagger offsets for all markers
+  const staggerOffsets = useMemo(() => {
+    const allMarkers: MarkerInfo[] = [];
+    points.forEach((p, i) => {
+      if (p.isPast) return;
+      p.bills.forEach((b, bi) => {
+        allMarkers.push({ dayIndex: i, type: 'expense', key: `exp-${i}-${bi}` });
+      });
+      p.incomeItems.forEach((inc, ii) => {
+        allMarkers.push({ dayIndex: i, type: 'income', key: `inc-${i}-${ii}` });
+      });
+    });
+    return computeStaggerOffsets(allMarkers);
+  }, [points]);
+
   // Impact text for active bubble
   const impactText = useMemo(() => {
     if (!activeBubble || activeBubble.type === 'existing-bill') return null;
@@ -418,11 +485,11 @@ export function TerrainPath() {
 
   return (
     <div className="relative">
-      {/* Playground border */}
+      {/* Playground border - FIX 5: white/15 for visibility */}
       {playgroundMode && (
         <div className="absolute inset-0 rounded-2xl pointer-events-none z-10"
           style={{
-            border: '2px dashed rgba(255,255,255,0.1)',
+            border: '2px dashed rgba(255,255,255,0.15)',
             animation: 'simulation-pulse 3s ease-in-out infinite',
           }}
         />
@@ -483,22 +550,29 @@ export function TerrainPath() {
             {/* 2. Terrain fill - future */}
             <path d={terrainFillPath} fill="url(#terrainGradient)" clipPath="url(#futureClip)" />
 
-            {/* 3. Green tint overlays on income sections */}
+            {/* 3. FIX 4: Green tint as slope highlight path, not rectangle */}
             {points.map((p, i) => {
               if (p.income <= 0) return null;
               const x = i * DAY_WIDTH;
-              const y = mapY(p.balance);
-              const prevY = i > 0 ? mapY(points[i - 1].balance) : y;
+              const postY = mapY(p.balance);
+              const preBalance = i > 0 ? points[i - 1].balance : p.balance;
+              const preY = mapY(preBalance);
+              const prevX = (i - 1) * DAY_WIDTH;
+              
+              // Build a wedge path: trace the rising slope, then drop straight down
+              const startX = Math.max(0, prevX);
+              // Control points matching the surface curve (ease-out rise)
+              const cp1x = startX + DAY_WIDTH * 0.2;
+              const cp2x = x - DAY_WIDTH * 0.7;
+              
+              const tintPath = `M ${startX} ${preY} C ${cp1x} ${preY} ${cp2x} ${postY} ${x} ${postY} L ${x} ${preY} Z`;
+              
               return (
-                <rect
+                <path
                   key={`green-${i}`}
-                  x={x - DAY_WIDTH * 0.7}
-                  y={Math.min(y, prevY)}
-                  width={DAY_WIDTH * 1.4}
-                  height={Math.abs(prevY - y) + 10}
+                  d={tintPath}
                   fill="#34C759"
-                  opacity={0.15}
-                  rx={4}
+                  opacity={0.12}
                 />
               );
             })}
@@ -515,11 +589,17 @@ export function TerrainPath() {
             {points.map((p, i) => {
               if (p.expenses <= 0 || p.isPast) return null;
               const x = i * DAY_WIDTH;
-              const y = mapY(p.balance);
+              const prevBalance = i > 0 ? points[i - 1].balance : p.balance;
+              const surfaceY = mapY(prevBalance);
+              const staggerKey = `exp-${i}-0`;
+              const staggerOffset = staggerOffsets.get(staggerKey) || 0;
+              const markerSize = getMarkerSize(p.bills[0]?.amount || p.expenses);
+              const markerTopY = surfaceY - markerSize.h - staggerOffset;
+              
               return (
                 <line
                   key={`vline-${i}`}
-                  x1={x} y1={y}
+                  x1={x} y1={markerTopY}
                   x2={x} y2={TERRAIN_HEIGHT - 1}
                   stroke="rgba(255,255,255,0.08)"
                   strokeWidth={1}
@@ -532,13 +612,19 @@ export function TerrainPath() {
             {points.map((p, i) => {
               if (p.income <= 0) return null;
               const x = i * DAY_WIDTH;
-              const y = mapY(p.balance);
-              const prevY = i > 0 ? mapY(points[i - 1].balance) : y;
+              const preBalance = i > 0 ? points[i - 1].balance : p.balance;
+              const preY = mapY(preBalance);
+              const postY = mapY(p.balance);
+              const staggerKey = `inc-${i}-0`;
+              const staggerOffset = staggerOffsets.get(staggerKey) || 0;
+              const markerR = 14;
+              const markerTopY = preY - markerR * 2 - staggerOffset;
+              
               return (
                 <line
                   key={`vline-inc-${i}`}
-                  x1={x} y1={prevY}
-                  x2={x} y2={y}
+                  x1={x} y1={markerTopY}
+                  x2={x} y2={postY}
                   stroke="rgba(52,199,89,0.1)"
                   strokeWidth={1}
                   strokeDasharray="3 3"
@@ -546,37 +632,42 @@ export function TerrainPath() {
               );
             })}
 
-            {/* 7. Expense obstacle blocks */}
+            {/* 7. FIX 1+2: Expense obstacle blocks - scaled size, anchored to surface, staggered */}
             {points.map((p, i) => {
               if (p.bills.length === 0 || p.isPast) return null;
               const bill = p.bills[0];
               const Icon = bill.icon;
               const x = i * DAY_WIDTH;
-              // Position at cliff top (prev balance)
+              // FIX 2: Anchor to terrain surface - prev day's balance = cliff top
               const prevBalance = i > 0 ? points[i - 1].balance : p.balance;
-              const y = mapY(prevBalance + p.dailySpend); // top of cliff
-              const obstacleW = Math.max(20, Math.min(44, (bill.amount / 500) * 44));
-              const obstacleH = 28;
+              const surfaceY = mapY(prevBalance);
+              // FIX 1: Scaled size
+              const size = getMarkerSize(bill.amount);
+              // FIX 1: Stagger offset
+              const staggerKey = `exp-${i}-0`;
+              const staggerOffset = staggerOffsets.get(staggerKey) || 0;
+              // Bottom edge of marker sits on surface, minus stagger
+              const markerY = surfaceY - size.h - staggerOffset;
 
               return (
                 <g key={`obs-${i}`}>
                   <rect
-                    x={x - obstacleW / 2}
-                    y={y - obstacleH}
-                    width={obstacleW}
-                    height={obstacleH}
+                    x={x - size.w / 2}
+                    y={markerY}
+                    width={size.w}
+                    height={size.h}
                     rx={6}
                     fill="rgba(255,255,255,0.1)"
                     stroke="rgba(255,255,255,0.15)"
                     strokeWidth={1}
                   />
-                  {/* Amount label below obstacle */}
+                  {/* Amount label follows the marker */}
                   <text
                     x={x}
-                    y={y + 12}
+                    y={markerY + size.h + size.font + 2}
                     textAnchor="middle"
                     fill="rgba(255,255,255,0.35)"
-                    fontSize={10}
+                    fontSize={size.font}
                   >
                     €{bill.amount}
                   </text>
@@ -584,20 +675,27 @@ export function TerrainPath() {
               );
             })}
 
-            {/* 8. Income markers */}
+            {/* 8. FIX 1+2: Income markers - anchored to surface, staggered */}
             {points.map((p, i) => {
               if (p.incomeItems.length === 0) return null;
               const inc = p.incomeItems[0];
               const x = i * DAY_WIDTH;
-              const prevBalance = i > 0 ? points[i - 1].balance : p.balance;
-              const y = mapY(prevBalance); // bottom of rise
+              // FIX 2: Anchor bottom of circle to pre-income surface
+              const preBalance = i > 0 ? points[i - 1].balance : p.balance;
+              const surfaceY = mapY(preBalance);
+              // FIX 1: Stagger offset
+              const staggerKey = `inc-${i}-0`;
+              const staggerOffset = staggerOffsets.get(staggerKey) || 0;
+              // Circle center: radius above surface, minus stagger
+              const r = 14;
+              const cy = surfaceY - r - staggerOffset;
 
               return (
                 <g key={`inc-${i}`}>
                   <circle
                     cx={x}
-                    cy={y - 14}
-                    r={14}
+                    cy={cy}
+                    r={r}
                     fill="rgba(255,255,255,0.15)"
                     stroke="rgba(52,199,89,0.2)"
                     strokeWidth={1}
@@ -634,16 +732,18 @@ export function TerrainPath() {
               const x = sim.dayIndex * DAY_WIDTH;
               const point = points[sim.dayIndex];
               if (!point) return null;
-              const y = mapY(point.balance);
+              const prevBalance = sim.dayIndex > 0 ? points[sim.dayIndex - 1]?.balance || point.balance : point.balance;
+              const surfaceY = mapY(prevBalance);
 
               if (sim.type === 'add-expense') {
+                const size = getMarkerSize(sim.amount);
                 return (
                   <rect
                     key={sim.id}
-                    x={x - 12}
-                    y={y - 28}
-                    width={24}
-                    height={28}
+                    x={x - size.w / 2}
+                    y={surfaceY - size.h}
+                    width={size.w}
+                    height={size.h}
                     rx={6}
                     fill="rgba(255,255,255,0.05)"
                     stroke="rgba(255,255,255,0.25)"
@@ -658,7 +758,7 @@ export function TerrainPath() {
                   <circle
                     key={sim.id}
                     cx={x}
-                    cy={y - 14}
+                    cy={surfaceY - 14}
                     r={14}
                     fill="rgba(255,255,255,0.05)"
                     stroke="rgba(52,199,89,0.2)"
@@ -671,7 +771,7 @@ export function TerrainPath() {
               return null;
             })}
 
-            {/* 13. Altitude labels (right sticky - use last visible area) */}
+            {/* 13. Altitude labels */}
             {altitudeLabels.map((label) => (
               <text
                 key={label.value}
@@ -749,15 +849,12 @@ export function TerrainPath() {
                   className="absolute flex flex-col items-center"
                   style={{ left: x, width: DAY_WIDTH }}
                 >
-                  {/* Today triangle */}
                   {p.isToday && (
                     <svg width="10" height="5" className="mb-0.5" style={{ marginTop: -2 }}>
                       <polygon points="5,0 0,5 10,5" fill="rgba(255,255,255,0.3)" />
                     </svg>
                   )}
-                  {/* Tick */}
                   <div
-                    className={p.isToday ? '' : ''}
                     style={{
                       width: p.isToday ? 2 : 1,
                       height: tickH,
@@ -768,7 +865,6 @@ export function TerrainPath() {
                           : 'rgba(255,255,255,0.12)',
                     }}
                   />
-                  {/* Label */}
                   <span
                     className="mt-0.5 whitespace-nowrap"
                     style={{
@@ -866,7 +962,7 @@ export function TerrainPath() {
         )}
       </AnimatePresence>
 
-      {/* What if? button / Playground toolbar */}
+      {/* FIX 5: What if? button / Redesigned Playground toolbar */}
       <div className="px-5 mt-3">
         <AnimatePresence mode="wait">
           {!playgroundMode ? (
@@ -888,52 +984,70 @@ export function TerrainPath() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="w-full glass-light rounded-2xl h-12 flex items-center justify-between px-3"
-              style={{ border: '1px solid rgba(255,255,255,0.15)' }}
+              className="w-full"
             >
-              <div className="flex gap-2">
+              {/* Large toolbar buttons */}
+              <div className="flex gap-2 w-full">
+                {/* Income button */}
                 <button
-                  className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs"
+                  className="flex-[42] h-12 rounded-xl flex items-center gap-2 px-3"
                   style={{
-                    backgroundColor: 'rgba(255,255,255,0.15)',
+                    backgroundColor: selectedTool === 'income'
+                      ? 'rgba(52,199,89,0.12)'
+                      : 'rgba(255,255,255,0.1)',
                     border: selectedTool === 'income'
-                      ? '1px solid rgba(52,199,89,0.4)'
-                      : '1px solid rgba(52,199,89,0.2)',
+                      ? '1px solid rgba(52,199,89,0.3)'
+                      : '1px solid transparent',
                   }}
                   onClick={() => setSelectedTool('income')}
                 >
-                  <ArrowUp size={14} className="text-jfb-green" />
-                  <span className="text-white">Income</span>
+                  <ArrowUp size={18} className="text-jfb-green" />
+                  <span className="text-sm text-white">Income</span>
                 </button>
+
+                {/* Expense button */}
                 <button
-                  className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs"
+                  className="flex-[42] h-12 rounded-xl flex items-center gap-2 px-3"
                   style={{
-                    backgroundColor: 'rgba(255,255,255,0.15)',
+                    backgroundColor: selectedTool === 'expense'
+                      ? 'rgba(255,107,157,0.12)'
+                      : 'rgba(255,255,255,0.1)',
                     border: selectedTool === 'expense'
-                      ? '1px solid rgba(255,107,157,0.4)'
-                      : '1px solid rgba(255,107,157,0.2)',
+                      ? '1px solid rgba(255,107,157,0.3)'
+                      : '1px solid transparent',
                   }}
                   onClick={() => setSelectedTool('expense')}
                 >
-                  <ArrowDown size={14} className="text-jfb-pink" />
-                  <span className="text-white">Expense</span>
+                  <ArrowDown size={18} className="text-jfb-pink" />
+                  <span className="text-sm text-white">Expense</span>
                 </button>
-              </div>
-              <div className="flex items-center gap-2">
-                {terrainSimulations.length > 0 && (
-                  <span className="text-[9px] text-white/30">
-                    {terrainSimulations.length} change{terrainSimulations.length > 1 ? 's' : ''}
-                  </span>
-                )}
+
+                {/* Done button */}
                 <button
-                  className="text-[13px] text-white/50"
+                  className="flex-[16] h-12 rounded-xl flex items-center justify-center"
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    border: '1px solid transparent',
+                  }}
                   onClick={() => {
                     setPlaygroundMode(false);
                     setActiveBubble(null);
                   }}
                 >
-                  Done
+                  <span className="text-sm text-white/60">Done</span>
                 </button>
+              </div>
+
+              {/* Helper text + simulation count */}
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <p className="text-xs text-white/25">
+                  Tap anywhere on the terrain to add {selectedTool}
+                </p>
+                {terrainSimulations.length > 0 && (
+                  <span className="text-[9px] text-white/30">
+                    · {terrainSimulations.length} change{terrainSimulations.length > 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
             </motion.div>
           )}
