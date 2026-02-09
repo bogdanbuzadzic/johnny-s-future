@@ -679,79 +679,99 @@ export function TerrainPath() {
               );
             })}
 
-            {/* 7. Expense obstacle blocks - scaled, surface-anchored, staggered */}
+            {/* 7. Expense obstacle blocks - scaled, surface-anchored, staggered, with icons */}
             {points.map((p, i) => {
               if (p.bills.length === 0 || p.isPast) return null;
-              const bill = p.bills[0];
-              const Icon = bill.icon;
               const markerX = i * DAY_WIDTH;
-              // BUG 3 FIX: Use interpolated surface Y
               const surfaceY = getTerrainYAtX(markerX, pathPoints);
-              const size = getMarkerSize(bill.amount);
-              const staggerKey = `exp-${i}-0`;
-              const staggerOffset = staggerOffsets.get(staggerKey) || 0;
-              // Bottom edge sits on surface, shifted up by stagger
-              const markerY = surfaceY - size.h - staggerOffset;
 
-              return (
-                <g key={`obs-${i}`}>
-                  <rect
-                    x={markerX - size.w / 2}
-                    y={markerY}
-                    width={size.w}
-                    height={size.h}
-                    rx={6}
-                    fill="rgba(255,255,255,0.1)"
-                    stroke="rgba(255,255,255,0.15)"
-                    strokeWidth={1}
-                  />
-                  <text
-                    x={markerX}
-                    y={markerY + size.h + size.font + 2}
-                    textAnchor="middle"
-                    fill="rgba(255,255,255,0.35)"
-                    fontSize={size.font}
-                  >
-                    €{bill.amount}
-                  </text>
-                </g>
-              );
+              return p.bills.map((bill, bi) => {
+                const Icon = bill.icon;
+                const size = getMarkerSize(bill.amount);
+                const staggerKey = `exp-${i}-${bi}`;
+                const staggerOffset = staggerOffsets.get(staggerKey) || 0;
+                const markerY = surfaceY - size.h - staggerOffset;
+
+                return (
+                  <g key={`obs-${i}-${bi}`}>
+                    <rect
+                      x={markerX - size.w / 2}
+                      y={markerY}
+                      width={size.w}
+                      height={size.h}
+                      rx={6}
+                      fill="rgba(255,255,255,0.1)"
+                      stroke="rgba(255,255,255,0.15)"
+                      strokeWidth={1}
+                    />
+                    <foreignObject
+                      x={markerX - size.w / 2}
+                      y={markerY}
+                      width={size.w}
+                      height={size.h}
+                    >
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Icon size={size.icon} className="text-white/50" />
+                      </div>
+                    </foreignObject>
+                    <text
+                      x={markerX}
+                      y={markerY + size.h + size.font + 2}
+                      textAnchor="middle"
+                      fill="rgba(255,255,255,0.35)"
+                      fontSize={size.font}
+                    >
+                      €{bill.amount}
+                    </text>
+                  </g>
+                );
+              });
             })}
 
-            {/* 8. Income markers - surface-anchored, staggered */}
+            {/* 8. Income markers - surface-anchored, staggered, with icons */}
             {points.map((p, i) => {
               if (p.incomeItems.length === 0) return null;
-              const inc = p.incomeItems[0];
               const markerX = i * DAY_WIDTH;
-              // BUG 3 FIX: Use interpolated surface Y
               const surfaceY = getTerrainYAtX(markerX, pathPoints);
-              const staggerKey = `inc-${i}-0`;
-              const staggerOffset = staggerOffsets.get(staggerKey) || 0;
-              const r = 14;
-              // Circle bottom edge on surface, shifted up by stagger
-              const cy = surfaceY - r - staggerOffset;
 
-              return (
-                <g key={`inc-${i}`}>
-                  <circle
-                    cx={markerX}
-                    cy={cy}
-                    r={r}
-                    fill="rgba(255,255,255,0.15)"
-                    stroke="rgba(52,199,89,0.2)"
-                    strokeWidth={1}
-                  />
-                  <text
-                    x={markerX}
-                    y={cy - r - 4}
-                    textAnchor="middle"
-                    fill="rgba(52,199,89,0.4)"
-                    fontSize={10}
-                  >
-                    €{inc.amount.toLocaleString()}
-                  </text>
-                </g>
-              );
+              return p.incomeItems.map((inc, ii) => {
+                const staggerKey = `inc-${i}-${ii}`;
+                const staggerOffset = staggerOffsets.get(staggerKey) || 0;
+                const r = 14;
+                const cy = surfaceY - r - staggerOffset;
+
+                return (
+                  <g key={`inc-${i}-${ii}`}>
+                    <circle
+                      cx={markerX}
+                      cy={cy}
+                      r={r}
+                      fill="rgba(255,255,255,0.15)"
+                      stroke="rgba(52,199,89,0.2)"
+                      strokeWidth={1}
+                    />
+                    <foreignObject
+                      x={markerX - r}
+                      y={cy - r}
+                      width={r * 2}
+                      height={r * 2}
+                    >
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Wallet size={14} className="text-green-400/50" />
+                      </div>
+                    </foreignObject>
+                    <text
+                      x={markerX}
+                      y={cy - r - 4}
+                      textAnchor="middle"
+                      fill="rgba(52,199,89,0.4)"
+                      fontSize={10}
+                    >
+                      €{inc.amount.toLocaleString()}
+                    </text>
+                  </g>
+                );
+              });
             })}
 
             {/* 9. ~37/day label on gradual stretch */}
