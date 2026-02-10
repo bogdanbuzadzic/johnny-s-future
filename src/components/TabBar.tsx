@@ -4,8 +4,7 @@ import { motion } from 'framer-motion';
 
 const tabs = [
   { icon: Home, label: 'Home' },
-  { icon: LayoutGrid, label: 'Tetris' },
-  { icon: BarChart3, label: 'Budget' },
+  { icon: LayoutGrid, label: 'My Money' },
   { icon: Target, label: 'Goals' },
   { icon: User, label: 'Profile' },
 ];
