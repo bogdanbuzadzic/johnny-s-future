@@ -21,6 +21,7 @@ function MyMoneyContent() {
   const [period, setPeriod] = useState<'month' | 'week'>('month');
   const [showAddTx, setShowAddTx] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [optimizeMode, setOptimizeMode] = useState(false);
   const monthlyIncome = config.monthlyIncome;
   const avgDailySpend = flexBudget > 0 ? flexSpent / Math.max(1, new Date().getDate()) : 0;
   if (!config.setupComplete) {
@@ -44,13 +45,21 @@ function MyMoneyContent() {
               </button>
             </div>
 
-            <button onClick={() => setShowSettings(true)} className="p-2 -mr-2">
-              <Sliders size={20} className="text-white/60" strokeWidth={1.5} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setOptimizeMode(true)}
+                className="w-8 h-8 rounded-full glass-light flex items-center justify-center"
+              >
+                <Sparkles size={16} className="text-white/60" strokeWidth={1.5} />
+              </button>
+              <button onClick={() => setShowSettings(true)} className="p-2 -mr-2">
+                <Sliders size={20} className="text-white/60" strokeWidth={1.5} />
+              </button>
+            </div>
           </div>
 
           {/* Tetris Container */}
-          <TetrisContainer period={period} />
+          <TetrisContainer period={period} optimizeMode={optimizeMode} onOptimizeDone={() => setOptimizeMode(false)} />
 
           {/* Terrain */}
           <div className="mt-2">
