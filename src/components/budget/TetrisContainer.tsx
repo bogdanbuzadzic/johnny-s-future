@@ -505,7 +505,8 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
                     value={newCatName}
                     onChange={e => setNewCatName(e.target.value)}
                     placeholder="Category name"
-                    className="flex-1 bg-white/8 backdrop-blur-sm rounded-xl px-3 py-2 text-[14px] text-white placeholder:text-white/25 outline-none border border-white/10 focus:border-white/20"
+                    className="flex-1 rounded-xl px-3 py-2 text-[14px] text-white placeholder:text-white/25 outline-none border border-white/10 focus:border-white/20"
+                    style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)' }}
                   />
                 </div>
 
@@ -517,7 +518,8 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
                     value={newCatBudget}
                     onChange={e => setNewCatBudget(e.target.value)}
                     placeholder="Monthly budget"
-                    className="flex-1 bg-white/8 backdrop-blur-sm rounded-xl px-3 py-2 text-[18px] font-bold text-white placeholder:text-white/25 outline-none border border-white/10 focus:border-white/20"
+                    className="flex-1 rounded-xl px-3 py-2 text-[18px] font-bold text-white placeholder:text-white/25 outline-none border border-white/10 focus:border-white/20"
+                    style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)' }}
                   />
                 </div>
 
