@@ -1,202 +1,179 @@
 
 
-# Interactive Tetris Features - Implementation Plan
+# Tetris Core Interactions - Trade-Off Sliders + "Can I Afford This?" Input
 
-## Scope Assessment
+## Overview
 
-This prompt contains 8 major features with extensive gesture handling, drag-and-drop physics, and real-time visual feedback. Implementing all 8 at once risks breaking the existing working UI. The plan sequences them in priority order, with each batch building on the previous.
+Two focused additions to the My Money screen:
+1. A budget slider inside expanded category blocks for real-time trade-off visualization
+2. A permanently visible "Can I afford..." input row between the container and terrain
 
----
-
-## Batch 1: Foundation (Features 5, 6, 8)
-
-These are self-contained visual enhancements that don't require new gesture systems.
-
-### Feature 5: Subscription Block Pulse
-
-**File: `src/components/budget/CategoryBlock.tsx`**
-
-- Check if the category has any recurring transactions (pass `hasRecurring` boolean as prop from TetrisContainer)
-- Add a CSS keyframe animation on the block's background opacity: 15% to 35% to 15% over 3 seconds, infinite
-- Add a small `RefreshCw` icon (10px, white/20) in the top-right corner when `hasRecurring` is true
-- In the expanded view, add above the transaction list:
-  - "EUR[monthly] /month = EUR[annual] /year" line (annual = monthly * 12)
-  - "EUR[daily] every single day" (daily = monthly / 30)
-  - "= [X] hours of work per year" (if monthlyIncome > 0: annual / (monthlyIncome / 160))
-- Add a "What if I cancel?" row with Scissors icon:
-  - Tapping sets a local `cancelSimActive` state
-  - Block fades to 30% opacity with dashed outline
-  - Green text shows "+EUR[monthly]/month freed up, +EUR[annual]/year saved"
-  - Two buttons: "Actually cancel" (sets budget to 0, collapses block as dormant) and "Just checking" (reverts visual)
-
-**File: `src/components/budget/TetrisContainer.tsx`**
-
-- Compute `hasRecurring` per category by checking if any transaction in that category has `isRecurring: true`
-- Pass it as a prop to `CategoryBlock`
-
-### Feature 6: Block Spending Timeline
-
-**File: `src/components/budget/CategoryBlock.tsx`**
-
-- In the expanded section, above the transaction list, render a mini SVG area chart (48px tall, full block width)
-- Data: iterate days 1 to current day of month, accumulate spending per day for this category
-- Render as a step-line (horizontal segments between transactions, vertical jumps on transaction days)
-- Fill below the line with category tint at 20%
-- Horizontal dashed line at budget level; area above it turns amber if crossed
-- Small dot at today's position on the line
-
-### Feature 8: Shake to Optimize (Sparkles Button)
-
-**File: `src/components/screens/MyMoneyScreen.tsx`**
-
-- Add a Sparkles icon button (32px frosted glass circle) in the header, next to Sliders
-- Tapping sets `optimizeMode: true` state
-
-**File: `src/components/budget/TetrisContainer.tsx`**
-
-- Accept `optimizeMode` prop
-- When true: blocks get a wobble animation (random translateY -2 to 2px, 500ms)
-- After 1 second, compute suggestions:
-  - For each category, compare budget vs average spending (spent / fraction of month elapsed)
-  - If average projected spend < 60% of budget, suggest reducing to 120% of projected
-  - Difference goes to savings
-- Show overlay card: "Johnny suggests..." with the suggestion text and impact
-- "Apply" button updates category budgets and savings target via BudgetContext
-- "No thanks" reverts blocks to original positions
-- If < 10 transactions total, show "Keep tracking..." message instead
+No complex gesture systems. No drag-between-zones, split/merge, or drop test overlay. The existing subscription pulse, spending timeline, and optimize features remain untouched.
 
 ---
 
-## Batch 2: Drag Infrastructure (Features 1, 2)
+## Part 1: Trade-Off Slider in Expanded Blocks
 
-### Feature 2: Block Push on Resize
+### File: `src/components/budget/CategoryBlock.tsx`
 
-**File: `src/components/budget/CategoryBlock.tsx`**
+**New props needed:**
+- `flexRemaining: number` -- current flex remaining (from TetrisContainer)
+- `dailyAllowance: number` -- current daily allowance
+- `daysRemaining: number` -- days remaining in month
+- `onSliderChange: (id: string, newBudget: number) => void` -- called during drag for live preview
+- `onSliderConfirm: (id: string, newBudget: number) => void` -- called on "Save"
+- `onSliderCancel: (id: string) => void` -- called on "Cancel"
+- `sliderActive: boolean` -- whether this block's slider is currently unsaved-changed
+- `onExpandToggle: (id: string) => void` -- to notify parent which block is expanded (for single-unsaved-change rule)
 
-- Add a resize handle indicator: when touch/mouse is within 12px of the block's bottom edge, show three horizontal lines (white/20)
-- On drag of the bottom edge (detect via `onPointerDown` near bottom 12px):
-  - Track delta Y, convert to budget delta based on pixels-per-euro ratio
-  - Call a new `onResize(id, budgetDelta)` callback prop
+**New state inside the block:**
+- `sliderValue: number` -- tracks the live slider position (initialized to `budget`)
+- `hasSliderChange: boolean` -- true when slider has moved from original
+- `originalBudget: number` -- snapshot of budget when slider interaction starts
 
-**File: `src/components/budget/TetrisContainer.tsx`**
+**Slider UI (inserted at top of expanded area, above subscription info and timeline):**
+- Full width of expanded block
+- Track: 4px tall, rounded, white/15 background
+- Thumb: 24px circle, white fill, subtle shadow, 2px border in category tint color
+- Left label: "EUR0" in 10px white/20
+- Right label: "EUR[maxPossible]" in 10px white/20 where `maxPossible = budget + flexRemaining`
+- Above slider: "EUR[sliderValue]" in 18px bold white, updates live
+- Below slider: impact text showing daily allowance delta, e.g., "EUR44/day -> EUR38/day" in 12px white/40 (green when improving, white/40 when worsening)
+- Confirmation row (appears when `hasSliderChange`): "Set [name] budget to EUR[value]?" with "Save" purple pill and "Cancel" white/40 text
 
-- Implement `handleBlockResize(id, budgetDelta)`:
-  - Increase the resized block's budget by `budgetDelta`
-  - Find adjacent blocks (same row to the right, or next row) and decrease their budgets proportionally
-  - Adjacent blocks get an amber tint pulse during the drag
-  - Show a connecting line label: "+EUR20 / -EUR20"
-  - On release: save both budgets, show a 3-second "Undo" toast
-  - Store previous budgets for undo
+**Slider implementation:**
+- Uses a native `input[type=range]` styled with CSS, or Radix Slider component (already installed: `@radix-ui/react-slider`)
+- `min={0}`, `max={budget + flexRemaining}`, `step={5}`
+- `onValueChange` updates `sliderValue` state and calls `onSliderChange(id, newValue)` for live container preview
+- Debounce terrain recalc to 100ms via the parent
+- "Save" calls `onSliderConfirm(id, sliderValue)` which persists via `updateCategory`
+- "Cancel" resets `sliderValue` to `originalBudget`, calls `onSliderCancel(id)`
 
-### Feature 1: Drag Between Zones
+**Auto-balance suggestion:**
+- When `sliderValue > budget` and `(flexRemaining - (sliderValue - budget))` < 10% of flexBudget:
+  - Find the expense category with the largest remaining budget (excluding current)
+  - Show suggestion row: "[icon] Reduce [name] by EUR[amount] to balance?" as tappable text
+  - Tapping calls a callback `onSuggestRebalance(targetCategoryId, suggestedAmount)` to expand that block with pre-set slider
 
-**File: `src/components/budget/TetrisContainer.tsx`**
+**Expanded block layout (top to bottom):**
+1. Slider with live budget amount + impact text
+2. Confirmation row (if slider changed)
+3. Subscription annual cost (if hasRecurring) -- existing
+4. Mini spending timeline -- existing
+5. Progress bar -- existing
+6. Transaction list -- existing
+7. "What if I cancel?" -- existing (if hasRecurring)
+8. "Edit name" link at bottom (new, subtle text)
 
-- Add gesture detection on category blocks:
-  - Tap (instant): expand/collapse (existing)
-  - Long-press 300ms: lift block for dragging (scale 1.05, shadow, position follows pointer)
-- During drag:
-  - Track pointer Y position relative to container zones
-  - If block crosses into savings zone (Y < fixedBarHeight + savingsBarHeight), highlight savings zone with green/15 glow
-  - On drop in savings zone: show confirmation bubble with "Confirm" and "Cancel"
-  - On confirm: set category budget to 0, increase `monthlySavingsTarget` by that amount via `updateConfig`
-  - Block becomes "dormant": 24px height, white/8 bg, "[name] - paused" text, tap to reactivate
-- Savings zone long-press:
-  - Show amount picker: inline number input with preset pills (EUR25, EUR50, EUR100, All)
-  - On confirm: decrease `monthlySavingsTarget`, the freed amount becomes available flex space
-  - Show toast: "EUR[amount] moved from savings"
+### File: `src/components/budget/TetrisContainer.tsx`
 
-**File: `src/context/BudgetContext.tsx`**
+**New state:**
+- `activeSliderBlockId: string | null` -- which block currently has an unsaved slider change
+- `sliderPreviewBudgets: Record<string, number>` -- live budget overrides during slider drag (keyed by category id)
 
-- No schema changes needed; `updateConfig` and `updateCategory` already exist
+**Block layout recalculation:**
+- When `sliderPreviewBudgets` has entries, use those values instead of actual budgets for layout computation
+- This makes block widths and empty space update live during drag
 
----
+**Empty space recalculation:**
+- `effectiveFlexRemaining` = `flexRemaining - sum(sliderPreviewBudgets[id] - actualBudget[id])` for all preview entries
+- Pass this to the empty space display instead of raw `flexRemaining`
 
-## Batch 3: Drop Test (Feature 4)
+**Daily allowance delta:**
+- Compute `previewDailyAllowance = effectiveFlexRemaining / daysRemaining`
+- Pass both `dailyAllowance` and `previewDailyAllowance` to CategoryBlock for the impact text
 
-### Feature 4: "Can I Afford This?" Drop Test
+**Handlers passed to CategoryBlock:**
+- `onSliderChange(id, newBudget)`: updates `sliderPreviewBudgets` state, debounces terrain update
+- `onSliderConfirm(id, newBudget)`: calls `updateCategory(id, { monthlyBudget: newBudget })`, clears preview
+- `onSliderCancel(id)`: clears `sliderPreviewBudgets[id]`, clears `activeSliderBlockId`
+- `onExpandToggle(id)`: if `activeSliderBlockId` exists and is different, auto-cancel that slider first
 
-**File: `src/components/screens/MyMoneyScreen.tsx`**
-
-- Add a secondary FAB: 40px frosted glass circle with FlaskConical icon, positioned left of the main FAB
-- Tapping sets `dropTestMode: true`
-
-**New file: `src/components/budget/DropTestOverlay.tsx`**
-
-- Renders when `dropTestMode` is true
-- Shows a floating test block at the bottom of the screen with dashed pulsing border
-- Amount input: inline 18px number input + quick pills (EUR20, EUR50, EUR100, EUR200, EUR500)
-- Category selector: horizontal scroll of category pills from BudgetContext
-- Test block resizes proportionally as amount changes, takes on category tint color
-- User drags the test block upward into the container:
-  - **Fits** (flexRemaining >= amount): block lands with bounce, green "Yes, you can afford this!", shows daily allowance delta, "Buy it" / "Never mind" buttons
-  - **Tight** (fits but dailyAllowance drops below EUR20): wobble landing, amber "Tight but doable", same buttons
-  - **Rejected** (flexRemaining < amount): block bounces off, container shakes (CSS animation 300ms), amber text "EUR[shortage] short", "Buy it anyway" / "Never mind" / "Adjust budget" buttons
-- "Buy it" / "Buy it anyway": calls `addTransaction` and closes overlay
-- "Never mind": dissolves test block, reverts everything
-- "Adjust budget": scrolls to the suggested category block
-
----
-
-## Batch 4: Split/Merge and Goals (Features 3, 7)
-
-### Feature 3: Split and Merge Blocks
-
-**File: `src/components/budget/CategoryBlock.tsx`**
-
-- Long-press 600ms (differentiated from 300ms drag lift): show split handle
-  - Horizontal dashed line across block middle with Scissors icon
-  - Drag handle up/down to adjust ratio, preview labels show split amounts
-  - On release: call `onSplit(id, ratio)` callback
-
-**File: `src/components/budget/TetrisContainer.tsx`**
-
-- `handleSplit(id, ratio)`:
-  - Get original category, compute two new budgets based on ratio
-  - Update original category's budget to the top portion
-  - Call `addCategory` for the new bottom portion with auto-name "[name] 2"
-  - Show inline rename input on the new block
-- Merge detection:
-  - During block drag (from Feature 1), if a dragged block overlaps >50% with another block, highlight bottom block with white/20 glow
-  - On drop: show merge confirmation bubble with combined name suggestion
-  - On confirm: update first category's budget to combined total, reassign transactions from second category to first, delete second category
-
-### Feature 7: Goal Blocks Floating Above Container
-
-**File: `src/components/budget/TetrisContainer.tsx`**
-
-- Above the container div, render a horizontal scrollable row of goal blocks
-- Each goal: 80px wide, 36px tall, rounded, icon + name + 2px progress bar
-- SVG curved tether lines from each goal down to the savings zone
-- Goal block Y-offset is inversely proportional to progress: 100% = sitting on container edge, 0% = 16px above
-- When savings change (via Feature 1 or resize), animate goal positions
-- Tap a goal block: call `setActiveTab(2)` and `setSelectedGoalId(goal.id)` to navigate to Goals screen
-
-**File: `src/context/AppContext.tsx`**
-
-- No changes needed; `goals`, `setActiveTab`, `setSelectedGoalId` already exist
+**Single-unsaved-change rule:**
+- When a new block expands via tap, if another block has `activeSliderBlockId`, that block's slider auto-cancels (reverts to original)
 
 ---
 
-## Gesture Priority System
+## Part 2: "Can I Afford This?" Input Row
 
-Implemented in `CategoryBlock.tsx` via a unified pointer event handler:
+### File: `src/components/screens/MyMoneyScreen.tsx`
 
-```text
-onPointerDown:
-  - Check if pointer is within 12px of bottom edge -> start resize mode
-  - Otherwise start a timer:
-    - 300ms: enter drag mode (lift block)
-    - 600ms: cancel drag mode, enter split mode (show handle)
+**New state:**
+- `affordTestAmount: number` -- the amount being tested (0 when empty)
+- `affordTestCategoryId: string | null` -- selected category for the test
+- `affordTestInput: string` -- raw input string
 
-onPointerUp before any timer:
-  - It's a tap -> toggle expand
+**New UI element between TetrisContainer and TerrainPath:**
+- A frosted glass input row (white/12, rounded-2xl, 44px tall, full width)
+- Left: FlaskConical icon (18px, white/40)
+- Center: EUR prefix (white/40) + text input, placeholder "Can I afford EUR..." in 14px white/25
+- Right: category picker pill -- shows icon + abbreviated name of selected category. Tapping opens a horizontal scroll row of all category pills below the input. Default: first expense category (or most-used if transaction data exists)
+- When amount > 0, two buttons fade in below:
+  - "Buy it" -- small purple gradient pill, 36px tall
+  - "Clear" -- small frosted glass pill, 36px tall, white/30 text
 
-onPointerMove after 300ms timer:
-  - It's a drag -> reorder / zone transfer / merge detection
-```
+**Props passed down:**
+- Pass `affordTestAmount` and `affordTestCategoryId` to `TetrisContainer` as `ghostTestAmount` and `ghostTestCategoryId`
+- Pass `affordTestAmount` to terrain for daily allowance delta display
 
-Each mode is mutually exclusive. The resize handle visual indicator (three lines at bottom edge) helps users discover the resize gesture without accidentally triggering it.
+**"Buy it" action:**
+- Opens AddTransactionSheet with pre-filled amount and category
+- Need to add `prefillAmount` and `prefillCategoryId` props to AddTransactionSheet
+
+**"Clear" action / empty input:**
+- Sets `affordTestAmount` to 0, clears input
+- Ghost block dissolves, everything reverts
+
+**Result text logic (replaces placeholder when amount > 0):**
+- Compute `testRemaining = flexRemaining - affordTestAmount`
+- `testRatio = testRemaining / flexBudget`
+- If testRatio > 0.3: "Yes, comfortably" in green
+- If testRatio 0.1-0.3: "Yes, but it'll be tighter" in white
+- If testRatio 0-0.1: "Tight. EUR[dailyLeft]/day left for [daysRemaining] days" in amber
+- If testRatio < 0: "EUR[shortage] over budget" in amber
+
+### File: `src/components/budget/TetrisContainer.tsx`
+
+**New props:**
+- `ghostTestAmount?: number` -- amount being tested
+- `ghostTestCategoryId?: string` -- category for the ghost
+
+**Ghost block rendering:**
+- When `ghostTestAmount > 0` and `ghostTestCategoryId` exists:
+  - Find the matching category block in the layout
+  - Inside that block, overlay a ghost fill on top of the existing spending fill
+  - Ghost fill: category tint at 15%, with a dashed pulsing border (2px dashed, tint at 40%, CSS animation pulse 2s)
+  - The ghost fill width = `(ghostTestAmount / budget) * blockWidth`, stacked after the spending fill
+- Empty space shrinks: subtract `ghostTestAmount` from effective flex remaining
+- Update the "EUR to spend" text to show "EUR[adjusted] to spend" with dimmer opacity + "testing EUR[amount]" annotation
+
+**Johnny reaction to ghost:**
+- Same space ratio logic already exists; it reacts naturally because `effectiveFlexRemaining` decreases
+
+**Daily allowance delta above terrain:**
+- Show "EUR[current]/day -> EUR[new]/day" when ghost is active
+
+### File: `src/components/budget/AddTransactionSheet.tsx`
+
+**New optional props:**
+- `prefillAmount?: number`
+- `prefillCategoryId?: string`
+
+**On open with prefill:**
+- Initialize `amountValue` to `prefillAmount.toString()` if provided
+- Initialize `selectedCategoryId` to `prefillCategoryId` if provided
+
+### File: `src/components/budget/CategoryBlock.tsx`
+
+**New optional props for ghost:**
+- `ghostAmount?: number` -- amount of ghost fill to show in this block
+
+**Ghost fill rendering:**
+- When `ghostAmount > 0`:
+  - Render a second fill bar after the spending fill
+  - Position: starts at `spent/budget * 100%` width, extends by `ghostAmount/budget * 100%`
+  - Style: category tint at 15%, with animated dashed border overlay
+  - CSS keyframe: border opacity pulses 20% to 50% over 2s, infinite
 
 ---
 
@@ -204,23 +181,17 @@ Each mode is mutually exclusive. The resize handle visual indicator (three lines
 
 | File | Changes |
 |------|---------|
-| `src/components/budget/CategoryBlock.tsx` | Subscription pulse, spending timeline, resize handle, split handle, gesture priority system |
-| `src/components/budget/TetrisContainer.tsx` | Zone drag, block push resize, split/merge, optimize mode, goal tethers, dormant blocks |
-| `src/components/screens/MyMoneyScreen.tsx` | Sparkles button, FlaskConical FAB, drop test mode state, optimize mode state |
-| `src/components/budget/DropTestOverlay.tsx` | New file -- floating test block UI with drag + outcome logic |
+| `src/components/budget/CategoryBlock.tsx` | Add slider UI in expanded area, ghost fill overlay, new props for flex data and callbacks |
+| `src/components/budget/TetrisContainer.tsx` | Slider preview state, ghost block rendering, effective flex remaining calculations, new props |
+| `src/components/screens/MyMoneyScreen.tsx` | "Can I afford" input row, ghost state management, pre-fill FAB flow |
+| `src/components/budget/AddTransactionSheet.tsx` | Add prefillAmount and prefillCategoryId optional props |
 
 ---
 
 ## Implementation Order
 
-1. Feature 5: Subscription pulse + annual cost + cancel simulation (CategoryBlock)
-2. Feature 6: Spending mini-timeline in expanded blocks (CategoryBlock)
-3. Feature 8: Sparkles optimize button + suggestion logic (MyMoneyScreen + TetrisContainer)
-4. Feature 2: Resize handle + push neighbors (CategoryBlock + TetrisContainer)
-5. Feature 1: Long-press drag between zones + dormant blocks (TetrisContainer)
-6. Feature 4: Drop test overlay + outcomes (new DropTestOverlay + MyMoneyScreen)
-7. Feature 3: Split + merge blocks (CategoryBlock + TetrisContainer)
-8. Feature 7: Floating goal blocks with tethers (TetrisContainer)
-
-Each batch builds on the previous without breaking existing functionality.
+1. Update `CategoryBlock.tsx`: add slider + ghost fill props and UI
+2. Update `TetrisContainer.tsx`: add slider preview state, ghost props, effective flex calculations
+3. Update `MyMoneyScreen.tsx`: add the "Can I afford" input row between container and terrain
+4. Update `AddTransactionSheet.tsx`: add prefill props
 
