@@ -449,12 +449,9 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
           })}
 
           {/* Add category dashed block */}
-          <motion.div
-            layout
+          <div
             style={{ marginTop: sortedCategories.length > 0 ? gap : 0 }}
-            animate={{ height: addingCategory ? 'auto' : addCategoryHeight }}
-            transition={{ type: 'spring', duration: 0.3 }}
-            className="rounded-2xl overflow-hidden"
+            className="rounded-2xl"
             onClick={() => !addingCategory && setAddingCategory(true)}
           >
             {!addingCategory ? (
@@ -546,7 +543,7 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
                 </button>
               </div>
             )}
-          </motion.div>
+          </div>
 
           {/* Empty Space */}
           {emptySpaceHeight > 40 && (
