@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, PiggyBank, ShieldCheck, Wallet } from 'lucide-react';
+import { Lock, PiggyBank, ShieldCheck, Wallet, Plus, UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Gift, BookOpen, Smartphone, Shirt, MoreHorizontal } from 'lucide-react';
 import { useBudget } from '@/context/BudgetContext';
-import { CategoryBlock, getTintColor } from './CategoryBlock';
+import { CategoryBlock, getTintColor, CATEGORY_TINTS } from './CategoryBlock';
 import { parseISO, isWithinInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, getDaysInMonth, getDate } from 'date-fns';
 import johnnyImage from '@/assets/johnny.png';
 
@@ -22,20 +22,57 @@ interface TetrisContainerProps {
   ghostTestCategoryId?: string;
 }
 
+const ICON_OPTIONS = [
+  { key: 'UtensilsCrossed', Icon: UtensilsCrossed, label: 'Food' },
+  { key: 'ShoppingBag', Icon: ShoppingBag, label: 'Shopping' },
+  { key: 'Bus', Icon: Bus, label: 'Transport' },
+  { key: 'Film', Icon: Film, label: 'Entertainment' },
+  { key: 'Dumbbell', Icon: Dumbbell, label: 'Health' },
+  { key: 'CreditCard', Icon: CreditCard, label: 'Subscriptions' },
+  { key: 'Coffee', Icon: Coffee, label: 'Coffee' },
+  { key: 'Gift', Icon: Gift, label: 'Gifts' },
+  { key: 'BookOpen', Icon: BookOpen, label: 'Education' },
+  { key: 'Smartphone', Icon: Smartphone, label: 'Tech' },
+  { key: 'Shirt', Icon: Shirt, label: 'Clothing' },
+  { key: 'MoreHorizontal', Icon: MoreHorizontal, label: 'Other' },
+];
+
+const ICON_TINT_MAP: Record<string, string> = {
+  UtensilsCrossed: '#FF9F0A',
+  ShoppingBag: '#FF6B9D',
+  Bus: '#007AFF',
+  Film: '#8B5CF6',
+  Dumbbell: '#34C759',
+  CreditCard: '#5AC8FA',
+  Coffee: '#C4956A',
+  Gift: '#FF6B9D',
+  BookOpen: '#007AFF',
+  Smartphone: '#5AC8FA',
+  Shirt: '#8B5CF6',
+  MoreHorizontal: '#FFFFFF',
+};
+
 export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, ghostTestAmount = 0, ghostTestCategoryId }: TetrisContainerProps) {
   const {
     config, fixedCategories, expenseCategories, transactions,
     flexBudget, flexSpent, flexRemaining, dailyAllowance, daysRemaining,
-    getCategorySpent, updateCategory, updateConfig
+    getCategorySpent, updateCategory, updateConfig, addCategory
   } = useBudget();
 
   const containerWidth = typeof window !== 'undefined' ? Math.min(window.innerWidth - 32, 400) : 343;
+  const containerInnerWidth = containerWidth - 24;
 
   // === Slider preview state ===
   const [activeSliderBlockId, setActiveSliderBlockId] = useState<string | null>(null);
   const [sliderPreviewBudgets, setSliderPreviewBudgets] = useState<Record<string, number>>({});
-  // Auto-balance: expand a specific block with a preset slider value
   const [rebalanceTarget, setRebalanceTarget] = useState<{ id: string; amount: number } | null>(null);
+
+  // === Add category state ===
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCatIcon, setNewCatIcon] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatBudget, setNewCatBudget] = useState('');
+  const [newBlockId, setNewBlockId] = useState<string | null>(null);
 
   // Debounced terrain trigger
   const terrainDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,13 +98,11 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
   const handleSliderChange = useCallback((id: string, newBudget: number) => {
     setActiveSliderBlockId(id);
     setSliderPreviewBudgets(prev => ({ ...prev, [id]: newBudget }));
-    // Debounce terrain recalc
     if (terrainDebounceRef.current) clearTimeout(terrainDebounceRef.current);
     terrainDebounceRef.current = setTimeout(() => setTerrainTrigger(t => t + 1), 100);
   }, []);
 
   const handleSliderConfirm = useCallback((id: string, newBudget: number) => {
-    // Convert back to monthly if in week mode
     const monthlyBudget = period === 'week' ? newBudget * 4.33 : newBudget;
     updateCategory(id, { monthlyBudget: Math.round(monthlyBudget) });
     setSliderPreviewBudgets(prev => {
@@ -90,7 +125,6 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
   }, []);
 
   const handleExpandToggle = useCallback((id: string) => {
-    // Auto-cancel any other block's unsaved slider
     if (activeSliderBlockId && activeSliderBlockId !== id) {
       handleSliderCancel(activeSliderBlockId);
     }
@@ -100,14 +134,11 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
   const getAutoBalanceSuggestion = useCallback((currentCatId: string, currentSliderValue: number) => {
     const currentCat = expenseCategories.find(c => c.id === currentCatId);
     if (!currentCat) return null;
-
     const currentBudget = period === 'week' ? currentCat.monthlyBudget / 4.33 : currentCat.monthlyBudget;
     const effectiveFlex = flexRemaining - (currentSliderValue - currentBudget);
     const effectiveFlexBudget = period === 'week' ? flexBudget / 4.33 : flexBudget;
-
     if (currentSliderValue <= currentBudget || effectiveFlex >= effectiveFlexBudget * 0.1) return null;
 
-    // Find largest remaining budget category (excluding current)
     let largest: { id: string; name: string; icon: string; budget: number } | null = null;
     expenseCategories.forEach(cat => {
       if (cat.id === currentCatId) return;
@@ -116,12 +147,10 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
         largest = { id: cat.id, name: cat.name, icon: cat.icon, budget: catBudget };
       }
     });
-
     if (!largest) return null;
     const shortage = currentSliderValue - currentBudget - effectiveFlex;
     const reduceAmount = Math.min(shortage, (largest as any).budget);
     if (reduceAmount <= 0) return null;
-
     return {
       categoryId: (largest as any).id,
       categoryName: (largest as any).name,
@@ -137,7 +166,7 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
     setRebalanceTarget({ id: targetCategoryId, amount: targetBudget - suggestedAmount });
   }, [expenseCategories, period]);
 
-  // === Optimize mode state (Feature 8) ===
+  // === Optimize mode state ===
   const [optimizeState, setOptimizeState] = useState<'idle' | 'wobbling' | 'suggesting'>('idle');
   const [optimizeSuggestions, setOptimizeSuggestions] = useState<OptimizeSuggestion[]>([]);
   const [totalOptimizeSavings, setTotalOptimizeSavings] = useState(0);
@@ -146,21 +175,18 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
     if (optimizeMode) {
       setOptimizeState('wobbling');
       const totalTxCount = transactions.filter(t => t.type === 'expense').length;
-
       const timer = setTimeout(() => {
         if (totalTxCount < 10) {
           setOptimizeState('suggesting');
           setOptimizeSuggestions([]);
           return;
         }
-
         const now = new Date();
         const dom = getDate(now);
         const dim = getDaysInMonth(now);
         const frac = dom / dim;
         const suggs: OptimizeSuggestion[] = [];
         let sav = 0;
-
         expenseCategories.forEach(cat => {
           const sp = getCategorySpent(cat.id, 'month');
           const proj = frac > 0 ? sp / frac : 0;
@@ -168,23 +194,15 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
             const suggested = Math.max(Math.round(proj * 1.2), 0);
             const diff = cat.monthlyBudget - suggested;
             if (diff > 5) {
-              suggs.push({
-                categoryId: cat.id,
-                categoryName: cat.name,
-                currentBudget: cat.monthlyBudget,
-                suggestedBudget: suggested,
-                savings: diff,
-              });
+              suggs.push({ categoryId: cat.id, categoryName: cat.name, currentBudget: cat.monthlyBudget, suggestedBudget: suggested, savings: diff });
               sav += diff;
             }
           }
         });
-
         setOptimizeSuggestions(suggs);
         setTotalOptimizeSavings(sav);
         setOptimizeState('suggesting');
       }, 1000);
-
       return () => clearTimeout(timer);
     } else {
       setOptimizeState('idle');
@@ -223,39 +241,6 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
     });
   };
 
-  // === Block layout calculation ===
-  const blockLayout = useMemo(() => {
-    const gap = 6;
-    const innerWidth = containerWidth - 24;
-    const effectiveFlexBudget = period === 'week' ? flexBudget / 4.33 : flexBudget;
-    const blocks = expenseCategories.map(cat => {
-      const actualBudget = period === 'week' ? cat.monthlyBudget / 4.33 : cat.monthlyBudget;
-      // Use slider preview budget if available
-      const budget = sliderPreviewBudgets[cat.id] ?? actualBudget;
-      const rawWidth = effectiveFlexBudget > 0 ? (budget / effectiveFlexBudget) * innerWidth : innerWidth / Math.max(expenseCategories.length, 1);
-      const width = Math.max(100, Math.min(rawWidth, innerWidth));
-      const height = width >= 120 ? 56 : 48;
-      return { ...cat, computedWidth: width, computedHeight: height, budget: sliderPreviewBudgets[cat.id] ?? actualBudget };
-    });
-
-    const rows: typeof blocks[] = [];
-    let currentRow: typeof blocks = [];
-    let rowWidth = 0;
-    blocks.forEach(block => {
-      if (currentRow.length > 0 && rowWidth + gap + block.computedWidth > innerWidth) {
-        rows.push(currentRow);
-        currentRow = [block];
-        rowWidth = block.computedWidth;
-      } else {
-        if (currentRow.length > 0) rowWidth += gap;
-        currentRow.push(block);
-        rowWidth += block.computedWidth;
-      }
-    });
-    if (currentRow.length > 0) rows.push(currentRow);
-    return { rows, innerWidth };
-  }, [expenseCategories, containerWidth, flexBudget, period, sliderPreviewBudgets]);
-
   // === Period transactions ===
   const getCategoryTransactions = (categoryId: string) => {
     const now = new Date();
@@ -274,27 +259,69 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
     });
   };
 
+  // === Vertical stack layout ===
+  const sortedCategories = useMemo(() => {
+    return [...expenseCategories].sort((a, b) => {
+      const aBudget = sliderPreviewBudgets[a.id] ?? (period === 'week' ? a.monthlyBudget / 4.33 : a.monthlyBudget);
+      const bBudget = sliderPreviewBudgets[b.id] ?? (period === 'week' ? b.monthlyBudget / 4.33 : b.monthlyBudget);
+      return bBudget - aBudget;
+    });
+  }, [expenseCategories, period, sliderPreviewBudgets]);
+
   const totalFixed = fixedCategories.reduce((s, c) => s + c.monthlyBudget, 0);
   const isOverBudget = effectiveFlexRemaining < 0;
 
-  // === Space calculations ===
   const fixedBarHeight = 36;
   const savingsBarHeight = 48;
-  const blockRowsHeight = blockLayout.rows.reduce((sum, row) => {
-    const maxH = Math.max(...row.map(b => b.computedHeight));
-    return sum + maxH + 6;
-  }, 0);
+  const gap = 6;
+
+  // Compute block heights
+  const effectiveFlexBudget = period === 'week' ? flexBudget / 4.33 : flexBudget;
+  const addCategoryHeight = 48;
+  
+  const blockHeights = useMemo(() => {
+    // Reserve space for fixed, savings, empty space minimum, add button, and gaps
+    const minEmptySpace = 80;
+    const totalGaps = (sortedCategories.length) * gap; // gaps between blocks + before add button
+    const availableForBlocks = Math.max(200, (typeof window !== 'undefined' ? window.innerHeight * 0.55 : 400) - fixedBarHeight - savingsBarHeight - minEmptySpace - addCategoryHeight - totalGaps - 24);
+    
+    return sortedCategories.map(cat => {
+      const budget = sliderPreviewBudgets[cat.id] ?? (period === 'week' ? cat.monthlyBudget / 4.33 : cat.monthlyBudget);
+      const proportional = effectiveFlexBudget > 0 ? (budget / effectiveFlexBudget) * availableForBlocks : 52;
+      return Math.max(52, Math.min(120, proportional));
+    });
+  }, [sortedCategories, effectiveFlexBudget, period, sliderPreviewBudgets, fixedBarHeight, savingsBarHeight]);
+
+  const blockRowsHeight = blockHeights.reduce((sum, h) => sum + h, 0) + (sortedCategories.length > 0 ? (sortedCategories.length - 1) * gap : 0);
+  
   const containerHeight = Math.max(
     typeof window !== 'undefined' ? window.innerHeight * 0.55 : 400,
-    fixedBarHeight + savingsBarHeight + blockRowsHeight + 120
+    fixedBarHeight + savingsBarHeight + blockRowsHeight + addCategoryHeight + gap + 120
   );
-  const emptySpaceHeight = containerHeight - fixedBarHeight - savingsBarHeight - blockRowsHeight - 12;
+  const emptySpaceHeight = containerHeight - fixedBarHeight - savingsBarHeight - blockRowsHeight - addCategoryHeight - gap - 12;
   const flexZoneHeight = containerHeight - fixedBarHeight - savingsBarHeight;
   const spaceRatio = flexZoneHeight > 0 ? emptySpaceHeight / flexZoneHeight : 1;
 
-  // Ghost test display text
   const hasGhost = ghostTestAmount > 0 && ghostTestCategoryId;
   const displayFlexRemaining = Math.round(effectiveFlexRemaining);
+
+  // === Add category handlers ===
+  const handleCreateCategory = () => {
+    if (!newCatIcon || !newCatName.trim() || !newCatBudget) return;
+    const budgetNum = parseFloat(newCatBudget);
+    if (isNaN(budgetNum) || budgetNum <= 0) return;
+    const tint = ICON_TINT_MAP[newCatIcon] || '#FFFFFF';
+    addCategory({ name: newCatName.trim(), icon: newCatIcon, monthlyBudget: budgetNum, type: 'expense' });
+    setNewCatIcon('');
+    setNewCatName('');
+    setNewCatBudget('');
+    setAddingCategory(false);
+    setNewBlockId(newCatName.trim());
+    setTimeout(() => setNewBlockId(null), 600);
+  };
+
+  const selectedTint = newCatIcon ? (ICON_TINT_MAP[newCatIcon] || '#FFFFFF') : null;
+  const canCreate = newCatIcon && newCatName.trim() && newCatBudget && parseFloat(newCatBudget) > 0;
 
   return (
     <div>
@@ -354,75 +381,172 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, 
           <ShieldCheck size={10} className="text-white/20 absolute top-2 right-2" />
         </div>
 
-        {/* Zone 3: Flex Zone */}
+        {/* Zone 3: Flex Zone - Vertical Stack */}
         <div className="p-3">
-          {/* Blocks */}
-          {blockLayout.rows.map((row, ri) => (
-            <div key={ri} className="flex gap-1.5 mb-1.5">
-              {row.map((block, ci) => {
-                const spent = getCategorySpent(block.id, period);
-                const txs = getCategoryTransactions(block.id);
-                const monthTxs = getMonthCategoryTransactions(block.id);
-                const recurring = hasRecurringMap[block.id] || false;
-                const blockIdx = ri * 10 + ci;
-                const isRebalanceTarget = rebalanceTarget?.id === block.id;
+          {/* Blocks - full width vertical stack */}
+          {sortedCategories.map((cat, idx) => {
+            const spent = getCategorySpent(cat.id, period);
+            const txs = getCategoryTransactions(cat.id);
+            const monthTxs = getMonthCategoryTransactions(cat.id);
+            const recurring = hasRecurringMap[cat.id] || false;
+            const isRebalanceTarget = rebalanceTarget?.id === cat.id;
+            const blockGhostAmount = ghostTestCategoryId === cat.id ? ghostTestAmount : 0;
+            const budget = sliderPreviewBudgets[cat.id] ?? (period === 'week' ? cat.monthlyBudget / 4.33 : cat.monthlyBudget);
+            const autoBalance = activeSliderBlockId === cat.id && sliderPreviewBudgets[cat.id] !== undefined
+              ? getAutoBalanceSuggestion(cat.id, sliderPreviewBudgets[cat.id])
+              : null;
 
-                // Ghost amount for this block
-                const blockGhostAmount = ghostTestCategoryId === block.id ? ghostTestAmount : 0;
+            return (
+              <motion.div
+                key={cat.id}
+                style={{ marginBottom: idx < sortedCategories.length - 1 ? gap : 0 }}
+                animate={
+                  optimizeState !== 'idle'
+                    ? { y: [0, -2, 0, 2, 0] }
+                    : newBlockId === cat.name
+                    ? { y: [-20, 0], opacity: [0, 1] }
+                    : { y: 0 }
+                }
+                transition={{
+                  duration: optimizeState !== 'idle' ? 0.4 + idx * 0.05 : 0.4,
+                  repeat: optimizeState !== 'idle' ? Infinity : 0,
+                  repeatType: 'mirror',
+                  type: newBlockId === cat.name ? 'spring' : undefined,
+                  bounce: newBlockId === cat.name ? 0.4 : undefined,
+                }}
+              >
+                <CategoryBlock
+                  id={cat.id}
+                  name={cat.name}
+                  icon={cat.icon}
+                  tintColor={getTintColor(cat.name)}
+                  budget={budget}
+                  spent={spent}
+                  width={containerInnerWidth}
+                  height={blockHeights[idx]}
+                  transactions={txs}
+                  monthTransactions={monthTxs}
+                  onUpdateBudget={(id, newBudget) => updateCategory(id, { monthlyBudget: newBudget })}
+                  hasRecurring={recurring}
+                  monthlyIncome={config.monthlyIncome}
+                  flexRemaining={effectiveFlexRemaining + (sliderPreviewBudgets[cat.id] !== undefined ? sliderPreviewBudgets[cat.id] - budget : 0)}
+                  dailyAllowance={dailyAllowance}
+                  previewDailyAllowance={effectiveDailyAllowance}
+                  daysRemaining={daysRemaining}
+                  onSliderChange={handleSliderChange}
+                  onSliderConfirm={handleSliderConfirm}
+                  onSliderCancel={handleSliderCancel}
+                  sliderActive={activeSliderBlockId === cat.id}
+                  onExpandToggle={handleExpandToggle}
+                  ghostAmount={blockGhostAmount}
+                  autoBalanceSuggestion={autoBalance}
+                  onSuggestRebalance={handleSuggestRebalance}
+                  expandedFromParent={isRebalanceTarget ? true : undefined}
+                  presetSliderValue={isRebalanceTarget ? rebalanceTarget!.amount : undefined}
+                />
+              </motion.div>
+            );
+          })}
 
-                // Auto-balance suggestion for the active slider block
-                const autoBalance = activeSliderBlockId === block.id && sliderPreviewBudgets[block.id] !== undefined
-                  ? getAutoBalanceSuggestion(block.id, sliderPreviewBudgets[block.id])
-                  : null;
+          {/* Add category dashed block */}
+          <motion.div
+            layout
+            style={{ marginTop: sortedCategories.length > 0 ? gap : 0 }}
+            animate={{ height: addingCategory ? 'auto' : addCategoryHeight }}
+            transition={{ type: 'spring', duration: 0.3 }}
+            className="rounded-2xl overflow-hidden"
+            onClick={() => !addingCategory && setAddingCategory(true)}
+          >
+            {!addingCategory ? (
+              <div
+                className="flex items-center justify-center gap-2 cursor-pointer"
+                style={{
+                  height: addCategoryHeight,
+                  border: '2px dashed rgba(255,255,255,0.15)',
+                  borderRadius: 16,
+                }}
+              >
+                <Plus size={20} className="text-white/30" />
+                <span className="text-[14px] text-white/30">Add category</span>
+              </div>
+            ) : (
+              <div
+                className="p-3 rounded-2xl"
+                style={{
+                  border: '2px dashed rgba(255,255,255,0.15)',
+                  borderRadius: 16,
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Icon picker */}
+                <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
+                  {ICON_OPTIONS.map(opt => {
+                    const selected = newCatIcon === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        onClick={() => setNewCatIcon(opt.key)}
+                        className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all"
+                        style={{
+                          background: selected ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.08)',
+                          border: selected ? '2px solid rgba(139,92,246,0.8)' : '1px solid rgba(255,255,255,0.1)',
+                        }}
+                      >
+                        <opt.Icon size={16} className="text-white/60" strokeWidth={1.5} />
+                      </button>
+                    );
+                  })}
+                </div>
 
-                return (
-                  <motion.div
-                    key={block.id}
-                    animate={
-                      optimizeState !== 'idle'
-                        ? { y: [0, -2, 0, 2, 0] }
-                        : { y: 0 }
-                    }
-                    transition={{
-                      duration: 0.4 + blockIdx * 0.05,
-                      repeat: optimizeState !== 'idle' ? Infinity : 0,
-                      repeatType: 'mirror',
-                    }}
-                  >
-                    <CategoryBlock
-                      id={block.id}
-                      name={block.name}
-                      icon={block.icon}
-                      tintColor={getTintColor(block.name)}
-                      budget={block.budget}
-                      spent={spent}
-                      width={block.computedWidth}
-                      height={block.computedHeight}
-                      transactions={txs}
-                      monthTransactions={monthTxs}
-                      onUpdateBudget={(id, newBudget) => updateCategory(id, { monthlyBudget: newBudget })}
-                      hasRecurring={recurring}
-                      monthlyIncome={config.monthlyIncome}
-                      flexRemaining={effectiveFlexRemaining + (sliderPreviewBudgets[block.id] !== undefined ? sliderPreviewBudgets[block.id] - block.budget : 0)}
-                      dailyAllowance={dailyAllowance}
-                      previewDailyAllowance={effectiveDailyAllowance}
-                      daysRemaining={daysRemaining}
-                      onSliderChange={handleSliderChange}
-                      onSliderConfirm={handleSliderConfirm}
-                      onSliderCancel={handleSliderCancel}
-                      sliderActive={activeSliderBlockId === block.id}
-                      onExpandToggle={handleExpandToggle}
-                      ghostAmount={blockGhostAmount}
-                      autoBalanceSuggestion={autoBalance}
-                      onSuggestRebalance={handleSuggestRebalance}
-                      expandedFromParent={isRebalanceTarget ? true : undefined}
-                      presetSliderValue={isRebalanceTarget ? rebalanceTarget!.amount : undefined}
-                    />
-                  </motion.div>
-                );
-              })}
-            </div>
-          ))}
+                {/* Name input + color dot */}
+                <div className="flex items-center gap-2 mb-2">
+                  {selectedTint && (
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: selectedTint }} />
+                  )}
+                  <input
+                    type="text"
+                    value={newCatName}
+                    onChange={e => setNewCatName(e.target.value)}
+                    placeholder="Category name"
+                    className="flex-1 bg-white/8 backdrop-blur-sm rounded-xl px-3 py-2 text-[14px] text-white placeholder:text-white/25 outline-none border border-white/10 focus:border-white/20"
+                  />
+                </div>
+
+                {/* Budget input */}
+                <div className="flex items-center gap-1 mb-3">
+                  <span className="text-[14px] text-white/40">€</span>
+                  <input
+                    type="number"
+                    value={newCatBudget}
+                    onChange={e => setNewCatBudget(e.target.value)}
+                    placeholder="Monthly budget"
+                    className="flex-1 bg-white/8 backdrop-blur-sm rounded-xl px-3 py-2 text-[18px] font-bold text-white placeholder:text-white/25 outline-none border border-white/10 focus:border-white/20"
+                  />
+                </div>
+
+                {/* Create button */}
+                <button
+                  onClick={handleCreateCategory}
+                  disabled={!canCreate}
+                  className="w-full py-2.5 rounded-full text-[14px] font-medium text-white transition-opacity"
+                  style={{
+                    background: canCreate ? 'linear-gradient(135deg, #8B5CF6, #A855F7)' : 'rgba(255,255,255,0.08)',
+                    opacity: canCreate ? 1 : 0.4,
+                  }}
+                >
+                  Create
+                </button>
+
+                {/* Cancel */}
+                <button
+                  onClick={() => { setAddingCategory(false); setNewCatIcon(''); setNewCatName(''); setNewCatBudget(''); }}
+                  className="w-full mt-2 text-[13px] text-white/30 text-center"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </motion.div>
 
           {/* Empty Space */}
           {emptySpaceHeight > 40 && (
