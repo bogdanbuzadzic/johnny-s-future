@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X } from 'lucide-react';
+import { Check, X, RefreshCw, Scissors } from 'lucide-react';
 import {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, MoreHorizontal,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Transaction } from '@/context/BudgetContext';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, getDaysInMonth, getDate } from 'date-fns';
 
 const iconMap: Record<string, LucideIcon> = {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, MoreHorizontal,
@@ -37,15 +37,20 @@ interface CategoryBlockProps {
   width: number;
   height: number;
   transactions: Transaction[];
+  monthTransactions?: Transaction[];
   onUpdateBudget: (id: string, budget: number) => void;
+  hasRecurring?: boolean;
+  monthlyIncome?: number;
 }
 
 export function CategoryBlock({
-  id, name, icon, tintColor, budget, spent, width, height, transactions, onUpdateBudget,
+  id, name, icon, tintColor, budget, spent, width, height, transactions, monthTransactions,
+  onUpdateBudget, hasRecurring = false, monthlyIncome = 0,
 }: CategoryBlockProps) {
   const [expanded, setExpanded] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [cancelSimActive, setCancelSimActive] = useState(false);
 
   const Icon = iconMap[icon] || MoreHorizontal;
   const pct = budget > 0 ? spent / budget : 0;
@@ -64,10 +69,70 @@ export function CategoryBlock({
   const visibleTx = sortedTx.slice(0, 4);
   const moreTx = sortedTx.length - 4;
 
+  // Subscription calculations
+  const annualCost = budget * 12;
+  const dailyCost = budget / 30;
+  const hoursPerYear = monthlyIncome > 0 ? annualCost / (monthlyIncome / 160) : 0;
+
+  // Spending timeline data (Feature 6) - always uses month transactions
+  const timelineTxs = monthTransactions || transactions;
+  const timelineData = useMemo(() => {
+    const now = new Date();
+    const dim = getDaysInMonth(now);
+    const dom = getDate(now);
+    const data: { day: number; total: number }[] = [];
+    let cumTotal = 0;
+
+    for (let d = 1; d <= dom; d++) {
+      const dayTxs = timelineTxs.filter(tx => {
+        const txDate = parseISO(tx.date);
+        return txDate.getDate() === d && txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+      });
+      dayTxs.forEach(tx => (cumTotal += tx.amount));
+      data.push({ day: d, total: cumTotal });
+    }
+
+    return { data, daysInMonth: dim, dayOfMonth: dom };
+  }, [timelineTxs]);
+
   const handleSaveBudget = () => {
     const val = parseFloat(editValue);
     if (!isNaN(val) && val >= 0) onUpdateBudget(id, val);
     setEditingBudget(false);
+  };
+
+  const handleCancelConfirm = () => {
+    onUpdateBudget(id, 0);
+    setCancelSimActive(false);
+    setExpanded(false);
+  };
+
+  // Build SVG path for spending timeline
+  const buildTimelinePath = (chartWidth: number, chartHeight: number) => {
+    const { data, daysInMonth, dayOfMonth } = timelineData;
+    if (data.length === 0) return { linePath: '', fillPath: '', budgetY: chartHeight, todayX: 0, todayY: chartHeight };
+
+    const maxVal = Math.max(budget, ...data.map(d => d.total), 1);
+    const xScale = chartWidth / daysInMonth;
+    const yScale = (chartHeight - 4) / maxVal;
+
+    let linePath = `M 0 ${chartHeight}`;
+    let prevY = chartHeight;
+
+    data.forEach((pt) => {
+      const x = (pt.day - 0.5) * xScale;
+      const y = chartHeight - pt.total * yScale;
+      linePath += ` L ${x} ${prevY} L ${x} ${y}`;
+      prevY = y;
+    });
+
+    const todayX = (dayOfMonth - 0.5) * xScale;
+    linePath += ` L ${todayX} ${prevY}`;
+
+    const fillPath = linePath + ` L ${todayX} ${chartHeight} L 0 ${chartHeight} Z`;
+    const budgetY = Math.max(0, chartHeight - budget * yScale);
+
+    return { linePath, fillPath, budgetY, todayX, todayY: prevY };
   };
 
   return (
@@ -75,25 +140,39 @@ export function CategoryBlock({
       layout
       style={{ width }}
       className="flex-shrink-0 cursor-pointer select-none"
-      onClick={() => !editingBudget && setExpanded(!expanded)}
+      onClick={() => !editingBudget && !cancelSimActive && setExpanded(!expanded)}
     >
       <div
         className="rounded-2xl overflow-hidden backdrop-blur-sm relative"
         style={{
-          background: `${blockBg}`,
-          border: `1px solid ${blockBorder}`,
+          background: cancelSimActive ? `rgba(${hexToRgb(tintColor)},0.08)` : blockBg,
+          border: cancelSimActive ? `2px dashed rgba(${hexToRgb(tintColor)},0.20)` : `1px solid ${blockBorder}`,
           boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)',
           minHeight: height,
+          opacity: cancelSimActive ? 0.4 : 1,
+          transition: 'opacity 0.3s, border 0.3s',
         }}
       >
+        {/* Subscription pulse animation */}
+        {hasRecurring && !cancelSimActive && (
+          <motion.div
+            className="absolute inset-0 rounded-2xl pointer-events-none"
+            animate={{ opacity: [0.15, 0.35, 0.15] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ background: `rgba(${hexToRgb(tintColor)},1)` }}
+          />
+        )}
+
         {/* Spending fill */}
-        <div
-          className="absolute inset-y-0 left-0 rounded-l-2xl transition-all duration-300"
-          style={{
-            width: `${Math.min(pct * 100, 100)}%`,
-            background: `rgba(${hexToRgb(fillColor)},${fillOpacity})`,
-          }}
-        />
+        {!cancelSimActive && (
+          <div
+            className="absolute inset-y-0 left-0 rounded-l-2xl transition-all duration-300"
+            style={{
+              width: `${Math.min(pct * 100, 100)}%`,
+              background: `rgba(${hexToRgb(fillColor)},${fillOpacity})`,
+            }}
+          />
+        )}
 
         {/* Content */}
         <div className="relative z-10 p-2.5 flex flex-col justify-center h-full" style={{ minHeight: height }}>
@@ -102,15 +181,47 @@ export function CategoryBlock({
               <Icon size={16} className="text-white/70 flex-shrink-0" strokeWidth={1.5} />
               <span className="text-[13px] text-white truncate">{name}</span>
             </div>
-            <span className="text-[12px] text-white/50 flex-shrink-0">
-              €{Math.round(spent)}/€{Math.round(budget)}
-            </span>
+            <div className="flex items-center gap-1">
+              {hasRecurring && (
+                <RefreshCw size={10} className="text-white/20 flex-shrink-0" strokeWidth={1.5} />
+              )}
+              <span className="text-[12px] text-white/50 flex-shrink-0">
+                €{Math.round(spent)}/€{Math.round(budget)}
+              </span>
+            </div>
           </div>
         </div>
 
+        {/* Cancel simulation overlay */}
+        {cancelSimActive && (
+          <div className="relative z-10 px-2.5 pb-2.5" onClick={e => e.stopPropagation()}>
+            <p className="text-[12px] text-green-400 mb-1">
+              +€{Math.round(budget)}/month freed up · +€{Math.round(annualCost)}/year saved
+            </p>
+            <p className="text-[11px] text-white/30 mb-2">
+              Daily budget increases by €{(budget / 30).toFixed(1)}/day
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleCancelConfirm}
+                className="px-3 py-1.5 rounded-full text-[11px] font-medium"
+                style={{ background: 'rgba(52,199,89,0.2)', color: 'rgba(52,199,89,0.8)', border: '1px solid rgba(52,199,89,0.3)' }}
+              >
+                Actually cancel
+              </button>
+              <button
+                onClick={() => setCancelSimActive(false)}
+                className="text-[11px] text-white/40"
+              >
+                Just checking
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Expanded content */}
         <AnimatePresence>
-          {expanded && (
+          {expanded && !cancelSimActive && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
@@ -119,6 +230,59 @@ export function CategoryBlock({
               className="relative z-10 overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Subscription annual cost reveal */}
+              {hasRecurring && (
+                <div className="mx-2.5 mb-2 pt-1">
+                  <p className="text-[14px] text-white">
+                    €{Math.round(budget)}<span className="text-white/40 text-[12px]">/month</span>
+                    {' = '}
+                    <span className="text-[16px] font-semibold">€{Math.round(annualCost)}</span>
+                    <span className="text-white/40 text-[12px]">/year</span>
+                  </p>
+                  <p className="text-[12px] text-white/40">€{dailyCost.toFixed(2)} every single day</p>
+                  {monthlyIncome > 0 && (
+                    <p className="text-[12px] text-white/30">= {Math.round(hoursPerYear)} hours of work per year</p>
+                  )}
+                </div>
+              )}
+
+              {/* Mini spending timeline (Feature 6) */}
+              {timelineTxs.length > 0 && (() => {
+                const chartW = Math.max(width - 20, 60);
+                const chartH = 48;
+                const { linePath, fillPath, budgetY, todayX, todayY } = buildTimelinePath(chartW, chartH);
+                const crossedBudget = timelineData.data.some(d => d.total > budget);
+
+                return (
+                  <div className="mx-2.5 mb-2">
+                    <svg width={chartW} height={chartH} className="overflow-visible">
+                      <defs>
+                        <clipPath id={`overBudget-${id}`}>
+                          <rect x={0} y={0} width={chartW} height={budgetY} />
+                        </clipPath>
+                      </defs>
+                      {/* Fill area */}
+                      <path d={fillPath} fill={`rgba(${hexToRgb(tintColor)},0.20)`} />
+                      {/* Over-budget amber area */}
+                      {crossedBudget && (
+                        <path d={fillPath} fill="rgba(255,159,10,0.15)" clipPath={`url(#overBudget-${id})`} />
+                      )}
+                      {/* Budget line */}
+                      <line
+                        x1={0} y1={budgetY} x2={chartW} y2={budgetY}
+                        stroke={crossedBudget ? 'rgba(255,159,10,0.4)' : 'rgba(255,255,255,0.15)'}
+                        strokeDasharray="4 3"
+                        strokeWidth={1}
+                      />
+                      {/* Step line */}
+                      <path d={linePath} fill="none" stroke={`rgba(${hexToRgb(tintColor)},0.6)`} strokeWidth={1.5} />
+                      {/* Today dot */}
+                      <circle cx={todayX} cy={todayY} r={3} fill={tintColor} opacity={0.8} />
+                    </svg>
+                  </div>
+                );
+              })()}
+
               {/* Progress bar */}
               <div className="mx-2.5 mb-2">
                 <div className="h-[3px] rounded-full bg-white/10 overflow-hidden">
@@ -152,6 +316,19 @@ export function CategoryBlock({
                   <p className="text-[11px] text-white/25">and {moreTx} more</p>
                 )}
               </div>
+
+              {/* Cancel simulation button (for subscriptions) */}
+              {hasRecurring && (
+                <div className="px-2.5 pb-1">
+                  <button
+                    onClick={() => setCancelSimActive(true)}
+                    className="flex items-center gap-1.5 text-[13px] text-purple-300/70 hover:text-purple-300 transition-colors"
+                  >
+                    <Scissors size={13} strokeWidth={1.5} />
+                    What if I cancel?
+                  </button>
+                </div>
+              )}
 
               {/* Edit budget */}
               <div className="px-2.5 pb-2.5">
