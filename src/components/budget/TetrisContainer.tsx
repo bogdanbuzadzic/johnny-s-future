@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, PiggyBank, ShieldCheck, Wallet } from 'lucide-react';
 import { useBudget } from '@/context/BudgetContext';
@@ -18,16 +18,124 @@ interface TetrisContainerProps {
   period: 'month' | 'week';
   optimizeMode?: boolean;
   onOptimizeDone?: () => void;
+  ghostTestAmount?: number;
+  ghostTestCategoryId?: string;
 }
 
-export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }: TetrisContainerProps) {
+export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone, ghostTestAmount = 0, ghostTestCategoryId }: TetrisContainerProps) {
   const {
     config, fixedCategories, expenseCategories, transactions,
-    flexBudget, flexSpent, flexRemaining, dailyAllowance,
+    flexBudget, flexSpent, flexRemaining, dailyAllowance, daysRemaining,
     getCategorySpent, updateCategory, updateConfig
   } = useBudget();
 
   const containerWidth = typeof window !== 'undefined' ? Math.min(window.innerWidth - 32, 400) : 343;
+
+  // === Slider preview state ===
+  const [activeSliderBlockId, setActiveSliderBlockId] = useState<string | null>(null);
+  const [sliderPreviewBudgets, setSliderPreviewBudgets] = useState<Record<string, number>>({});
+  // Auto-balance: expand a specific block with a preset slider value
+  const [rebalanceTarget, setRebalanceTarget] = useState<{ id: string; amount: number } | null>(null);
+
+  // Debounced terrain trigger
+  const terrainDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [terrainTrigger, setTerrainTrigger] = useState(0);
+
+  // === Effective flex calculations ===
+  const sliderDelta = useMemo(() => {
+    let delta = 0;
+    for (const catId of Object.keys(sliderPreviewBudgets)) {
+      const cat = expenseCategories.find(c => c.id === catId);
+      if (cat) {
+        const actualBudget = period === 'week' ? cat.monthlyBudget / 4.33 : cat.monthlyBudget;
+        delta += sliderPreviewBudgets[catId] - actualBudget;
+      }
+    }
+    return delta;
+  }, [sliderPreviewBudgets, expenseCategories, period]);
+
+  const effectiveFlexRemaining = flexRemaining - sliderDelta - ghostTestAmount;
+  const effectiveDailyAllowance = Math.max(0, effectiveFlexRemaining / daysRemaining);
+
+  // === Slider handlers ===
+  const handleSliderChange = useCallback((id: string, newBudget: number) => {
+    setActiveSliderBlockId(id);
+    setSliderPreviewBudgets(prev => ({ ...prev, [id]: newBudget }));
+    // Debounce terrain recalc
+    if (terrainDebounceRef.current) clearTimeout(terrainDebounceRef.current);
+    terrainDebounceRef.current = setTimeout(() => setTerrainTrigger(t => t + 1), 100);
+  }, []);
+
+  const handleSliderConfirm = useCallback((id: string, newBudget: number) => {
+    // Convert back to monthly if in week mode
+    const monthlyBudget = period === 'week' ? newBudget * 4.33 : newBudget;
+    updateCategory(id, { monthlyBudget: Math.round(monthlyBudget) });
+    setSliderPreviewBudgets(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setActiveSliderBlockId(null);
+    setRebalanceTarget(null);
+  }, [updateCategory, period]);
+
+  const handleSliderCancel = useCallback((id: string) => {
+    setSliderPreviewBudgets(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setActiveSliderBlockId(null);
+    setRebalanceTarget(null);
+  }, []);
+
+  const handleExpandToggle = useCallback((id: string) => {
+    // Auto-cancel any other block's unsaved slider
+    if (activeSliderBlockId && activeSliderBlockId !== id) {
+      handleSliderCancel(activeSliderBlockId);
+    }
+  }, [activeSliderBlockId, handleSliderCancel]);
+
+  // === Auto-balance suggestion ===
+  const getAutoBalanceSuggestion = useCallback((currentCatId: string, currentSliderValue: number) => {
+    const currentCat = expenseCategories.find(c => c.id === currentCatId);
+    if (!currentCat) return null;
+
+    const currentBudget = period === 'week' ? currentCat.monthlyBudget / 4.33 : currentCat.monthlyBudget;
+    const effectiveFlex = flexRemaining - (currentSliderValue - currentBudget);
+    const effectiveFlexBudget = period === 'week' ? flexBudget / 4.33 : flexBudget;
+
+    if (currentSliderValue <= currentBudget || effectiveFlex >= effectiveFlexBudget * 0.1) return null;
+
+    // Find largest remaining budget category (excluding current)
+    let largest: { id: string; name: string; icon: string; budget: number } | null = null;
+    expenseCategories.forEach(cat => {
+      if (cat.id === currentCatId) return;
+      const catBudget = period === 'week' ? cat.monthlyBudget / 4.33 : cat.monthlyBudget;
+      if (!largest || catBudget > largest.budget) {
+        largest = { id: cat.id, name: cat.name, icon: cat.icon, budget: catBudget };
+      }
+    });
+
+    if (!largest) return null;
+    const shortage = currentSliderValue - currentBudget - effectiveFlex;
+    const reduceAmount = Math.min(shortage, (largest as any).budget);
+    if (reduceAmount <= 0) return null;
+
+    return {
+      categoryId: (largest as any).id,
+      categoryName: (largest as any).name,
+      categoryIcon: (largest as any).icon,
+      amount: reduceAmount,
+    };
+  }, [expenseCategories, flexRemaining, flexBudget, period]);
+
+  const handleSuggestRebalance = useCallback((targetCategoryId: string, suggestedAmount: number) => {
+    const targetCat = expenseCategories.find(c => c.id === targetCategoryId);
+    if (!targetCat) return;
+    const targetBudget = period === 'week' ? targetCat.monthlyBudget / 4.33 : targetCat.monthlyBudget;
+    setRebalanceTarget({ id: targetCategoryId, amount: targetBudget - suggestedAmount });
+  }, [expenseCategories, period]);
 
   // === Optimize mode state (Feature 8) ===
   const [optimizeState, setOptimizeState] = useState<'idle' | 'wobbling' | 'suggesting'>('idle');
@@ -94,7 +202,7 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
     onOptimizeDone?.();
   };
 
-  // === Has recurring map (Feature 5) ===
+  // === Has recurring map ===
   const hasRecurringMap = useMemo(() => {
     const map: Record<string, boolean> = {};
     expenseCategories.forEach(cat => {
@@ -103,7 +211,7 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
     return map;
   }, [expenseCategories, transactions]);
 
-  // === Month transactions for timeline (Feature 6) ===
+  // === Month transactions for timeline ===
   const getMonthCategoryTransactions = (categoryId: string) => {
     const now = new Date();
     const start = startOfMonth(now);
@@ -121,11 +229,13 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
     const innerWidth = containerWidth - 24;
     const effectiveFlexBudget = period === 'week' ? flexBudget / 4.33 : flexBudget;
     const blocks = expenseCategories.map(cat => {
-      const budget = period === 'week' ? cat.monthlyBudget / 4.33 : cat.monthlyBudget;
+      const actualBudget = period === 'week' ? cat.monthlyBudget / 4.33 : cat.monthlyBudget;
+      // Use slider preview budget if available
+      const budget = sliderPreviewBudgets[cat.id] ?? actualBudget;
       const rawWidth = effectiveFlexBudget > 0 ? (budget / effectiveFlexBudget) * innerWidth : innerWidth / Math.max(expenseCategories.length, 1);
       const width = Math.max(100, Math.min(rawWidth, innerWidth));
       const height = width >= 120 ? 56 : 48;
-      return { ...cat, computedWidth: width, computedHeight: height, budget };
+      return { ...cat, computedWidth: width, computedHeight: height, budget: sliderPreviewBudgets[cat.id] ?? actualBudget };
     });
 
     const rows: typeof blocks[] = [];
@@ -144,7 +254,7 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
     });
     if (currentRow.length > 0) rows.push(currentRow);
     return { rows, innerWidth };
-  }, [expenseCategories, containerWidth, flexBudget, period]);
+  }, [expenseCategories, containerWidth, flexBudget, period, sliderPreviewBudgets]);
 
   // === Period transactions ===
   const getCategoryTransactions = (categoryId: string) => {
@@ -165,7 +275,7 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
   };
 
   const totalFixed = fixedCategories.reduce((s, c) => s + c.monthlyBudget, 0);
-  const isOverBudget = flexRemaining < 0;
+  const isOverBudget = effectiveFlexRemaining < 0;
 
   // === Space calculations ===
   const fixedBarHeight = 36;
@@ -181,6 +291,10 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
   const emptySpaceHeight = containerHeight - fixedBarHeight - savingsBarHeight - blockRowsHeight - 12;
   const flexZoneHeight = containerHeight - fixedBarHeight - savingsBarHeight;
   const spaceRatio = flexZoneHeight > 0 ? emptySpaceHeight / flexZoneHeight : 1;
+
+  // Ghost test display text
+  const hasGhost = ghostTestAmount > 0 && ghostTestCategoryId;
+  const displayFlexRemaining = Math.round(effectiveFlexRemaining);
 
   return (
     <div>
@@ -251,6 +365,15 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
                 const monthTxs = getMonthCategoryTransactions(block.id);
                 const recurring = hasRecurringMap[block.id] || false;
                 const blockIdx = ri * 10 + ci;
+                const isRebalanceTarget = rebalanceTarget?.id === block.id;
+
+                // Ghost amount for this block
+                const blockGhostAmount = ghostTestCategoryId === block.id ? ghostTestAmount : 0;
+
+                // Auto-balance suggestion for the active slider block
+                const autoBalance = activeSliderBlockId === block.id && sliderPreviewBudgets[block.id] !== undefined
+                  ? getAutoBalanceSuggestion(block.id, sliderPreviewBudgets[block.id])
+                  : null;
 
                 return (
                   <motion.div
@@ -280,6 +403,20 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
                       onUpdateBudget={(id, newBudget) => updateCategory(id, { monthlyBudget: newBudget })}
                       hasRecurring={recurring}
                       monthlyIncome={config.monthlyIncome}
+                      flexRemaining={effectiveFlexRemaining + (sliderPreviewBudgets[block.id] !== undefined ? sliderPreviewBudgets[block.id] - block.budget : 0)}
+                      dailyAllowance={dailyAllowance}
+                      previewDailyAllowance={effectiveDailyAllowance}
+                      daysRemaining={daysRemaining}
+                      onSliderChange={handleSliderChange}
+                      onSliderConfirm={handleSliderConfirm}
+                      onSliderCancel={handleSliderCancel}
+                      sliderActive={activeSliderBlockId === block.id}
+                      onExpandToggle={handleExpandToggle}
+                      ghostAmount={blockGhostAmount}
+                      autoBalanceSuggestion={autoBalance}
+                      onSuggestRebalance={handleSuggestRebalance}
+                      expandedFromParent={isRebalanceTarget ? true : undefined}
+                      presetSliderValue={isRebalanceTarget ? rebalanceTarget!.amount : undefined}
                     />
                   </motion.div>
                 );
@@ -303,11 +440,16 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
                 <rect width="100%" height="100%" fill="url(#dotGrid)" />
               </svg>
 
-              <span className="text-[18px] text-white/30 font-medium relative z-10">
-                €{Math.round(flexRemaining)} to spend
+              <span className={`text-[18px] font-medium relative z-10 ${hasGhost ? 'text-white/20' : 'text-white/30'}`}>
+                €{displayFlexRemaining} to spend
               </span>
+              {hasGhost && (
+                <span className="text-[11px] text-white/30 relative z-10">
+                  testing €{ghostTestAmount}
+                </span>
+              )}
               <span className="text-[12px] text-white/20 relative z-10">
-                €{Math.round(dailyAllowance)}/day
+                €{Math.round(effectiveDailyAllowance)}/day
               </span>
 
               {/* Johnny idle bob */}
@@ -336,13 +478,13 @@ export function TetrisContainer({ period, optimizeMode = false, onOptimizeDone }
           {isOverBudget && (
             <div className="flex items-center justify-center py-2">
               <span className="text-[14px] text-amber-400 font-medium">
-                €{Math.abs(Math.round(flexRemaining))} over
+                €{Math.abs(displayFlexRemaining)} over
               </span>
             </div>
           )}
         </div>
 
-        {/* Optimize suggestion overlay (Feature 8) */}
+        {/* Optimize suggestion overlay */}
         <AnimatePresence>
           {optimizeState === 'suggesting' && (
             <motion.div
