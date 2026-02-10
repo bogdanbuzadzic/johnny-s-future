@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, RefreshCw, Scissors } from 'lucide-react';
 import {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, MoreHorizontal,
 } from 'lucide-react';
+import * as SliderPrimitive from '@radix-ui/react-slider';
 import type { LucideIcon } from 'lucide-react';
 import type { Transaction } from '@/context/BudgetContext';
 import { format, parseISO, getDaysInMonth, getDate } from 'date-fns';
@@ -41,16 +42,66 @@ interface CategoryBlockProps {
   onUpdateBudget: (id: string, budget: number) => void;
   hasRecurring?: boolean;
   monthlyIncome?: number;
+  // Slider props
+  flexRemaining?: number;
+  dailyAllowance?: number;
+  previewDailyAllowance?: number;
+  daysRemaining?: number;
+  onSliderChange?: (id: string, newBudget: number) => void;
+  onSliderConfirm?: (id: string, newBudget: number) => void;
+  onSliderCancel?: (id: string) => void;
+  sliderActive?: boolean;
+  onExpandToggle?: (id: string) => void;
+  // Ghost props
+  ghostAmount?: number;
+  // Auto-balance
+  autoBalanceSuggestion?: { categoryId: string; categoryName: string; categoryIcon: string; amount: number } | null;
+  onSuggestRebalance?: (targetCategoryId: string, suggestedAmount: number) => void;
+  // External expand control
+  expandedFromParent?: boolean;
+  presetSliderValue?: number;
 }
 
 export function CategoryBlock({
   id, name, icon, tintColor, budget, spent, width, height, transactions, monthTransactions,
   onUpdateBudget, hasRecurring = false, monthlyIncome = 0,
+  flexRemaining = 0, dailyAllowance = 0, previewDailyAllowance, daysRemaining = 1,
+  onSliderChange, onSliderConfirm, onSliderCancel, sliderActive = false, onExpandToggle,
+  ghostAmount = 0,
+  autoBalanceSuggestion, onSuggestRebalance,
+  expandedFromParent, presetSliderValue,
 }: CategoryBlockProps) {
   const [expanded, setExpanded] = useState(false);
-  const [editingBudget, setEditingBudget] = useState(false);
-  const [editValue, setEditValue] = useState('');
   const [cancelSimActive, setCancelSimActive] = useState(false);
+  const [sliderValue, setSliderValue] = useState(budget);
+  const [hasSliderChange, setHasSliderChange] = useState(false);
+  const [originalBudget, setOriginalBudget] = useState(budget);
+
+  // Sync slider when budget changes externally
+  useEffect(() => {
+    if (!hasSliderChange) {
+      setSliderValue(budget);
+      setOriginalBudget(budget);
+    }
+  }, [budget, hasSliderChange]);
+
+  // External expand control (for auto-balance)
+  useEffect(() => {
+    if (expandedFromParent !== undefined) {
+      setExpanded(expandedFromParent);
+    }
+  }, [expandedFromParent]);
+
+  // Preset slider value (from auto-balance suggestion)
+  useEffect(() => {
+    if (presetSliderValue !== undefined && expanded) {
+      setSliderValue(presetSliderValue);
+      setHasSliderChange(true);
+      setOriginalBudget(budget);
+      onSliderChange?.(id, presetSliderValue);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetSliderValue]);
 
   const Icon = iconMap[icon] || MoreHorizontal;
   const pct = budget > 0 ? spent / budget : 0;
@@ -74,7 +125,7 @@ export function CategoryBlock({
   const dailyCost = budget / 30;
   const hoursPerYear = monthlyIncome > 0 ? annualCost / (monthlyIncome / 160) : 0;
 
-  // Spending timeline data (Feature 6) - always uses month transactions
+  // Spending timeline data
   const timelineTxs = monthTransactions || transactions;
   const timelineData = useMemo(() => {
     const now = new Date();
@@ -95,25 +146,61 @@ export function CategoryBlock({
     return { data, daysInMonth: dim, dayOfMonth: dom };
   }, [timelineTxs]);
 
-  const handleSaveBudget = () => {
-    const val = parseFloat(editValue);
-    if (!isNaN(val) && val >= 0) onUpdateBudget(id, val);
-    setEditingBudget(false);
-  };
-
   const handleCancelConfirm = () => {
     onUpdateBudget(id, 0);
     setCancelSimActive(false);
     setExpanded(false);
   };
 
+  // Slider handlers
+  const maxPossible = budget + flexRemaining;
+
+  const handleSliderValueChange = (val: number[]) => {
+    const newVal = val[0];
+    setSliderValue(newVal);
+    if (!hasSliderChange) {
+      setOriginalBudget(budget);
+      setHasSliderChange(true);
+    }
+    onSliderChange?.(id, newVal);
+  };
+
+  const handleSliderSave = () => {
+    onSliderConfirm?.(id, sliderValue);
+    setHasSliderChange(false);
+    setOriginalBudget(sliderValue);
+  };
+
+  const handleSliderCancelAction = () => {
+    setSliderValue(originalBudget);
+    setHasSliderChange(false);
+    onSliderCancel?.(id);
+  };
+
+  const handleToggleExpand = () => {
+    if (cancelSimActive) return;
+    const newExpanded = !expanded;
+    setExpanded(newExpanded);
+    if (newExpanded) {
+      onExpandToggle?.(id);
+    }
+    if (!newExpanded && hasSliderChange) {
+      handleSliderCancelAction();
+    }
+  };
+
+  // Impact text
+  const currentDaily = dailyAllowance;
+  const previewDaily = previewDailyAllowance ?? dailyAllowance;
+  const dailyImproving = previewDaily > currentDaily;
+
   // Build SVG path for spending timeline
   const buildTimelinePath = (chartWidth: number, chartHeight: number) => {
-    const { data, daysInMonth, dayOfMonth } = timelineData;
+    const { data, daysInMonth: dim, dayOfMonth } = timelineData;
     if (data.length === 0) return { linePath: '', fillPath: '', budgetY: chartHeight, todayX: 0, todayY: chartHeight };
 
     const maxVal = Math.max(budget, ...data.map(d => d.total), 1);
-    const xScale = chartWidth / daysInMonth;
+    const xScale = chartWidth / dim;
     const yScale = (chartHeight - 4) / maxVal;
 
     let linePath = `M 0 ${chartHeight}`;
@@ -135,12 +222,16 @@ export function CategoryBlock({
     return { linePath, fillPath, budgetY, todayX, todayY: prevY };
   };
 
+  // Ghost fill calculations
+  const ghostFillStart = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+  const ghostFillWidth = budget > 0 ? Math.min((ghostAmount / budget) * 100, 100 - ghostFillStart) : 0;
+
   return (
     <motion.div
       layout
       style={{ width }}
       className="flex-shrink-0 cursor-pointer select-none"
-      onClick={() => !editingBudget && !cancelSimActive && setExpanded(!expanded)}
+      onClick={handleToggleExpand}
     >
       <div
         className="rounded-2xl overflow-hidden backdrop-blur-sm relative"
@@ -170,6 +261,22 @@ export function CategoryBlock({
             style={{
               width: `${Math.min(pct * 100, 100)}%`,
               background: `rgba(${hexToRgb(fillColor)},${fillOpacity})`,
+            }}
+          />
+        )}
+
+        {/* Ghost fill overlay */}
+        {ghostAmount > 0 && !cancelSimActive && (
+          <div
+            className="absolute inset-y-0 pointer-events-none"
+            style={{
+              left: `${ghostFillStart}%`,
+              width: `${ghostFillWidth}%`,
+              background: `rgba(${hexToRgb(tintColor)},0.15)`,
+              borderRight: `2px dashed rgba(${hexToRgb(tintColor)},0.4)`,
+              borderTop: `2px dashed rgba(${hexToRgb(tintColor)},0.4)`,
+              borderBottom: `2px dashed rgba(${hexToRgb(tintColor)},0.4)`,
+              animation: 'ghostPulse 2s ease-in-out infinite',
             }}
           />
         )}
@@ -230,6 +337,112 @@ export function CategoryBlock({
               className="relative z-10 overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* === SLIDER === */}
+              <div className="mx-2.5 mb-3 pt-1">
+                {/* Live budget amount */}
+                <p className="text-[18px] font-bold text-white text-center mb-1">
+                  €{Math.round(sliderValue)}
+                </p>
+
+                {/* Slider track */}
+                <div className="relative px-0.5">
+                  <SliderPrimitive.Root
+                    value={[sliderValue]}
+                    min={0}
+                    max={Math.max(maxPossible, 1)}
+                    step={5}
+                    onValueChange={handleSliderValueChange}
+                    className="relative flex w-full touch-none select-none items-center h-6"
+                  >
+                    <SliderPrimitive.Track className="relative h-[4px] w-full grow overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }}>
+                      <SliderPrimitive.Range className="absolute h-full rounded-full" style={{ background: `rgba(${hexToRgb(tintColor)},0.5)` }} />
+                    </SliderPrimitive.Track>
+                    <SliderPrimitive.Thumb
+                      className="block h-6 w-6 rounded-full bg-white shadow-md focus:outline-none"
+                      style={{ border: `2px solid ${tintColor}` }}
+                    />
+                  </SliderPrimitive.Root>
+                </div>
+
+                {/* Min/Max labels */}
+                <div className="flex justify-between mt-0.5">
+                  <span className="text-[10px] text-white/20">€0</span>
+                  <span className="text-[10px] text-white/20">€{Math.round(maxPossible)}</span>
+                </div>
+
+                {/* Daily allowance impact */}
+                {hasSliderChange && (
+                  <p className={`text-[12px] text-center mt-1 ${dailyImproving ? 'text-green-400/60' : 'text-white/40'}`}>
+                    €{Math.round(currentDaily)}/day → €{Math.round(previewDaily)}/day
+                  </p>
+                )}
+
+                {/* Freed up flash */}
+                <AnimatePresence>
+                  {hasSliderChange && sliderValue < originalBudget && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-[12px] text-green-400/70 text-center mt-0.5"
+                    >
+                      €{Math.round(originalBudget - sliderValue)} freed up
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+
+                {/* Confirmation row */}
+                <AnimatePresence>
+                  {hasSliderChange && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-2 flex items-center justify-between"
+                    >
+                      <span className="text-[12px] text-white/50 truncate mr-2">
+                        Set {name} to €{Math.round(sliderValue)}?
+                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={handleSliderSave}
+                          className="px-3 py-1.5 rounded-full text-[12px] font-medium gradient-primary text-white"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={handleSliderCancelAction}
+                          className="text-[12px] text-white/40"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Auto-balance suggestion */}
+                <AnimatePresence>
+                  {autoBalanceSuggestion && hasSliderChange && sliderValue > originalBudget && (
+                    <motion.button
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      onClick={() => onSuggestRebalance?.(autoBalanceSuggestion.categoryId, autoBalanceSuggestion.amount)}
+                      className="mt-2 w-full text-left flex items-center gap-1.5 text-[12px] text-amber-300/70 hover:text-amber-300 transition-colors"
+                    >
+                      {(() => {
+                        const SugIcon = iconMap[autoBalanceSuggestion.categoryIcon] || MoreHorizontal;
+                        return <SugIcon size={12} strokeWidth={1.5} />;
+                      })()}
+                      <span className="truncate">
+                        Reduce {autoBalanceSuggestion.categoryName} by €{Math.round(autoBalanceSuggestion.amount)} to balance?
+                      </span>
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
+
               {/* Subscription annual cost reveal */}
               {hasRecurring && (
                 <div className="mx-2.5 mb-2 pt-1">
@@ -246,7 +459,7 @@ export function CategoryBlock({
                 </div>
               )}
 
-              {/* Mini spending timeline (Feature 6) */}
+              {/* Mini spending timeline */}
               {timelineTxs.length > 0 && (() => {
                 const chartW = Math.max(width - 20, 60);
                 const chartH = 48;
@@ -261,22 +474,17 @@ export function CategoryBlock({
                           <rect x={0} y={0} width={chartW} height={budgetY} />
                         </clipPath>
                       </defs>
-                      {/* Fill area */}
                       <path d={fillPath} fill={`rgba(${hexToRgb(tintColor)},0.20)`} />
-                      {/* Over-budget amber area */}
                       {crossedBudget && (
                         <path d={fillPath} fill="rgba(255,159,10,0.15)" clipPath={`url(#overBudget-${id})`} />
                       )}
-                      {/* Budget line */}
                       <line
                         x1={0} y1={budgetY} x2={chartW} y2={budgetY}
                         stroke={crossedBudget ? 'rgba(255,159,10,0.4)' : 'rgba(255,255,255,0.15)'}
                         strokeDasharray="4 3"
                         strokeWidth={1}
                       />
-                      {/* Step line */}
                       <path d={linePath} fill="none" stroke={`rgba(${hexToRgb(tintColor)},0.6)`} strokeWidth={1.5} />
-                      {/* Today dot */}
                       <circle cx={todayX} cy={todayY} r={3} fill={tintColor} opacity={0.8} />
                     </svg>
                   </div>
@@ -330,34 +538,9 @@ export function CategoryBlock({
                 </div>
               )}
 
-              {/* Edit budget */}
+              {/* Edit name link */}
               <div className="px-2.5 pb-2.5">
-                {editingBudget ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-white/60 text-[12px]">€</span>
-                    <input
-                      type="number"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      className="w-16 bg-transparent text-white text-[13px] outline-none border-b border-white/30"
-                      autoFocus
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <button onClick={handleSaveBudget} className="p-1 rounded bg-white/10">
-                      <Check size={12} className="text-white/60" />
-                    </button>
-                    <button onClick={() => setEditingBudget(false)} className="p-1 rounded bg-white/10">
-                      <X size={12} className="text-white/60" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setEditValue(budget.toString()); setEditingBudget(true); }}
-                    className="text-[11px] text-white/25 hover:text-white/40 transition-colors"
-                  >
-                    Edit budget
-                  </button>
-                )}
+                <span className="text-[11px] text-white/25">Edit name</span>
               </div>
             </motion.div>
           )}

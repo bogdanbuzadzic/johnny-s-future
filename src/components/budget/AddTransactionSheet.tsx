@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CalendarDays, RotateCcw } from 'lucide-react';
 import { useBudget } from '@/context/BudgetContext';
@@ -28,14 +28,28 @@ const iconMap: Record<string, LucideIcon> = {
 interface AddTransactionSheetProps {
   open: boolean;
   onClose: () => void;
+  prefillAmount?: number;
+  prefillCategoryId?: string;
 }
 
-export function AddTransactionSheet({ open, onClose }: AddTransactionSheetProps) {
+export function AddTransactionSheet({ open, onClose, prefillAmount, prefillCategoryId }: AddTransactionSheetProps) {
   const { expenseCategories, transactions, addTransaction } = useBudget();
 
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [amountValue, setAmountValue] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+
+  // Initialize with prefill values when opening
+  useEffect(() => {
+    if (open) {
+      if (prefillAmount !== undefined) {
+        setAmountValue(prefillAmount.toString());
+      }
+      if (prefillCategoryId !== undefined) {
+        setSelectedCategoryId(prefillCategoryId);
+      }
+    }
+  }, [open, prefillAmount, prefillCategoryId]);
   const [description, setDescription] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isRecurring, setIsRecurring] = useState(false);
