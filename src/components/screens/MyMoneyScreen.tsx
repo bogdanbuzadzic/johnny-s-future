@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { Plus, Sliders, Lock, PiggyBank, ShieldCheck, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Plus, Sliders, Lock, PiggyBank, ShieldCheck, CheckCircle, AlertTriangle, AlertCircle, FlaskConical } from 'lucide-react';
 import {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, parseISO, isToday, isYesterday, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, parseISO, isToday, isYesterday, startOfMonth, endOfMonth, isWithinInterval, getDaysInMonth, getDate } from 'date-fns';
 import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { SetupWizard } from '@/components/budget/SetupWizard';
 import { EditBudgetSheet } from '@/components/budget/EditBudgetSheet';
@@ -280,10 +280,131 @@ function MyMoneyContent() {
   const [sliderValue, setSliderValue] = useState(0);
   const [originalBudget, setOriginalBudget] = useState(0);
 
+  // "Can I Afford" state
+  const [affordAmount, setAffordAmount] = useState('');
+  const [affordCategoryId, setAffordCategoryId] = useState<string | null>(null);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [buyItMode, setBuyItMode] = useState(false);
+  const categoryPickerRef = useRef<HTMLDivElement>(null);
+
   const sortedCategories = useMemo(
     () => [...expenseCategories].sort((a, b) => b.monthlyBudget - a.monthlyBudget),
     [expenseCategories]
   );
+
+  // Default afford category: expense category with most remaining budget
+  useEffect(() => {
+    if (expenseCategories.length > 0 && !affordCategoryId) {
+      let best = expenseCategories[0];
+      let bestRemaining = best.monthlyBudget - getCategorySpent(best.id, 'month');
+      for (const cat of expenseCategories) {
+        const rem = cat.monthlyBudget - getCategorySpent(cat.id, 'month');
+        if (rem > bestRemaining) {
+          best = cat;
+          bestRemaining = rem;
+        }
+      }
+      setAffordCategoryId(best.id);
+    }
+  }, [expenseCategories, getCategorySpent, affordCategoryId]);
+
+  // Close category picker on outside click
+  useEffect(() => {
+    if (!showCategoryPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (categoryPickerRef.current && !categoryPickerRef.current.contains(e.target as Node)) {
+        setShowCategoryPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCategoryPicker]);
+
+  // Parse afford amount
+  const affordAmountNum = useMemo(() => {
+    const val = parseFloat(affordAmount);
+    return isNaN(val) || val <= 0 ? 0 : val;
+  }, [affordAmount]);
+
+  // Afford answer calculation
+  const affordAnswer = useMemo(() => {
+    if (affordAmountNum <= 0 || !affordCategoryId) return null;
+    const cat = expenseCategories.find(c => c.id === affordCategoryId);
+    if (!cat) return null;
+
+    const catSpent = getCategorySpent(cat.id, 'month');
+    const categoryRemaining = cat.monthlyBudget - catSpent;
+    const flexRemainingAfter = flexRemaining - affordAmountNum;
+    const dailyAfter = daysRemaining > 0 ? flexRemainingAfter / daysRemaining : 0;
+
+    const withinCategory = affordAmountNum <= categoryRemaining;
+
+    if (flexRemainingAfter <= 0) {
+      return {
+        text: `€${Math.abs(Math.round(flexRemainingAfter))} over budget`,
+        color: '#FF9F0A',
+      };
+    }
+    if (withinCategory && flexRemainingAfter > flexBudget * 0.30) {
+      return { text: 'Yes, comfortably', color: '#34C759' };
+    }
+    if (withinCategory && flexRemainingAfter > flexBudget * 0.10) {
+      return { text: 'Yes, but watch it', color: '#FFFFFF' };
+    }
+    // Tight
+    return {
+      text: `Tight. €${Math.round(dailyAfter)}/day left for ${daysRemaining} days`,
+      color: '#FF9F0A',
+    };
+  }, [affordAmountNum, affordCategoryId, expenseCategories, getCategorySpent, flexRemaining, daysRemaining, flexBudget]);
+
+  // Goal impact from afford amount
+  const activeGoals = goals.filter(g => g.monthlyContribution > 0);
+  const totalContributions = activeGoals.reduce((sum, g) => sum + g.monthlyContribution, 0);
+  const monthlySavingsTarget = config.monthlySavingsTarget || 0;
+
+  const affordGoalDaysLater = useMemo(() => {
+    if (affordAmountNum <= 0 || totalContributions === 0) return [];
+    // Spending this amount reduces flex remaining, which could mean less savings, which delays goals
+    // Approximate: the amount spent reduces monthly savings proportionally
+    return activeGoals.map(g => {
+      const ratio = g.monthlyContribution / totalContributions;
+      // If we spend affordAmountNum extra, it reduces what's available for savings
+      // Simplified: proportional impact on each goal's timeline
+      const oldMonths = g.monthlyContribution > 0 ? (g.target - g.saved) / g.monthlyContribution : Infinity;
+      // The extra spending reduces the effective monthly contribution proportionally
+      const impactOnContribution = affordAmountNum * ratio;
+      const effectiveContribution = Math.max(0, g.monthlyContribution - impactOnContribution * 0.1); // 10% monthly impact from one-time spend
+      const newMonths = effectiveContribution > 0 ? (g.target - g.saved) / effectiveContribution : Infinity;
+      const daysLater = Math.round((newMonths - oldMonths) * 30);
+      return { ...g, daysLater };
+    }).filter(g => g.daysLater > 0 && isFinite(g.daysLater));
+  }, [affordAmountNum, activeGoals, totalContributions]);
+
+  // Slider-based goal diffs (from Prompt 5)
+  const sliderDiff = expandedId ? sliderValue - originalBudget : 0;
+  const adjustedRemaining = flexRemaining - sliderDiff;
+  const adjustedDaily = daysRemaining > 0 ? Math.max(0, adjustedRemaining / daysRemaining) : 0;
+
+  const goalDiffs = useMemo(() => {
+    if (sliderDiff === 0 || totalContributions === 0) return [];
+    return activeGoals.map(g => {
+      const ratio = g.monthlyContribution / totalContributions;
+      const goalDiff = Math.round(sliderDiff * ratio * -1);
+      const oldMonths = g.monthlyContribution > 0 ? (g.target - g.saved) / g.monthlyContribution : Infinity;
+      const newContribution = g.monthlyContribution + (sliderDiff * ratio * -1);
+      const newMonths = newContribution > 0 ? (g.target - g.saved) / newContribution : Infinity;
+      const monthsChange = oldMonths - newMonths;
+      return { ...g, goalDiff, monthsChange, ratio };
+    });
+  }, [sliderDiff, activeGoals, totalContributions]);
+
+  const mostAffectedGoal = useMemo(() => {
+    if (goalDiffs.length === 0) return null;
+    return goalDiffs.reduce((best, g) =>
+      Math.abs(g.monthsChange) > Math.abs(best.monthsChange) ? g : best
+    , goalDiffs[0]);
+  }, [goalDiffs]);
 
   // Staggered fill animation on mount
   useEffect(() => {
@@ -302,7 +423,12 @@ function MyMoneyContent() {
 
   const handleTransactionClose = useCallback(() => {
     setShowAddTransaction(false);
-  }, []);
+    if (buyItMode) {
+      // After successful buy-it transaction, clear afford state
+      setAffordAmount('');
+      setBuyItMode(false);
+    }
+  }, [buyItMode]);
 
   const handleExpand = useCallback((catId: string, budget: number) => {
     if (expandedId === catId) {
@@ -329,6 +455,24 @@ function MyMoneyContent() {
     setSliderValue(originalBudget);
   }, [originalBudget]);
 
+  // Afford input handler
+  const handleAffordInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    // Allow only digits and one decimal point
+    if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+      setAffordAmount(val);
+    }
+  }, []);
+
+  const handleBuyIt = useCallback(() => {
+    setBuyItMode(true);
+    setShowAddTransaction(true);
+  }, []);
+
+  const handleClearAfford = useCallback(() => {
+    setAffordAmount('');
+  }, []);
+
   const hasExpenses = expenseCategories.length > 0;
 
   // Block heights
@@ -348,36 +492,6 @@ function MyMoneyContent() {
     return Math.max(MIN_H, Math.min(MAX_H, raw));
   }
 
-  // Compute adjusted impact values when slider is active
-  const sliderDiff = expandedId ? sliderValue - originalBudget : 0;
-  const adjustedRemaining = flexRemaining - sliderDiff;
-  const adjustedDaily = daysRemaining > 0 ? Math.max(0, adjustedRemaining / daysRemaining) : 0;
-
-  // Goal-related calculations for live slider connection
-  const monthlySavingsTarget = config.monthlySavingsTarget || 0;
-  const activeGoals = goals.filter(g => g.monthlyContribution > 0);
-  const totalContributions = activeGoals.reduce((sum, g) => sum + g.monthlyContribution, 0);
-
-  const goalDiffs = useMemo(() => {
-    if (sliderDiff === 0 || totalContributions === 0) return [];
-    return activeGoals.map(g => {
-      const ratio = g.monthlyContribution / totalContributions;
-      const goalDiff = Math.round(sliderDiff * ratio * -1);
-      const oldMonths = g.monthlyContribution > 0 ? (g.target - g.saved) / g.monthlyContribution : Infinity;
-      const newContribution = g.monthlyContribution + (sliderDiff * ratio * -1);
-      const newMonths = newContribution > 0 ? (g.target - g.saved) / newContribution : Infinity;
-      const monthsChange = oldMonths - newMonths;
-      return { ...g, goalDiff, monthsChange, ratio };
-    });
-  }, [sliderDiff, activeGoals, totalContributions]);
-
-  const mostAffectedGoal = useMemo(() => {
-    if (goalDiffs.length === 0) return null;
-    return goalDiffs.reduce((best, g) =>
-      Math.abs(g.monthsChange) > Math.abs(best.monthsChange) ? g : best
-    , goalDiffs[0]);
-  }, [goalDiffs]);
-
   // Container ref for SVG flow lines
   const containerWrapperRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(300);
@@ -395,6 +509,10 @@ function MyMoneyContent() {
   const paceLabel = paceStatus === 'on-track' ? 'On track' : paceStatus === 'watch' ? 'Watch it' : 'Over pace';
   const paceColor = paceStatus === 'on-track' ? '#34C759' : '#FF9F0A';
 
+  // Selected afford category info
+  const selectedAffordCat = expenseCategories.find(c => c.id === affordCategoryId);
+  const SelectedAffordIcon = selectedAffordCat ? (budgetIconMap[selectedAffordCat.icon] || MoreHorizontal) : MoreHorizontal;
+
   if (!config.setupComplete) return <SetupWizard />;
 
   return (
@@ -407,6 +525,162 @@ function MyMoneyContent() {
             <Sliders size={24} className="text-primary-white/50" strokeWidth={1.5} />
           </button>
         </div>
+
+        {/* "Can I Afford" Input Row */}
+        <div
+          className="flex items-center gap-2 mb-3"
+          style={{
+            height: 48,
+            background: 'rgba(255,255,255,0.12)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            borderRadius: 16,
+            padding: '0 12px',
+          }}
+        >
+          <FlaskConical
+            size={18}
+            strokeWidth={1.5}
+            style={{ color: affordAnswer ? affordAnswer.color : 'rgba(255,255,255,0.35)', flexShrink: 0, transition: 'color 200ms' }}
+          />
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            {affordAmountNum > 0 && (
+              <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>€</span>
+            )}
+            <input
+              type="text"
+              inputMode="decimal"
+              value={affordAmount}
+              onChange={handleAffordInput}
+              placeholder="Can I afford €..."
+              className="bg-transparent border-none outline-none flex-1 min-w-0"
+              style={{
+                fontSize: affordAmountNum > 0 ? 16 : 14,
+                color: affordAmountNum > 0 ? 'white' : undefined,
+                caretColor: 'white',
+              }}
+              onBlur={() => {
+                if (affordAmount === '') {
+                  // Clear state on blur if empty
+                }
+              }}
+            />
+            {affordAnswer && (
+              <span
+                style={{
+                  fontSize: 13,
+                  color: affordAnswer.color,
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  transition: 'color 200ms',
+                }}
+              >
+                {affordAnswer.text}
+              </span>
+            )}
+          </div>
+          {/* Category Picker Pill */}
+          <div className="relative" ref={categoryPickerRef} style={{ flexShrink: 0 }}>
+            <button
+              onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+              className="flex items-center gap-1.5"
+              style={{
+                height: 32,
+                padding: '0 10px',
+                background: 'rgba(255,255,255,0.10)',
+                borderRadius: 999,
+              }}
+            >
+              <SelectedAffordIcon size={16} className="text-primary-white/40" strokeWidth={1.5} />
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+                {selectedAffordCat ? selectedAffordCat.name.slice(0, 6) : 'Cat'}
+              </span>
+            </button>
+            {/* Dropdown */}
+            <AnimatePresence>
+              {showCategoryPicker && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-1"
+                  style={{
+                    zIndex: 50,
+                    background: 'rgba(40,30,60,0.95)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    borderRadius: 12,
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    minWidth: 160,
+                    overflow: 'hidden',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  }}
+                >
+                  {expenseCategories.map(cat => {
+                    const CatIcon = budgetIconMap[cat.icon] || MoreHorizontal;
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          setAffordCategoryId(cat.id);
+                          setShowCategoryPicker(false);
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2.5 text-left"
+                        style={{
+                          background: cat.id === affordCategoryId ? 'rgba(255,255,255,0.08)' : 'transparent',
+                        }}
+                      >
+                        <CatIcon size={16} className="text-primary-white/50" strokeWidth={1.5} />
+                        <span style={{ fontSize: 13 }} className="text-primary-white/70">{cat.name}</span>
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Action Buttons (Buy it / Clear) */}
+        <AnimatePresence>
+          {affordAmountNum > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex gap-2 mb-3"
+            >
+              <button
+                onClick={handleBuyIt}
+                className="text-primary-white font-semibold"
+                style={{
+                  width: 120,
+                  height: 36,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)',
+                  fontSize: 13,
+                }}
+              >
+                Buy it
+              </button>
+              <button
+                onClick={handleClearAfford}
+                style={{
+                  width: 80,
+                  height: 36,
+                  borderRadius: 12,
+                  background: 'rgba(255,255,255,0.10)',
+                  fontSize: 13,
+                  color: 'rgba(255,255,255,0.3)',
+                }}
+              >
+                Clear
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Goal Cards Row */}
         {goals.length > 0 && (
@@ -425,6 +699,9 @@ function MyMoneyContent() {
               const diff = goalDiffs.find(d => d.id === goal.id);
               const hasDiff = diff && diff.goalDiff !== 0;
               const isPositive = diff && diff.goalDiff > 0;
+
+              // Afford-mode goal impact
+              const affordImpact = affordGoalDaysLater.find(g => g.id === goal.id);
 
               return (
                 <div key={goal.id} className="flex flex-col items-center flex-shrink-0">
@@ -451,12 +728,11 @@ function MyMoneyContent() {
                     <span style={{ fontSize: 10 }} className="text-primary-white/35">
                       €{goal.saved} / €{goal.target}
                     </span>
-                    {/* Mini progress bar */}
                     <div style={{ width: 'calc(100% - 24px)', height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.10)', marginTop: 4 }}>
                       <div style={{ width: `${Math.min(progress, 100)}%`, height: '100%', borderRadius: 2, background: 'rgba(52,199,89,0.4)', transition: 'width 300ms ease' }} />
                     </div>
                   </div>
-                  {/* Floating diff label */}
+                  {/* Floating diff label (slider) */}
                   <AnimatePresence>
                     {hasDiff && (
                       <motion.span
@@ -470,6 +746,23 @@ function MyMoneyContent() {
                         }}
                       >
                         {isPositive ? '+' : ''}€{diff!.goalDiff}/mo
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                  {/* Afford impact label */}
+                  <AnimatePresence>
+                    {affordImpact && affordAmountNum > 0 && !hasDiff && (
+                      <motion.span
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        style={{
+                          fontSize: 10,
+                          marginTop: 2,
+                          color: 'rgba(255,159,10,0.4)',
+                        }}
+                      >
+                        ~{affordImpact.daysLater} days later
                       </motion.span>
                     )}
                   </AnimatePresence>
@@ -579,6 +872,17 @@ function MyMoneyContent() {
                     : '0 0 16px 16px';
                   const isFlashing = flashCategoryId === cat.id;
 
+                  // Ghost fill for "Can I Afford"
+                  const isAffordTarget = affordAmountNum > 0 && cat.id === affordCategoryId;
+                  const ghostFillPercent = isAffordTarget && effectiveBudget > 0
+                    ? (affordAmountNum / effectiveBudget) * 100
+                    : 0;
+                  const combinedPercent = fillPercent + ghostFillPercent;
+                  const isGhostOverflow = combinedPercent > 100;
+
+                  // Dim other blocks when afford ghost is active
+                  const shouldDim = affordAmountNum > 0 && cat.id !== affordCategoryId;
+
                   // Get transactions for this category
                   const catTransactions = transactions.filter(t => t.type === 'expense' && t.categoryId === cat.id);
 
@@ -586,7 +890,7 @@ function MyMoneyContent() {
                     <motion.div
                       key={cat.id}
                       className="relative flex-shrink-0 overflow-hidden cursor-pointer"
-                      animate={{ height: h }}
+                      animate={{ height: h, opacity: shouldDim ? 0.85 : 1 }}
                       transition={{ type: 'spring', duration: 0.3, damping: 25 }}
                       onClick={() => handleExpand(cat.id, cat.monthlyBudget)}
                       style={{
@@ -611,6 +915,49 @@ function MyMoneyContent() {
                           transitionDelay: initialAnimDone.current ? '0ms' : `${index * 100}ms`,
                         }}
                       />
+
+                      {/* Ghost Fill */}
+                      {isAffordTarget && ghostFillPercent > 0 && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            bottom: `${Math.min(fillPercent, 100)}%`,
+                            left: 0,
+                            width: '100%',
+                            height: `${isGhostOverflow ? Math.max(0, 100 - fillPercent) : ghostFillPercent}%`,
+                            background: isGhostOverflow
+                              ? 'rgba(255,159,10,0.20)'
+                              : 'rgba(255,255,255,0.15)',
+                            borderTop: '2px dashed rgba(255,255,255,0.20)',
+                            animation: 'ghostPulse 2s ease-in-out infinite',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'bottom 200ms ease, height 200ms ease',
+                          }}
+                        >
+                          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
+                            +€{Math.round(affordAmountNum)}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Ghost overflow above block */}
+                      {isAffordTarget && isGhostOverflow && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: `${Math.min(combinedPercent - 100, 15)}%`,
+                            background: 'rgba(255,159,10,0.20)',
+                            borderBottom: '2px dashed rgba(255,159,10,0.30)',
+                            animation: 'ghostPulse 2s ease-in-out infinite',
+                            borderRadius: '16px 16px 0 0',
+                          }}
+                        />
+                      )}
 
                       {/* Flash overlay */}
                       {isFlashing && (
@@ -752,7 +1099,12 @@ function MyMoneyContent() {
       </button>
 
       <EditBudgetSheet open={showSettings} onClose={() => setShowSettings(false)} />
-      <AddTransactionSheet open={showAddTransaction} onClose={handleTransactionClose} />
+      <AddTransactionSheet
+        open={showAddTransaction}
+        onClose={handleTransactionClose}
+        prefillAmount={buyItMode ? affordAmountNum : undefined}
+        prefillCategoryId={buyItMode ? (affordCategoryId || undefined) : undefined}
+      />
     </div>
   );
 }
