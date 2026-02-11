@@ -1,11 +1,10 @@
-import { Home, LayoutGrid, BarChart3, Target, User } from 'lucide-react';
+import { Home, LayoutGrid, User } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { motion } from 'framer-motion';
 
 const tabs = [
   { icon: Home, label: 'Home' },
   { icon: LayoutGrid, label: 'My Money' },
-  { icon: Target, label: 'Goals' },
   { icon: User, label: 'Profile' },
 ];
 
