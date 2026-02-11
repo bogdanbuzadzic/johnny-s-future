@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Plus, Sliders, Lock, PiggyBank, ShieldCheck, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
 import {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
@@ -7,7 +7,7 @@ import type { LucideIcon } from 'lucide-react';
 import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { SetupWizard } from '@/components/budget/SetupWizard';
 import { EditBudgetSheet } from '@/components/budget/EditBudgetSheet';
-import { toast } from 'sonner';
+import { AddTransactionSheet } from '@/components/budget/AddTransactionSheet';
 
 const iconMap: Record<string, LucideIcon> = {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
@@ -36,6 +36,13 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+function getFillColor(percent: number, tint: string): string {
+  if (percent > 100) return hexToRgba('#FF9F0A', 0.50);
+  if (percent > 90) return hexToRgba('#FF9F0A', 0.40);
+  if (percent > 70) return hexToRgba('#FF9F0A', 0.35);
+  return hexToRgba(tint, 0.40);
+}
+
 function MyMoneyContent() {
   const {
     config, expenseCategories, fixedCategories, flexBudget, flexSpent,
@@ -43,10 +50,35 @@ function MyMoneyContent() {
     totalFixed,
   } = useBudget();
   const [showSettings, setShowSettings] = useState(false);
+  const [showAddTransaction, setShowAddTransaction] = useState(false);
+  const [animated, setAnimated] = useState(false);
+  const initialAnimDone = useRef(false);
+  const [flashCategoryId, setFlashCategoryId] = useState<string | null>(null);
+
+  // Staggered fill animation on mount
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      setAnimated(true);
+      // Mark initial animation done after last block finishes
+      setTimeout(() => { initialAnimDone.current = true; }, 600 + sortedCategories.length * 100);
+    });
+  }, []);
+
+  // Flash cleanup
+  useEffect(() => {
+    if (!flashCategoryId) return;
+    const t = setTimeout(() => setFlashCategoryId(null), 500);
+    return () => clearTimeout(t);
+  }, [flashCategoryId]);
+
+  const handleTransactionClose = useCallback(() => {
+    setShowAddTransaction(false);
+    // We could track the last added category from context, but for simplicity
+    // flash the most recently changed category on next render
+  }, []);
 
   const hasExpenses = expenseCategories.length > 0;
 
-  // Sort by budget descending
   const sortedCategories = useMemo(
     () => [...expenseCategories].sort((a, b) => b.monthlyBudget - a.monthlyBudget),
     [expenseCategories]
@@ -60,7 +92,6 @@ function MyMoneyContent() {
   const MAX_H = 160;
 
   const totalGaps = Math.max(0, sortedCategories.length - 1) * GAP;
-  const availableHeight = `calc(55vh - ${FIXED_BAR}px - ${SAVINGS_BAR}px - ${totalGaps}px)`;
 
   function blockHeight(budget: number): number {
     if (flexBudget <= 0) return MIN_H;
@@ -69,7 +100,6 @@ function MyMoneyContent() {
     return Math.max(MIN_H, Math.min(MAX_H, raw));
   }
 
-  // Fixed bar text
   const fixedBarText = useMemo(() => {
     if (fixedCategories.length === 0) return null;
     const items = fixedCategories.map(c => `${c.name} €${Math.round(c.monthlyBudget)}`);
@@ -79,7 +109,6 @@ function MyMoneyContent() {
     return items.join(' · ');
   }, [fixedCategories, totalFixed]);
 
-  // Pace
   const PaceIcon = paceStatus === 'on-track' ? CheckCircle : paceStatus === 'watch' ? AlertTriangle : AlertCircle;
   const paceLabel = paceStatus === 'on-track' ? 'On track' : paceStatus === 'watch' ? 'Watch it' : 'Over pace';
   const paceColor = paceStatus === 'on-track' ? '#34C759' : '#FF9F0A';
@@ -89,7 +118,7 @@ function MyMoneyContent() {
   return (
     <div className="h-full overflow-auto pb-24">
       <div className="px-4 pt-12 pb-4">
-        {/* Header – 48px */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-3" style={{ height: 48 }}>
           <h1 style={{ fontSize: 22 }} className="font-bold text-primary-white">My Money</h1>
           <button onClick={() => setShowSettings(true)} className="p-2 -mr-2">
@@ -131,7 +160,6 @@ function MyMoneyContent() {
           {/* Main Area */}
           <div className="flex-1 overflow-y-auto" style={{ padding: '6px 8px' }}>
             {!hasExpenses ? (
-              /* Empty state */
               <div
                 className="h-full flex flex-col items-center justify-center"
                 style={{
@@ -147,29 +175,65 @@ function MyMoneyContent() {
                 </span>
               </div>
             ) : (
-              /* Spending blocks */
               <div className="flex flex-col" style={{ gap: GAP }}>
-                {sortedCategories.map((cat) => {
+                {sortedCategories.map((cat, index) => {
                   const tint = getTint(cat.icon);
                   const Icon = iconMap[cat.icon] || MoreHorizontal;
                   const spent = getCategorySpent(cat.id, 'month');
                   const h = blockHeight(cat.monthlyBudget);
+                  const fillPercent = cat.monthlyBudget > 0
+                    ? Math.min((spent / cat.monthlyBudget) * 100, 110)
+                    : 0;
+                  const isOver = fillPercent > 100;
+                  const fillColor = getFillColor(fillPercent, tint);
+                  const fillRadius = fillPercent >= 100
+                    ? '16px'
+                    : '0 0 16px 16px';
+                  const isFlashing = flashCategoryId === cat.id;
 
                   return (
                     <div
                       key={cat.id}
-                      className="relative flex-shrink-0"
+                      className="relative flex-shrink-0 overflow-hidden"
                       style={{
                         height: h,
                         borderRadius: 16,
                         background: `linear-gradient(135deg, ${hexToRgba(tint, 0.25)}, rgba(255,255,255,0.08))`,
-                        border: `1.5px solid ${hexToRgba(tint, 0.20)}`,
+                        border: `1.5px solid ${isOver ? hexToRgba('#FF9F0A', 0.35) : hexToRgba(tint, 0.20)}`,
                         backdropFilter: 'blur(8px)',
                         WebkitBackdropFilter: 'blur(8px)',
                       }}
                     >
-                      {/* Top row: icon + name left, spent/budget right */}
-                      <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                      {/* Fill */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          width: '100%',
+                          height: animated ? `${fillPercent}%` : '0%',
+                          background: fillColor,
+                          borderRadius: fillRadius,
+                          transition: 'height 600ms ease-out',
+                          transitionDelay: initialAnimDone.current ? '0ms' : `${index * 100}ms`,
+                        }}
+                      />
+
+                      {/* Flash overlay */}
+                      {isFlashing && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(255,255,255,0.10)',
+                            borderRadius: 16,
+                            animation: 'fadeOut 500ms ease-out forwards',
+                          }}
+                        />
+                      )}
+
+                      {/* Content */}
+                      <div className="absolute top-3 left-3 right-3 flex items-center justify-between" style={{ zIndex: 1 }}>
                         <div className="flex items-center gap-2 min-w-0">
                           <Icon size={20} className="text-primary-white/70 flex-shrink-0" strokeWidth={1.5} />
                           <span style={{ fontSize: 14 }} className="font-semibold text-primary-white truncate">
@@ -240,7 +304,7 @@ function MyMoneyContent() {
 
       {/* FAB */}
       <button
-        onClick={() => toast('Add Transaction coming soon')}
+        onClick={() => setShowAddTransaction(true)}
         className="fixed z-50 flex items-center justify-center"
         style={{
           width: 56,
@@ -256,6 +320,7 @@ function MyMoneyContent() {
       </button>
 
       <EditBudgetSheet open={showSettings} onClose={() => setShowSettings(false)} />
+      <AddTransactionSheet open={showAddTransaction} onClose={handleTransactionClose} />
     </div>
   );
 }
