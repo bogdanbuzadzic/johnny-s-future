@@ -83,6 +83,7 @@ type BudgetContextType = {
   getMonthIncome: (month: Date) => number;
   getMonthExpenses: (month: Date) => number;
   resetMonth: () => void;
+  resetAll: () => void;
   expenseCategories: Category[];
   fixedCategories: Category[];
 };
@@ -288,6 +289,11 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     }));
   }, [monthStart, monthEnd]);
 
+  const resetAll = useCallback(() => {
+    setData(defaultData);
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
+
   const value: BudgetContextType = {
     config,
     categories,
@@ -318,6 +324,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     getMonthIncome,
     getMonthExpenses,
     resetMonth,
+    resetAll,
     expenseCategories,
     fixedCategories,
   };
