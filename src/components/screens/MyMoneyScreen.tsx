@@ -229,6 +229,7 @@ function ExpandedSpendingContent({
 // Expanded content for goal blocks
 function ExpandedGoalContent({
   goal, flexRemaining, onSliderChange, onSave, onCancel, contributionValue, originalContribution,
+  daysRemaining, dailyAllowance,
 }: {
   goal: Goal;
   flexRemaining: number;
@@ -237,6 +238,8 @@ function ExpandedGoalContent({
   onCancel: () => void;
   contributionValue: number;
   originalContribution: number;
+  daysRemaining: number;
+  dailyAllowance: number;
 }) {
   const max = originalContribution + flexRemaining;
   const hasChanged = Math.round(contributionValue) !== Math.round(originalContribution);
@@ -315,21 +318,20 @@ function ExpandedGoalContent({
 
       {/* Impact Text */}
       <div style={{ fontSize: 13, marginTop: 8 }} className="text-primary-white/50">
-        {contributionValue > 0 ? (
-          <span>At €{Math.round(contributionValue)}/month, reach goal in {isFinite(monthsToGoal) ? monthsToGoal : '∞'} months ({completionStr})</span>
-        ) : (
+        {contributionValue > 0 ? (() => {
+          const diff = contributionValue - originalContribution;
+          const newFlexRemaining = flexRemaining - diff;
+          const newDaily = daysRemaining > 0 ? newFlexRemaining / daysRemaining : 0;
+          if (diff > 0) {
+            return <span>At €{Math.round(contributionValue)}/mo, reach goal in {isFinite(monthsToGoal) ? monthsToGoal : '∞'} months. <span style={{ color: hexToRgba('#FF9F0A', 0.7) }}>But daily budget drops to €{Math.round(newDaily)}/day</span></span>;
+          } else if (diff < 0) {
+            return <span>At €{Math.round(contributionValue)}/mo, reach goal in {isFinite(monthsToGoal) ? monthsToGoal : '∞'} months. <span style={{ color: hexToRgba('#34C759', 0.7) }}>Daily budget rises to €{Math.round(newDaily)}/day</span></span>;
+          }
+          return <span>At €{Math.round(contributionValue)}/month, reach goal in {isFinite(monthsToGoal) ? monthsToGoal : '∞'} months ({completionStr})</span>;
+        })() : (
           <span className="text-primary-white/25">Set a monthly contribution to start saving</span>
         )}
       </div>
-      {hasChanged && monthsDiff !== 0 && (
-        <div style={{ fontSize: 11, marginTop: 4 }}>
-          {monthsDiff > 0 ? (
-            <span style={{ color: hexToRgba('#34C759', 0.5) }}>Reaching {Math.abs(monthsDiff)} months sooner</span>
-          ) : (
-            <span style={{ color: hexToRgba('#FF9F0A', 0.5) }}>Reaching {Math.abs(monthsDiff)} months later</span>
-          )}
-        </div>
-      )}
 
       {/* Timeline Bar */}
       <div className="mt-3">
@@ -462,9 +464,11 @@ function MyMoneyContent() {
   const activeGoals = goals.filter(g => g.monthlyContribution > 0);
   const totalContributions = activeGoals.reduce((sum, g) => sum + g.monthlyContribution, 0);
 
-  // Slider-based goal diffs
-  const sliderDiff = expandedId && expandedType === 'spending' ? sliderValue - originalBudget : 0;
-  const adjustedRemaining = flexRemaining - sliderDiff;
+  // Slider-based diffs (spending OR goal)
+  const spendingSliderDiff = expandedId && expandedType === 'spending' ? sliderValue - originalBudget : 0;
+  const goalSliderDiff = expandedId && expandedType === 'goal' ? sliderValue - originalBudget : 0;
+  const sliderDiff = spendingSliderDiff; // alias for spending-specific consumers
+  const adjustedRemaining = flexRemaining - spendingSliderDiff - goalSliderDiff;
   const adjustedDaily = daysRemaining > 0 ? Math.max(0, adjustedRemaining / daysRemaining) : 0;
 
   const mostAffectedGoal = useMemo(() => {
@@ -622,9 +626,10 @@ function MyMoneyContent() {
   }, [goals, multiplier, timeZoom]);
 
   // Johnny size
-  const spaceRatio = flexBudget > 0 ? (flexRemaining - (expandedId && expandedType === 'spending' ? sliderValue - originalBudget : 0)) / flexBudget : 1;
+  const totalSliderDiff = spendingSliderDiff + goalSliderDiff;
+  const spaceRatio = flexBudget > 0 ? (flexRemaining - totalSliderDiff) / flexBudget : 1;
   const isOverflow = spaceRatio <= 0;
-  const overAmount = isOverflow ? Math.abs(Math.round(flexRemaining - (expandedId && expandedType === 'spending' ? sliderValue - originalBudget : 0))) : 0;
+  const overAmount = isOverflow ? Math.abs(Math.round(flexRemaining - totalSliderDiff)) : 0;
 
   const johnnyAffordState = useMemo(() => {
     if (!affordAnswer || affordAmountNum <= 0) return 'happy';
@@ -888,10 +893,10 @@ function MyMoneyContent() {
                     }}>
                       {isOverflow ? (
                         <span style={{ fontSize: 12, color: 'rgba(255,159,10,0.5)' }}>€{overAmount} over</span>
-                      ) : sliderDiff !== 0 ? (
+                      ) : (spendingSliderDiff !== 0 || goalSliderDiff !== 0) ? (
                         <span style={{ fontSize: 12 }}>
                           <span style={{ color: 'rgba(255,255,255,0.25)' }}>€{Math.round(flexRemaining)} </span>
-                          <span style={{ color: sliderDiff < 0 ? 'rgba(52,199,89,0.6)' : 'rgba(255,159,10,0.6)' }}>
+                          <span style={{ color: totalSliderDiff > 0 ? 'rgba(255,159,10,0.6)' : 'rgba(52,199,89,0.6)' }}>
                             → €{Math.round(adjustedRemaining)} free
                           </span>
                         </span>
@@ -978,6 +983,7 @@ function MyMoneyContent() {
                           getSizeTier={getSizeTier} expandedId={expandedId} sliderValue={sliderValue} originalBudget={originalBudget}
                           animated={animated} flexRemaining={flexRemaining}
                           spendingSliderDiff={sliderDiff}
+                          daysRemaining={daysRemaining} dailyAllowance={dailyAllowance}
                           onExpand={(id, contribution) => handleExpand(id, contribution, 'goal')}
                           onSliderChange={setSliderValue} onSave={handleSliderSave} onCancel={handleSliderCancel} />
                       ))}
@@ -1205,13 +1211,15 @@ function SpendingBlock({
 // Goal Block Component
 function GoalBlock({
   goal, blockId, amount, getSizeTier, expandedId, sliderValue, originalBudget,
-  animated, flexRemaining, spendingSliderDiff = 0, onExpand, onSliderChange, onSave, onCancel,
+  animated, flexRemaining, spendingSliderDiff = 0, daysRemaining, dailyAllowance,
+  onExpand, onSliderChange, onSave, onCancel,
 }: {
   goal: Goal; blockId: string; amount: number;
   getSizeTier: (amount: number) => { colSpan: number; rowSpan: number; tier: string };
   expandedId: string | null; sliderValue: number; originalBudget: number;
   animated: boolean; flexRemaining: number;
   spendingSliderDiff?: number;
+  daysRemaining: number; dailyAllowance: number;
   onExpand: (id: string, contribution: number) => void;
   onSliderChange: (val: number) => void; onSave: () => void; onCancel: () => void;
 }) {
@@ -1376,6 +1384,7 @@ function GoalBlock({
           </div>
           <ExpandedGoalContent goal={goal} flexRemaining={flexRemaining}
             contributionValue={sliderValue} originalContribution={originalBudget}
+            daysRemaining={daysRemaining} dailyAllowance={dailyAllowance}
             onSliderChange={onSliderChange} onSave={onSave} onCancel={onCancel} />
         </div>
       )}
