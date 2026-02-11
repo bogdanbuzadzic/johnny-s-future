@@ -597,28 +597,29 @@ function MyMoneyContent() {
     return { colSpan: 1, rowSpan: 1, tier: 'small' };
   }
 
-  // Build unified block array
-  type UnifiedBlock =
-    | { type: 'spending'; id: string; amount: number; data: typeof expenseCategories[0] }
-    | { type: 'goal'; id: string; amount: number; data: Goal }
-    | { type: 'add-category'; id: string; amount: -1 }
-    | { type: 'add-goal'; id: string; amount: -2 };
+  // Build separate spending and goal block arrays
+  type SpendingBlockItem = { type: 'spending'; id: string; amount: number; data: typeof expenseCategories[0] };
+  type GoalBlockItem = { type: 'goal'; id: string; amount: number; data: Goal };
 
-  const unifiedBlocks = useMemo<UnifiedBlock[]>(() => {
-    const blocks: UnifiedBlock[] = [];
+  const spendingBlocks = useMemo<SpendingBlockItem[]>(() => {
+    const blocks: SpendingBlockItem[] = [];
     for (const cat of expenseCategories) {
       const amt = cat.monthlyBudget * multiplier;
       blocks.push({ type: 'spending', id: cat.id, amount: amt, data: cat });
     }
+    blocks.sort((a, b) => b.amount - a.amount);
+    return blocks;
+  }, [expenseCategories, multiplier]);
+
+  const goalBlocks = useMemo<GoalBlockItem[]>(() => {
+    const blocks: GoalBlockItem[] = [];
     for (const goal of goals) {
       const amt = timeZoom === '5year' ? goal.target : goal.monthlyContribution * multiplier;
       blocks.push({ type: 'goal', id: `goal-${goal.id}`, amount: amt, data: goal });
     }
     blocks.sort((a, b) => b.amount - a.amount);
-    blocks.push({ type: 'add-category', id: 'add-cat', amount: -1 });
-    blocks.push({ type: 'add-goal', id: 'add-goal', amount: -2 });
     return blocks;
-  }, [expenseCategories, goals, multiplier, timeZoom]);
+  }, [goals, multiplier, timeZoom]);
 
   // Johnny size
   const spaceRatio = flexBudget > 0 ? (flexRemaining - (expandedId && expandedType === 'spending' ? sliderValue - originalBudget : 0)) / flexBudget : 1;
@@ -758,7 +759,7 @@ function MyMoneyContent() {
               </div>
             </div>
 
-            {/* Main Area */}
+            {/* Main Area - Split into Spending Zone / Divider / Goals Zone */}
             <div className="flex-1 overflow-y-auto" style={{ padding: '6px 8px' }}>
               {!hasExpenses ? (
                 <div className="flex flex-col items-center justify-center" style={{
@@ -772,13 +773,14 @@ function MyMoneyContent() {
                   <span style={{ fontSize: 12 }} className="text-primary-white/15 mt-2">Tap the + below to create your first category</span>
                 </div>
               ) : (
-                <div style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
-                  gridAutoRows: 'minmax(60px, auto)', gap: GAP, padding: 0,
-                }}>
-                  {unifiedBlocks.map((block, index) => {
-                    if (block.type === 'spending') {
-                      return <SpendingBlock key={block.id} cat={block.data} index={index} amount={block.amount}
+                <div className="flex flex-col">
+                  {/* === SPENDING ZONE === */}
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                    gridAutoRows: 'minmax(60px, auto)', gap: GAP, padding: 0,
+                  }}>
+                    {spendingBlocks.map((block, index) => (
+                      <SpendingBlock key={block.id} cat={block.data} index={index} amount={block.amount}
                         getSizeTier={getSizeTier} expandedId={expandedId} sliderValue={sliderValue} originalBudget={originalBudget}
                         animated={animated} initialAnimDone={initialAnimDone} flashCategoryId={flashCategoryId}
                         affordAmountNum={affordAmountNum} affordCategoryId={affordCategoryId}
@@ -787,170 +789,193 @@ function MyMoneyContent() {
                         flexRemaining={flexRemaining} daysRemaining={daysRemaining} dailyAllowance={dailyAllowance}
                         onExpand={(id, budget) => handleExpand(id, budget, 'spending')}
                         onSliderChange={setSliderValue} onSave={handleSliderSave} onCancel={handleSliderCancel}
-                        goalImpactText={goalImpactText} />;
-                    }
-                    if (block.type === 'goal') {
-                      return <GoalBlock key={block.id} goal={block.data} blockId={block.id} amount={block.amount}
-                        getSizeTier={getSizeTier} expandedId={expandedId} sliderValue={sliderValue} originalBudget={originalBudget}
-                        animated={animated} flexRemaining={flexRemaining}
-                        onExpand={(id, contribution) => handleExpand(id, contribution, 'goal')}
-                        onSliderChange={setSliderValue} onSave={handleSliderSave} onCancel={handleSliderCancel} />;
-                    }
-                    if (block.type === 'add-category') {
-                      return (
-                        <motion.div key="add-cat" layout transition={{ type: 'spring', duration: 0.5, damping: 25 }}
-                          style={{ gridColumn: showAddCatForm ? '1 / -1' : 'span 1', gridRow: 'span 1' }}>
-                          <motion.div animate={{ height: showAddCatForm ? 'auto' : 60 }}
-                            transition={{ type: 'spring', duration: 0.3, damping: 25 }}
-                            style={{ border: '2px dashed rgba(255,255,255,0.12)', borderRadius: 16, overflow: 'hidden', height: '100%' }}
-                            onClick={(e) => { e.stopPropagation(); if (!showAddCatForm) setShowAddCatForm(true); }}>
-                            {!showAddCatForm ? (
-                              <div className="flex flex-col items-center justify-center gap-1 cursor-pointer h-full">
-                                <Plus size={18} className="text-primary-white/25" />
-                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>Category</span>
-                              </div>
-                            ) : (
-                              <div className="p-3 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex gap-2 overflow-x-auto pb-1" style={{
-                                  scrollbarWidth: 'none', msOverflowStyle: 'none',
-                                  animation: iconPickerFlash ? 'ghostPulse 0.3s ease-in-out 2' : undefined,
-                                }}>
-                                  {addCatIconOptions.map(iconName => {
-                                    const IconComp = budgetIconMap[iconName] || MoreHorizontal;
-                                    const t = getTint(iconName);
-                                    const selected = newCatIcon === iconName;
-                                    return (
-                                      <button key={iconName} onClick={() => setNewCatIcon(iconName)} className="flex-shrink-0 flex items-center justify-center"
-                                        style={{ width: 40, height: 40, borderRadius: '50%',
-                                          background: selected ? hexToRgba(t, 0.20) : 'rgba(255,255,255,0.08)',
-                                          border: selected ? `2px solid ${hexToRgba(t, 0.25)}` : '2px solid transparent', transition: 'all 150ms ease',
-                                        }}>
-                                        <IconComp size={18} style={{ color: selected ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)' }} strokeWidth={1.5} />
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                                <input type="text" value={newCatName} onChange={(e) => setNewCatName(e.target.value.slice(0, 20))} placeholder="Category name"
-                                  className="bg-transparent border-none outline-none" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px', fontSize: 13, color: 'white' }} />
-                                <div className="flex items-center" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px' }}>
-                                  <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>€</span>
-                                  <input type="text" inputMode="decimal" value={newCatBudget} onChange={handleNewCatBudgetInput} placeholder="Monthly budget"
-                                    className="flex-1 bg-transparent border-none outline-none placeholder:text-white/40"
-                                    style={{ fontSize: 16, fontWeight: 700, color: 'white', caretColor: 'white' }} />
-                                </div>
-                                <div className="flex items-center justify-center gap-3">
-                                  <button onClick={handleCreateCategory} disabled={createCatDisabled}
-                                    style={{ height: 40, width: 120, borderRadius: 12, background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)',
-                                      opacity: createCatDisabled ? 0.3 : 1, fontSize: 13, fontWeight: 600, color: 'white' }}>Create</button>
-                                  <button onClick={handleCancelAddCat} style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Cancel</button>
-                                </div>
-                              </div>
-                            )}
-                          </motion.div>
-                        </motion.div>
-                      );
-                    }
-                    if (block.type === 'add-goal') {
-                      return (
-                        <motion.div key="add-goal" layout transition={{ type: 'spring', duration: 0.5, damping: 25 }}
-                          style={{ gridColumn: showAddGoalForm ? '1 / -1' : 'span 1', gridRow: 'span 1' }}>
-                          <motion.div animate={{ height: showAddGoalForm ? 'auto' : 60 }}
-                            transition={{ type: 'spring', duration: 0.3, damping: 25 }}
-                            style={{ border: '2px dashed rgba(52,199,89,0.15)', borderRadius: 16, overflow: 'hidden', height: '100%' }}
-                            onClick={(e) => { e.stopPropagation(); if (!showAddGoalForm) setShowAddGoalForm(true); }}>
-                            {!showAddGoalForm ? (
-                              <div className="flex flex-col items-center justify-center gap-1 cursor-pointer h-full">
-                                <Plus size={18} style={{ color: 'rgba(52,199,89,0.25)' }} />
-                                <span style={{ fontSize: 11, color: 'rgba(52,199,89,0.25)' }}>Goal</span>
-                              </div>
-                            ) : (
-                              <div className="p-3 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                                  {addGoalIconOptions.map(iconName => {
-                                    const IconComp = goalIconMap[iconName] || Target;
-                                    const t = getGoalTint(iconName);
-                                    const selected = newGoalIcon === iconName;
-                                    return (
-                                      <button key={iconName} onClick={() => setNewGoalIcon(iconName)} className="flex-shrink-0 flex items-center justify-center"
-                                        style={{ width: 40, height: 40, borderRadius: '50%',
-                                          background: selected ? hexToRgba(t, 0.20) : 'rgba(255,255,255,0.08)',
-                                          border: selected ? `2px solid ${hexToRgba(t, 0.25)}` : '2px solid transparent', transition: 'all 150ms ease',
-                                        }}>
-                                        <IconComp size={18} style={{ color: selected ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)' }} strokeWidth={1.5} />
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                                <input type="text" value={newGoalName} onChange={(e) => setNewGoalName(e.target.value.slice(0, 20))} placeholder="Goal name"
-                                  className="bg-transparent border-none outline-none" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px', fontSize: 13, color: 'white' }} />
-                                <div className="flex items-center" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px' }}>
-                                  <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>€</span>
-                                  <input type="text" inputMode="decimal" value={newGoalTarget}
-                                    onChange={(e) => { const v = e.target.value; if (v === '' || /^\d*\.?\d{0,2}$/.test(v)) setNewGoalTarget(v); }}
-                                    placeholder="Target amount" className="flex-1 bg-transparent border-none outline-none placeholder:text-white/40"
-                                    style={{ fontSize: 16, fontWeight: 700, color: 'white', caretColor: 'white' }} />
-                                </div>
-                                <div className="flex items-center" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px' }}>
-                                  <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>€</span>
-                                  <input type="text" inputMode="decimal" value={newGoalContribution}
-                                    onChange={(e) => { const v = e.target.value; if (v === '' || /^\d*\.?\d{0,2}$/.test(v)) setNewGoalContribution(v); }}
-                                    placeholder="Per month" className="flex-1 bg-transparent border-none outline-none placeholder:text-white/40"
-                                    style={{ fontSize: 16, fontWeight: 700, color: 'white', caretColor: 'white' }} />
-                                </div>
-                                <div className="flex items-center justify-center gap-3">
-                                  <button onClick={handleCreateGoal} disabled={createGoalDisabled}
-                                    style={{ height: 40, width: 120, borderRadius: 12, background: 'linear-gradient(135deg, #34C759, #14B8A6)',
-                                      opacity: createGoalDisabled ? 0.3 : 1, fontSize: 13, fontWeight: 600, color: 'white' }}>Create</button>
-                                  <button onClick={handleCancelAddGoal} style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Cancel</button>
-                                </div>
-                              </div>
-                            )}
-                          </motion.div>
-                        </motion.div>
-                      );
-                    }
-                    return null;
-                  })}
-                </div>
-              )}
-
-              {/* Johnny in Empty Space */}
-              {hasExpenses && !isOverflow && (
-                <motion.div className="flex flex-col items-center justify-center"
-                  animate={{ opacity: 1 }} transition={{ type: 'spring', duration: 0.4, damping: 25 }}
-                  style={{ padding: '12px 0', minHeight: spaceRatio > 0.3 ? 80 : spaceRatio > 0.1 ? 60 : 40 }}>
-                  <div className="relative flex items-center justify-center">
-                    <motion.div animate={{ y: spaceRatio > 0.1 ? [0, -4, 0] : 0 }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
-                      <img src={johnnyImage} alt="Johnny" style={{
-                        width: spaceRatio > 0.3 ? 48 : spaceRatio > 0.1 ? 36 : 24,
-                        height: spaceRatio > 0.3 ? 48 : spaceRatio > 0.1 ? 36 : 24, transition: 'width 400ms, height 400ms',
-                      }} />
+                        goalImpactText={goalImpactText} />
+                    ))}
+                    {/* Add Category */}
+                    <motion.div key="add-cat" layout transition={{ type: 'spring', duration: 0.5, damping: 25 }}
+                      style={{ gridColumn: showAddCatForm ? '1 / -1' : 'span 1', gridRow: 'span 1' }}>
+                      <motion.div animate={{ height: showAddCatForm ? 'auto' : 60 }}
+                        transition={{ type: 'spring', duration: 0.3, damping: 25 }}
+                        style={{ border: '2px dashed rgba(255,255,255,0.12)', borderRadius: 16, overflow: 'hidden', height: '100%' }}
+                        onClick={(e) => { e.stopPropagation(); if (!showAddCatForm) setShowAddCatForm(true); }}>
+                        {!showAddCatForm ? (
+                          <div className="flex flex-col items-center justify-center gap-1 cursor-pointer h-full">
+                            <Plus size={18} className="text-primary-white/25" />
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>Category</span>
+                          </div>
+                        ) : (
+                          <div className="p-3 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex gap-2 overflow-x-auto pb-1" style={{
+                              scrollbarWidth: 'none', msOverflowStyle: 'none',
+                              animation: iconPickerFlash ? 'ghostPulse 0.3s ease-in-out 2' : undefined,
+                            }}>
+                              {addCatIconOptions.map(iconName => {
+                                const IconComp = budgetIconMap[iconName] || MoreHorizontal;
+                                const t = getTint(iconName);
+                                const selected = newCatIcon === iconName;
+                                return (
+                                  <button key={iconName} onClick={() => setNewCatIcon(iconName)} className="flex-shrink-0 flex items-center justify-center"
+                                    style={{ width: 40, height: 40, borderRadius: '50%',
+                                      background: selected ? hexToRgba(t, 0.20) : 'rgba(255,255,255,0.08)',
+                                      border: selected ? `2px solid ${hexToRgba(t, 0.25)}` : '2px solid transparent', transition: 'all 150ms ease',
+                                    }}>
+                                    <IconComp size={18} style={{ color: selected ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)' }} strokeWidth={1.5} />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <input type="text" value={newCatName} onChange={(e) => setNewCatName(e.target.value.slice(0, 20))} placeholder="Category name"
+                              className="bg-transparent border-none outline-none" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px', fontSize: 13, color: 'white' }} />
+                            <div className="flex items-center" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px' }}>
+                              <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>€</span>
+                              <input type="text" inputMode="decimal" value={newCatBudget} onChange={handleNewCatBudgetInput} placeholder="Monthly budget"
+                                className="flex-1 bg-transparent border-none outline-none placeholder:text-white/40"
+                                style={{ fontSize: 16, fontWeight: 700, color: 'white', caretColor: 'white' }} />
+                            </div>
+                            <div className="flex items-center justify-center gap-3">
+                              <button onClick={handleCreateCategory} disabled={createCatDisabled}
+                                style={{ height: 40, width: 120, borderRadius: 12, background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)',
+                                  opacity: createCatDisabled ? 0.3 : 1, fontSize: 13, fontWeight: 600, color: 'white' }}>Create</button>
+                              <button onClick={handleCancelAddCat} style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Cancel</button>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
                     </motion.div>
-                    {(spaceRatio <= 0.3 && spaceRatio > 0.1 || johnnyAffordState === 'thinking') && (
-                      <div className="absolute flex items-end gap-0.5" style={{ right: -20, top: 0 }}>
-                        <div style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }} />
-                        <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }} />
-                        <div className="flex items-center justify-center" style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }}>
-                          <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.20)' }}>...</span>
-                        </div>
+                  </div>
+
+                  {/* === DIVIDER LINE with Johnny & "€X free" pill === */}
+                  <motion.div
+                    className="flex flex-col items-center justify-center relative"
+                    layout
+                    transition={{ type: 'spring', duration: 0.5, damping: 25 }}
+                    style={{ padding: isOverflow ? '4px 0' : spaceRatio > 0.3 ? '16px 0' : spaceRatio > 0.1 ? '10px 0' : '6px 0' }}
+                  >
+                    {/* Dashed line */}
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: 1, borderTop: '1px dashed rgba(255,255,255,0.15)' }} />
+                    
+                    {/* Johnny + pill */}
+                    {!isOverflow && (
+                      <div className="relative flex flex-col items-center" style={{ zIndex: 2 }}>
+                        <motion.div animate={{ y: spaceRatio > 0.1 ? [0, -4, 0] : 0 }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
+                          <img src={johnnyImage} alt="Johnny" style={{
+                            width: spaceRatio > 0.3 ? 44 : spaceRatio > 0.1 ? 32 : 24,
+                            height: spaceRatio > 0.3 ? 44 : spaceRatio > 0.1 ? 32 : 24,
+                            transition: 'width 400ms, height 400ms',
+                          }} />
+                        </motion.div>
+                        {(spaceRatio <= 0.3 && spaceRatio > 0.1 || johnnyAffordState === 'thinking') && (
+                          <div className="absolute flex items-end gap-0.5" style={{ right: -20, top: 0 }}>
+                            <div style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }} />
+                            <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }} />
+                            <div className="flex items-center justify-center" style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }}>
+                              <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.20)' }}>...</span>
+                            </div>
+                          </div>
+                        )}
+                        {(spaceRatio <= 0.1 && spaceRatio > 0 || johnnyAffordState === 'stressed') && (
+                          <svg className="absolute" style={{ right: -4, top: -2, width: 6, height: 10 }} viewBox="0 0 6 10">
+                            <path d="M3 0 C3 0 6 5 6 7 C6 8.66 4.66 10 3 10 C1.34 10 0 8.66 0 7 C0 5 3 0 3 0Z" fill="rgba(255,255,255,0.25)" />
+                          </svg>
+                        )}
                       </div>
                     )}
-                    {(spaceRatio <= 0.1 && spaceRatio > 0 || johnnyAffordState === 'stressed') && (
-                      <svg className="absolute" style={{ right: -4, top: -2, width: 6, height: 10 }} viewBox="0 0 6 10">
-                        <path d="M3 0 C3 0 6 5 6 7 C6 8.66 4.66 10 3 10 C1.34 10 0 8.66 0 7 C0 5 3 0 3 0Z" fill="rgba(255,255,255,0.25)" />
-                      </svg>
+                    
+                    {/* "€X free" pill */}
+                    <div style={{
+                      background: 'rgba(255,255,255,0.10)', borderRadius: 999,
+                      padding: '4px 16px', marginTop: isOverflow ? 0 : 4, zIndex: 2,
+                    }}>
+                      {isOverflow ? (
+                        <span style={{ fontSize: 12, color: 'rgba(255,159,10,0.5)' }}>€{overAmount} over</span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>€{Math.round(adjustedRemaining)} free</span>
+                      )}
+                    </div>
+                    {!isOverflow && spaceRatio > 0.3 && (
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.15)', marginTop: 2 }}>€{Math.round(adjustedDaily)}/day</span>
                     )}
-                  </div>
-                  {spaceRatio > 0.3 && (
-                    <>
-                      <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>€{Math.round(adjustedRemaining)} free</span>
-                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.15)' }}>€{Math.round(adjustedDaily)}/day</span>
-                    </>
+                    
+                    {/* Overflow Johnny peek */}
+                    {isOverflow && (
+                      <motion.div animate={{ y: [0, -2, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} style={{ marginTop: 2 }}>
+                        <img src={johnnyImage} alt="Johnny" style={{ width: 20, height: 20, opacity: 0.6 }} />
+                      </motion.div>
+                    )}
+                  </motion.div>
+
+                  {/* === GOALS ZONE === */}
+                  {(goalBlocks.length > 0 || true) && (
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                      gridAutoRows: 'minmax(60px, auto)', gap: GAP, padding: 0,
+                    }}>
+                      {/* Add Goal */}
+                      <motion.div key="add-goal" layout transition={{ type: 'spring', duration: 0.5, damping: 25 }}
+                        style={{ gridColumn: showAddGoalForm ? '1 / -1' : 'span 1', gridRow: 'span 1' }}>
+                        <motion.div animate={{ height: showAddGoalForm ? 'auto' : 60 }}
+                          transition={{ type: 'spring', duration: 0.3, damping: 25 }}
+                          style={{ border: '2px dashed rgba(52,199,89,0.15)', borderRadius: 16, overflow: 'hidden', height: '100%' }}
+                          onClick={(e) => { e.stopPropagation(); if (!showAddGoalForm) setShowAddGoalForm(true); }}>
+                          {!showAddGoalForm ? (
+                            <div className="flex flex-col items-center justify-center gap-1 cursor-pointer h-full">
+                              <Plus size={18} style={{ color: 'rgba(52,199,89,0.25)' }} />
+                              <span style={{ fontSize: 11, color: 'rgba(52,199,89,0.25)' }}>Goal</span>
+                            </div>
+                          ) : (
+                            <div className="p-3 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                {addGoalIconOptions.map(iconName => {
+                                  const IconComp = goalIconMap[iconName] || Target;
+                                  const t = getGoalTint(iconName);
+                                  const selected = newGoalIcon === iconName;
+                                  return (
+                                    <button key={iconName} onClick={() => setNewGoalIcon(iconName)} className="flex-shrink-0 flex items-center justify-center"
+                                      style={{ width: 40, height: 40, borderRadius: '50%',
+                                        background: selected ? hexToRgba(t, 0.20) : 'rgba(255,255,255,0.08)',
+                                        border: selected ? `2px solid ${hexToRgba(t, 0.25)}` : '2px solid transparent', transition: 'all 150ms ease',
+                                      }}>
+                                      <IconComp size={18} style={{ color: selected ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)' }} strokeWidth={1.5} />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <input type="text" value={newGoalName} onChange={(e) => setNewGoalName(e.target.value.slice(0, 20))} placeholder="Goal name"
+                                className="bg-transparent border-none outline-none" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px', fontSize: 13, color: 'white' }} />
+                              <div className="flex items-center" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px' }}>
+                                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>€</span>
+                                <input type="text" inputMode="decimal" value={newGoalTarget}
+                                  onChange={(e) => { const v = e.target.value; if (v === '' || /^\d*\.?\d{0,2}$/.test(v)) setNewGoalTarget(v); }}
+                                  placeholder="Target amount" className="flex-1 bg-transparent border-none outline-none placeholder:text-white/40"
+                                  style={{ fontSize: 16, fontWeight: 700, color: 'white', caretColor: 'white' }} />
+                              </div>
+                              <div className="flex items-center" style={{ height: 40, background: 'rgba(255,255,255,0.10)', borderRadius: 12, padding: '0 12px' }}>
+                                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>€</span>
+                                <input type="text" inputMode="decimal" value={newGoalContribution}
+                                  onChange={(e) => { const v = e.target.value; if (v === '' || /^\d*\.?\d{0,2}$/.test(v)) setNewGoalContribution(v); }}
+                                  placeholder="Per month" className="flex-1 bg-transparent border-none outline-none placeholder:text-white/40"
+                                  style={{ fontSize: 16, fontWeight: 700, color: 'white', caretColor: 'white' }} />
+                              </div>
+                              <div className="flex items-center justify-center gap-3">
+                                <button onClick={handleCreateGoal} disabled={createGoalDisabled}
+                                  style={{ height: 40, width: 120, borderRadius: 12, background: 'linear-gradient(135deg, #34C759, #14B8A6)',
+                                    opacity: createGoalDisabled ? 0.3 : 1, fontSize: 13, fontWeight: 600, color: 'white' }}>Create</button>
+                                <button onClick={handleCancelAddGoal} style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Cancel</button>
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                      </motion.div>
+                      {goalBlocks.map((block, index) => (
+                        <GoalBlock key={block.id} goal={block.data} blockId={block.id} amount={block.amount}
+                          getSizeTier={getSizeTier} expandedId={expandedId} sliderValue={sliderValue} originalBudget={originalBudget}
+                          animated={animated} flexRemaining={flexRemaining}
+                          onExpand={(id, contribution) => handleExpand(id, contribution, 'goal')}
+                          onSliderChange={setSliderValue} onSave={handleSliderSave} onCancel={handleSliderCancel} />
+                      ))}
+                    </div>
                   )}
-                  {spaceRatio > 0.1 && spaceRatio <= 0.3 && (
-                    <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>€{Math.round(adjustedRemaining)}</span>
-                  )}
-                </motion.div>
+                </div>
               )}
             </div>
 
@@ -970,15 +995,6 @@ function MyMoneyContent() {
             </div>
           </div>
 
-          {/* Johnny peek for overflow */}
-          {hasExpenses && isOverflow && (
-            <div className="flex flex-col items-center mt-1">
-              <motion.div animate={{ y: [0, -2, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} style={{ marginTop: -10 }}>
-                <img src={johnnyImage} alt="Johnny" style={{ width: 20, height: 20, opacity: 0.6 }} />
-              </motion.div>
-              <span style={{ fontSize: 12, color: 'rgba(255,159,10,0.5)', marginTop: 2 }}>€{overAmount} over</span>
-            </div>
-          )}
         </div>
 
         {/* Impact Summary Row */}
