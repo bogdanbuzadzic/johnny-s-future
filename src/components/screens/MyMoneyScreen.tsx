@@ -280,11 +280,17 @@ function ExpandedGoalContent({
       className="relative px-3 pb-3" style={{ zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
       <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', marginBottom: 12 }} />
 
-      {/* Progress Ring */}
+      {/* Progress Ring - purple-to-pink gradient */}
       <div className="flex flex-col items-center mb-3">
         <svg width={ringSize} height={ringSize} style={{ transform: 'rotate(-90deg)' }}>
+          <defs>
+            <linearGradient id={`expandedGoalGrad-${goal.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor={progressPercent >= 100 ? '#34C759' : '#8B5CF6'} />
+              <stop offset="100%" stopColor={progressPercent >= 100 ? '#34C759' : '#FF6B9D'} />
+            </linearGradient>
+          </defs>
           <circle cx={ringSize / 2} cy={ringSize / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeW} />
-          <circle cx={ringSize / 2} cy={ringSize / 2} r={radius} fill="none" stroke={hexToRgba(green, 0.6)}
+          <circle cx={ringSize / 2} cy={ringSize / 2} r={radius} fill="none" stroke={`url(#expandedGoalGrad-${goal.id})`}
             strokeWidth={strokeW} strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
         </svg>
         <span style={{ fontSize: 16 }} className="text-primary-white mt-1">€{goal.saved} of €{goal.target}</span>
@@ -332,7 +338,9 @@ function ExpandedGoalContent({
           <span style={{ fontSize: 10 }} className="text-primary-white/20">€{goal.target}</span>
         </div>
         <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)' }}>
-          <div style={{ height: '100%', width: `${progressPercent}%`, borderRadius: 3, background: hexToRgba(green, 0.3), transition: 'width 300ms ease' }} />
+          <div style={{ height: '100%', width: `${progressPercent}%`, borderRadius: 3,
+            background: progressPercent >= 100 ? 'rgba(52,199,89,0.3)' : 'linear-gradient(90deg, #8B5CF6, #FF6B9D)',
+            transition: 'width 300ms ease' }} />
         </div>
         {isFinite(monthsToGoal) && (
           <div className="text-right mt-0.5">
@@ -1194,72 +1202,133 @@ function GoalBlock({
         gridRow: isExpanded ? 'auto' : `span ${rowSpan}`,
         height: isExpanded ? 280 : '100%',
         borderRadius: 16,
-        background: 'rgba(255,255,255,0.08)',
-        border: isFunded ? `2px solid ${hexToRgba(green, 0.30)}` : `2px dashed ${hexToRgba(goalTint, 0.30)}`,
-        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+        background: 'rgba(255,255,255,0.15)',
+        border: isFunded ? '1.5px solid rgba(52,199,89,0.25)' : '1.5px solid rgba(255,255,255,0.15)',
+        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        ...(isFunded ? { boxShadow: '0 0 12px rgba(52,199,89,0.1)' } : {}),
       }}>
-      {/* Accent Stripe - green for all goals */}
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
-        background: hexToRgba(green, 0.50), borderRadius: '16px 0 0 16px', zIndex: 2 }} />
-
-      {/* Progress Fill - green rising from bottom */}
+      {/* Progress Fill - subtle white rising from bottom */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, width: '100%',
         height: animated ? `${progressPercent}%` : '0%',
-        background: hexToRgba(green, 0.25), borderRadius: progressPercent >= 100 ? '16px' : '0 0 16px 16px',
+        background: 'rgba(255,255,255,0.08)', borderRadius: progressPercent >= 100 ? '16px' : '0 0 16px 16px',
         transition: 'height 600ms ease-out',
       }} />
 
-      {/* Target/Check icon top-right */}
-      <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 3 }}>
-        {isFunded ? (
-          <CheckCircle size={10} style={{ color: hexToRgba(green, 0.4) }} />
-        ) : (
-          <Target size={10} style={{ color: 'rgba(255,255,255,0.15)' }} />
-        )}
-      </div>
+      {/* Fully funded check icon top-right */}
+      {isFunded && (
+        <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 3 }}>
+          <CheckCircle size={12} style={{ color: 'rgba(52,199,89,0.5)' }} />
+        </div>
+      )}
 
-      {/* Content */}
-      {!isExpanded && isLarge && (
-        <div className="absolute inset-0 flex flex-col p-3 pl-4" style={{ zIndex: 1 }}>
-          <div className="flex items-center gap-2 min-w-0">
-            <GoalIcon size={18} className="text-primary-white/70 flex-shrink-0" strokeWidth={1.5} />
-            <span style={{ fontSize: 14 }} className="text-primary-white truncate">{goal.name}</span>
-          </div>
-          <div className="flex-1 flex flex-col justify-center">
-            <span style={{ fontSize: 14 }} className="text-primary-white">€{goal.saved} / €{goal.target}</span>
-            <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.10)', width: '100%', marginTop: 6 }}>
-              <div style={{ height: '100%', width: `${progressPercent}%`, borderRadius: 2, background: hexToRgba(green, 0.60), transition: 'width 300ms ease' }} />
+      {/* Content - Large */}
+      {!isExpanded && isLarge && (() => {
+        const remaining = goal.target - goal.saved;
+        const mToGoal = goal.monthlyContribution > 0 ? Math.ceil(remaining / goal.monthlyContribution) : Infinity;
+        const compDate = new Date(); compDate.setMonth(compDate.getMonth() + (isFinite(mToGoal) ? mToGoal : 0));
+        const dateStr = isFinite(mToGoal) ? format(compDate, 'MMM yyyy') : '--';
+        const ringSize = 48; const sw = 3; const r = (ringSize - sw) / 2;
+        const circ = 2 * Math.PI * r; const off = circ - (progressPercent / 100) * circ;
+        const gradId = `goalGrad-${blockId}`;
+        return (
+          <div className="absolute inset-0 flex flex-col p-3" style={{ zIndex: 1 }}>
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <GoalIcon size={20} style={{ color: 'rgba(255,255,255,0.5)' }} strokeWidth={1.5} className="flex-shrink-0" />
+                  <span style={{ fontSize: 14 }} className="font-bold text-primary-white truncate">{goal.name}</span>
+                </div>
+                <div style={{ fontSize: 12, marginTop: 4 }} className="text-primary-white/40">€{goal.saved} / €{goal.target}</div>
+                {/* Progress bar */}
+                <div style={{ height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.10)', width: '100%', marginTop: 8 }}>
+                  <div style={{ height: '100%', width: `${progressPercent}%`, borderRadius: 3,
+                    background: isFunded ? 'rgba(52,199,89,0.4)' : 'linear-gradient(90deg, #8B5CF6, #FF6B9D)',
+                    transition: 'width 300ms ease' }} />
+                </div>
+                <span style={{ fontSize: 11, marginTop: 4, display: 'block' }} className="text-primary-white/30">{Math.round(progressPercent)}% complete</span>
+              </div>
+              {/* Progress ring */}
+              <div className="flex-shrink-0 ml-3 flex flex-col items-center">
+                <svg width={ringSize} height={ringSize} style={{ transform: 'rotate(-90deg)' }}>
+                  <defs>
+                    <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={isFunded ? '#34C759' : '#8B5CF6'} />
+                      <stop offset="100%" stopColor={isFunded ? '#34C759' : '#FF6B9D'} />
+                    </linearGradient>
+                  </defs>
+                  <circle cx={ringSize/2} cy={ringSize/2} r={r} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={sw} />
+                  <circle cx={ringSize/2} cy={ringSize/2} r={r} fill="none" stroke={`url(#${gradId})`}
+                    strokeWidth={sw} strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" />
+                </svg>
+                <span style={{ fontSize: 13, marginTop: -32, position: 'relative' }} className="font-bold text-primary-white/50">{Math.round(progressPercent)}%</span>
+              </div>
             </div>
-            <span style={{ fontSize: 11, marginTop: 4 }} className="text-primary-white/35">{Math.round(progressPercent)}%</span>
+            <div className="flex-1" />
+            <div className="flex justify-end gap-2">
+              <span style={{ fontSize: 11 }} className="text-primary-white/25">{dateStr}</span>
+              <span style={{ fontSize: 11 }} className="text-primary-white/25">€{goal.monthlyContribution}/mo</span>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {!isExpanded && isMedium && (
-        <div className="absolute inset-0 flex flex-col justify-center p-2 pl-3" style={{ zIndex: 1 }}>
-          <div className="flex items-center gap-1.5">
-            <GoalIcon size={16} className="text-primary-white/70 flex-shrink-0" strokeWidth={1.5} />
-            <span style={{ fontSize: 13 }} className="text-primary-white truncate flex-1">{goal.name}</span>
-            <span style={{ fontSize: 12 }} className="text-primary-white/50 flex-shrink-0">€{goal.saved}/€{goal.target}</span>
+      {/* Content - Medium */}
+      {!isExpanded && isMedium && (() => {
+        const ringSize = 36; const sw = 3; const r = (ringSize - sw) / 2;
+        const circ = 2 * Math.PI * r; const off = circ - (progressPercent / 100) * circ;
+        const gradId = `goalGrad-${blockId}`;
+        return (
+          <div className="absolute inset-0 flex flex-col justify-between p-2" style={{ zIndex: 1 }}>
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <GoalIcon size={16} style={{ color: 'rgba(255,255,255,0.5)' }} strokeWidth={1.5} className="flex-shrink-0" />
+                  <span style={{ fontSize: 13 }} className="text-primary-white truncate">{goal.name}</span>
+                </div>
+                <div style={{ fontSize: 12, marginTop: 2 }} className="text-primary-white/40">€{goal.saved} / €{goal.target}</div>
+                <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.10)', width: '100%', marginTop: 4 }}>
+                  <div style={{ height: '100%', width: `${progressPercent}%`, borderRadius: 2,
+                    background: isFunded ? 'rgba(52,199,89,0.4)' : 'linear-gradient(90deg, #8B5CF6, #FF6B9D)',
+                    transition: 'width 300ms ease' }} />
+                </div>
+              </div>
+              <div className="flex-shrink-0 ml-2">
+                <svg width={ringSize} height={ringSize} style={{ transform: 'rotate(-90deg)' }}>
+                  <defs>
+                    <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={isFunded ? '#34C759' : '#8B5CF6'} />
+                      <stop offset="100%" stopColor={isFunded ? '#34C759' : '#FF6B9D'} />
+                    </linearGradient>
+                  </defs>
+                  <circle cx={ringSize/2} cy={ringSize/2} r={r} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={sw} />
+                  <circle cx={ringSize/2} cy={ringSize/2} r={r} fill="none" stroke={`url(#${gradId})`}
+                    strokeWidth={sw} strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <span style={{ fontSize: 11 }} className="text-primary-white/25">€{goal.monthlyContribution}/mo</span>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
+      {/* Content - Small */}
       {!isExpanded && isSmall && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-1 pl-2" style={{ zIndex: 1 }}>
-          <GoalIcon size={16} className="text-primary-white/70" strokeWidth={1.5} />
-          <span style={{ fontSize: 12 }} className="font-bold text-primary-white mt-0.5">€{goal.saved}</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-1" style={{ zIndex: 1 }}>
+          <GoalIcon size={16} style={{ color: 'rgba(255,255,255,0.5)' }} strokeWidth={1.5} />
+          <span style={{ fontSize: 14 }} className="font-bold text-primary-white mt-0.5">€{goal.saved}</span>
           <span style={{ fontSize: 10 }} className="text-primary-white/30">/€{goal.target}</span>
-          <span style={{ fontSize: 9 }} className="text-primary-white/25">{Math.round(progressPercent)}%</span>
+          <span style={{ fontSize: 10 }} className="text-primary-white/25">{Math.round(progressPercent)}%</span>
         </div>
       )}
 
       {isExpanded && (
         <div className="absolute inset-0 flex flex-col overflow-y-auto" style={{ zIndex: 1 }}>
-          <div className="flex items-center justify-between p-3 pl-4">
+          <div className="flex items-center justify-between p-3">
             <div className="flex items-center gap-2 min-w-0">
-              <GoalIcon size={20} className="text-primary-white/70 flex-shrink-0" strokeWidth={1.5} />
+              <GoalIcon size={20} style={{ color: 'rgba(255,255,255,0.5)' }} strokeWidth={1.5} className="flex-shrink-0" />
               <span style={{ fontSize: 14 }} className="font-semibold text-primary-white truncate">{goal.name}</span>
             </div>
             <span style={{ fontSize: 13 }} className="text-primary-white/40 flex-shrink-0 ml-2">{Math.round(progressPercent)}%</span>
