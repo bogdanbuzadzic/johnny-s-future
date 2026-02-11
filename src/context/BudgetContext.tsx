@@ -153,7 +153,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
         const date = parseISO(t.date);
         return isWithinInterval(date, { start: monthStart, end: monthEnd });
       })
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + (typeof t.amount === 'number' ? t.amount : parseFloat(String(t.amount)) || 0), 0);
   }, [transactions, expenseCategories, monthStart, monthEnd]);
 
   const flexRemaining = flexBudget - flexSpent;
@@ -171,6 +171,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   const addTransaction = useCallback((transaction: Omit<Transaction, 'id'>) => {
     const newTransaction: Transaction = {
       ...transaction,
+      amount: typeof transaction.amount === 'number' ? transaction.amount : parseFloat(String(transaction.amount)) || 0,
       id: crypto.randomUUID(),
     };
     setData(prev => ({
@@ -239,7 +240,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
         const date = parseISO(t.date);
         return isWithinInterval(date, { start, end });
       })
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + (typeof t.amount === 'number' ? t.amount : parseFloat(String(t.amount)) || 0), 0);
   }, [transactions, monthStart, monthEnd, now]);
 
   const getCategoryRemaining = useCallback((categoryId: string, period: 'month' | 'week') => {

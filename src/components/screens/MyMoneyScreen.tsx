@@ -369,6 +369,15 @@ function MyMoneyContent() {
     totalFixed, transactions, updateCategory, daysRemaining, addCategory,
   } = useBudget();
   const { goals, addGoal, updateGoal } = useApp();
+
+  // Pre-compute category spent map for consistent data flow
+  const categorySpentMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const cat of expenseCategories) {
+      map[cat.id] = getCategorySpent(cat.id, 'month');
+    }
+    return map;
+  }, [expenseCategories, getCategorySpent]);
   const [showSettings, setShowSettings] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [animated, setAnimated] = useState(false);
@@ -410,14 +419,14 @@ function MyMoneyContent() {
   useEffect(() => {
     if (expenseCategories.length > 0 && !affordCategoryId) {
       let best = expenseCategories[0];
-      let bestRemaining = best.monthlyBudget - getCategorySpent(best.id, 'month');
+      let bestRemaining = best.monthlyBudget - (categorySpentMap[best.id] || 0);
       for (const cat of expenseCategories) {
-        const rem = cat.monthlyBudget - getCategorySpent(cat.id, 'month');
+        const rem = cat.monthlyBudget - (categorySpentMap[cat.id] || 0);
         if (rem > bestRemaining) { best = cat; bestRemaining = rem; }
       }
       setAffordCategoryId(best.id);
     }
-  }, [expenseCategories, getCategorySpent, affordCategoryId]);
+  }, [expenseCategories, categorySpentMap, affordCategoryId]);
 
   // Close category picker on outside click
   useEffect(() => {
@@ -438,7 +447,7 @@ function MyMoneyContent() {
     if (affordAmountNum <= 0 || !affordCategoryId) return null;
     const cat = expenseCategories.find(c => c.id === affordCategoryId);
     if (!cat) return null;
-    const catSpent = getCategorySpent(cat.id, 'month');
+    const catSpent = categorySpentMap[cat.id] || 0;
     const categoryRemaining = cat.monthlyBudget - catSpent;
     const flexRemainingAfter = flexRemaining - affordAmountNum;
     const dailyAfter = daysRemaining > 0 ? flexRemainingAfter / daysRemaining : 0;
@@ -447,7 +456,7 @@ function MyMoneyContent() {
     if (withinCategory && flexRemainingAfter > flexBudget * 0.30) return { text: 'Yes, comfortably', color: '#34C759' };
     if (withinCategory && flexRemainingAfter > flexBudget * 0.10) return { text: 'Yes, but watch it', color: '#FFFFFF' };
     return { text: `Tight. €${Math.round(dailyAfter)}/day left for ${daysRemaining} days`, color: '#FF9F0A' };
-  }, [affordAmountNum, affordCategoryId, expenseCategories, getCategorySpent, flexRemaining, daysRemaining, flexBudget]);
+  }, [affordAmountNum, affordCategoryId, expenseCategories, categorySpentMap, flexRemaining, daysRemaining, flexBudget]);
 
   // Goal impact calculations
   const activeGoals = goals.filter(g => g.monthlyContribution > 0);
@@ -773,7 +782,8 @@ function MyMoneyContent() {
                         getSizeTier={getSizeTier} expandedId={expandedId} sliderValue={sliderValue} originalBudget={originalBudget}
                         animated={animated} initialAnimDone={initialAnimDone} flashCategoryId={flashCategoryId}
                         affordAmountNum={affordAmountNum} affordCategoryId={affordCategoryId}
-                        getCategorySpent={getCategorySpent} transactions={transactions}
+                        spent={categorySpentMap[block.data.id] || 0}
+                        transactions={transactions}
                         flexRemaining={flexRemaining} daysRemaining={daysRemaining} dailyAllowance={dailyAllowance}
                         onExpand={(id, budget) => handleExpand(id, budget, 'spending')}
                         onSliderChange={setSliderValue} onSave={handleSliderSave} onCancel={handleSliderCancel}
@@ -1024,7 +1034,7 @@ function MyMoneyContent() {
 function SpendingBlock({
   cat, index, amount, getSizeTier, expandedId, sliderValue, originalBudget,
   animated, initialAnimDone, flashCategoryId, affordAmountNum, affordCategoryId,
-  getCategorySpent, transactions, flexRemaining, daysRemaining, dailyAllowance,
+  spent, transactions, flexRemaining, daysRemaining, dailyAllowance,
   onExpand, onSliderChange, onSave, onCancel, goalImpactText,
 }: {
   cat: any; index: number; amount: number;
@@ -1032,7 +1042,7 @@ function SpendingBlock({
   expandedId: string | null; sliderValue: number; originalBudget: number;
   animated: boolean; initialAnimDone: React.MutableRefObject<boolean>;
   flashCategoryId: string | null; affordAmountNum: number; affordCategoryId: string | null;
-  getCategorySpent: (id: string, period: string) => number;
+  spent: number;
   transactions: any[]; flexRemaining: number; daysRemaining: number; dailyAllowance: number;
   onExpand: (id: string, budget: number) => void;
   onSliderChange: (val: number) => void; onSave: () => void; onCancel: () => void;
@@ -1040,7 +1050,6 @@ function SpendingBlock({
 }) {
   const tint = getTint(cat.icon);
   const Icon = budgetIconMap[cat.icon] || MoreHorizontal;
-  const spent = getCategorySpent(cat.id, 'month');
   const isExpanded = expandedId === cat.id;
   const effectiveBudget = isExpanded ? sliderValue : cat.monthlyBudget;
   const { colSpan, rowSpan, tier } = getSizeTier(amount);
