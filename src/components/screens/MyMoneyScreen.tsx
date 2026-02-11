@@ -1,8 +1,11 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { Plus, Sliders, Lock, PiggyBank, ShieldCheck, CheckCircle, AlertTriangle, AlertCircle, FlaskConical } from 'lucide-react';
+import { Plus, Sliders, Lock, PiggyBank, ShieldCheck, CheckCircle, AlertTriangle, AlertCircle, FlaskConical, ChevronDown } from 'lucide-react';
 import {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
+  Gift, BookOpen, Shirt, Wrench, Heart,
 } from 'lucide-react';
+import johnnyImage from '@/assets/johnny.png';
+import { JohnnyTip } from '@/components/budget/JohnnyTip';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, parseISO, isToday, isYesterday, startOfMonth, endOfMonth, isWithinInterval, getDaysInMonth, getDate } from 'date-fns';
@@ -14,6 +17,7 @@ import { useApp, iconMap as goalIconMap } from '@/context/AppContext';
 
 const budgetIconMap: Record<string, LucideIcon> = {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
+  Gift, BookOpen, Shirt, Wrench, Heart,
 };
 
 const tintMap: Record<string, string> = {
@@ -26,7 +30,17 @@ const tintMap: Record<string, string> = {
   Coffee: '#C4956A',
   Smartphone: '#FF6B9D',
   MoreHorizontal: '#FFFFFF',
+  Gift: '#FF6B9D',
+  BookOpen: '#007AFF',
+  Shirt: '#8B5CF6',
+  Wrench: '#5AC8FA',
+  Heart: '#FF6B9D',
 };
+
+const addCatIconOptions = [
+  'UtensilsCrossed', 'ShoppingBag', 'Bus', 'Film', 'Dumbbell', 'CreditCard',
+  'Coffee', 'Smartphone', 'Gift', 'BookOpen', 'Shirt', 'Wrench', 'Heart', 'MoreHorizontal',
+];
 
 function getTint(icon: string): string {
   return tintMap[icon] || '#FFFFFF';
@@ -266,7 +280,7 @@ function MyMoneyContent() {
   const {
     config, expenseCategories, fixedCategories, flexBudget, flexSpent,
     flexRemaining, dailyAllowance, paceStatus, getCategorySpent,
-    totalFixed, transactions, updateCategory, daysRemaining,
+    totalFixed, transactions, updateCategory, daysRemaining, addCategory,
   } = useBudget();
   const { goals } = useApp();
   const [showSettings, setShowSettings] = useState(false);
@@ -286,6 +300,13 @@ function MyMoneyContent() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [buyItMode, setBuyItMode] = useState(false);
   const categoryPickerRef = useRef<HTMLDivElement>(null);
+
+  // Add Category form state
+  const [showAddCatForm, setShowAddCatForm] = useState(false);
+  const [newCatIcon, setNewCatIcon] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatBudget, setNewCatBudget] = useState('');
+  const [iconPickerFlash, setIconPickerFlash] = useState(false);
 
   const sortedCategories = useMemo(
     () => [...expenseCategories].sort((a, b) => b.monthlyBudget - a.monthlyBudget),
@@ -472,6 +493,60 @@ function MyMoneyContent() {
   const handleClearAfford = useCallback(() => {
     setAffordAmount('');
   }, []);
+
+  // Add Category handlers
+  const handleCreateCategory = useCallback(() => {
+    if (!newCatIcon) {
+      setIconPickerFlash(true);
+      setTimeout(() => setIconPickerFlash(false), 600);
+      return;
+    }
+    if (!newCatName.trim() || !newCatBudget) return;
+    const parsed = parseFloat(newCatBudget);
+    if (isNaN(parsed) || parsed <= 0) return;
+    addCategory({ name: newCatName.trim(), icon: newCatIcon, monthlyBudget: parsed, type: 'expense' });
+    setShowAddCatForm(false);
+    setNewCatIcon('');
+    setNewCatName('');
+    setNewCatBudget('');
+    // Flash the new category after a tick
+    setTimeout(() => {
+      const newest = expenseCategories[expenseCategories.length]; // will be stale, use length
+      // We can't easily get the new ID here since addCategory is async via setState
+      // Instead we'll flash based on the last category after next render
+    }, 50);
+  }, [newCatIcon, newCatName, newCatBudget, addCategory, expenseCategories]);
+
+  const handleCancelAddCat = useCallback(() => {
+    setShowAddCatForm(false);
+    setNewCatIcon('');
+    setNewCatName('');
+    setNewCatBudget('');
+  }, []);
+
+  const handleNewCatBudgetInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+      setNewCatBudget(val);
+    }
+  }, []);
+
+  const newCatBudgetNum = parseFloat(newCatBudget) || 0;
+  const newCatTint = newCatIcon ? getTint(newCatIcon) : '#FFFFFF';
+  const createDisabled = !newCatIcon || !newCatName.trim() || newCatBudgetNum <= 0;
+
+  // Johnny size tier
+  const spaceRatio = flexBudget > 0 ? (flexRemaining - (expandedId ? sliderValue - originalBudget : 0)) / flexBudget : 1;
+  const isOverflow = spaceRatio <= 0;
+  const overAmount = isOverflow ? Math.abs(Math.round(flexRemaining - (expandedId ? sliderValue - originalBudget : 0))) : 0;
+
+  // Johnny afford reaction
+  const johnnyAffordState = useMemo(() => {
+    if (!affordAnswer || affordAmountNum <= 0) return 'happy';
+    if (affordAnswer.color === '#34C759') return 'happy';
+    if (affordAnswer.color === '#FFFFFF') return 'thinking';
+    return 'stressed'; // amber
+  }, [affordAnswer, affordAmountNum]);
 
   const hasExpenses = expenseCategories.length > 0;
 
@@ -811,8 +886,11 @@ function MyMoneyContent() {
               background: 'rgba(255,255,255,0.05)',
               border: '2px solid rgba(255,255,255,0.20)',
               borderRadius: 20,
-              boxShadow: 'inset 0 0 30px rgba(255,255,255,0.03)',
+              boxShadow: isOverflow
+                ? 'inset 0 0 30px rgba(255,255,255,0.03), 0 -6px 20px rgba(255,159,10,0.25)'
+                : 'inset 0 0 30px rgba(255,255,255,0.03)',
               zIndex: 1,
+              transition: 'box-shadow 400ms ease',
             }}
           >
           {/* Fixed Expenses Bar */}
@@ -839,18 +917,32 @@ function MyMoneyContent() {
           <div className="flex-1 overflow-y-auto" style={{ padding: '6px 8px' }}>
             {!hasExpenses ? (
               <div
-                className="h-full flex flex-col items-center justify-center"
+                className="flex flex-col items-center justify-center"
                 style={{
                   backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px)',
                   backgroundSize: '24px 24px',
+                  minHeight: 200,
                 }}
               >
-                <span style={{ fontSize: 16 }} className="text-primary-white/20 mb-1">
-                  Your budget blocks will appear here
+                <span style={{ fontSize: 16 }} className="text-primary-white/25 mb-2">
+                  Let's build your budget!
                 </span>
-                <span style={{ fontSize: 12 }} className="text-primary-white/15">
-                  Add categories in Settings to get started
+                <motion.div
+                  animate={{ y: [0, -4, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <img src={johnnyImage} alt="Johnny" style={{ width: 48, height: 48 }} />
+                </motion.div>
+                <span style={{ fontSize: 12 }} className="text-primary-white/15 mt-2">
+                  Tap the + below to create your first category
                 </span>
+                <motion.div
+                  animate={{ opacity: [0.15, 0.35, 0.15] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  className="mt-2"
+                >
+                  <ChevronDown size={18} className="text-primary-white/15" />
+                </motion.div>
               </div>
             ) : (
               <div className="flex flex-col" style={{ gap: GAP }}>
@@ -1013,6 +1105,211 @@ function MyMoneyContent() {
                 })}
               </div>
             )}
+
+            {/* Add Category Row */}
+            <div style={{ marginTop: hasExpenses ? GAP : 8 }}>
+              <motion.div
+                animate={{ height: showAddCatForm ? 'auto' : 48 }}
+                transition={{ type: 'spring', duration: 0.3, damping: 25 }}
+                style={{
+                  border: '2px dashed rgba(255,255,255,0.12)',
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!showAddCatForm) setShowAddCatForm(true);
+                }}
+              >
+                {!showAddCatForm ? (
+                  <div className="flex items-center justify-center gap-2 cursor-pointer" style={{ height: 48 }}>
+                    <Plus size={20} className="text-primary-white/25" />
+                    <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.25)' }}>Add category</span>
+                  </div>
+                ) : (
+                  <div className="p-3 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+                    {/* Icon Picker */}
+                    <div
+                      className="flex gap-2 overflow-x-auto pb-1"
+                      style={{
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none',
+                        animation: iconPickerFlash ? 'ghostPulse 0.3s ease-in-out 2' : undefined,
+                      }}
+                    >
+                      {addCatIconOptions.map(iconName => {
+                        const IconComp = budgetIconMap[iconName] || MoreHorizontal;
+                        const t = getTint(iconName);
+                        const selected = newCatIcon === iconName;
+                        return (
+                          <button
+                            key={iconName}
+                            onClick={() => setNewCatIcon(iconName)}
+                            className="flex-shrink-0 flex items-center justify-center"
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: '50%',
+                              background: selected ? hexToRgba(t, 0.20) : 'rgba(255,255,255,0.08)',
+                              border: selected ? `2px solid ${hexToRgba(t, 0.25)}` : '2px solid transparent',
+                              transition: 'all 150ms ease',
+                            }}
+                          >
+                            <IconComp size={18} style={{ color: selected ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)' }} strokeWidth={1.5} />
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Name Input */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newCatName}
+                        onChange={(e) => setNewCatName(e.target.value.slice(0, 20))}
+                        placeholder="Category name"
+                        className="flex-1 bg-transparent border-none outline-none"
+                        style={{
+                          height: 40,
+                          background: 'rgba(255,255,255,0.10)',
+                          borderRadius: 12,
+                          padding: '0 12px',
+                          fontSize: 13,
+                          color: 'white',
+                        }}
+                      />
+                      {newCatIcon && (
+                        <div style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: hexToRgba(newCatTint, 0.6),
+                          flexShrink: 0,
+                        }} />
+                      )}
+                    </div>
+
+                    {/* Budget Input */}
+                    <div>
+                      <div
+                        className="flex items-center"
+                        style={{
+                          height: 40,
+                          background: 'rgba(255,255,255,0.10)',
+                          borderRadius: 12,
+                          padding: '0 12px',
+                        }}
+                      >
+                        <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>€</span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={newCatBudget}
+                          onChange={handleNewCatBudgetInput}
+                          placeholder="Monthly budget"
+                          className="flex-1 bg-transparent border-none outline-none"
+                          style={{ fontSize: 16, fontWeight: 700, color: 'white' }}
+                        />
+                      </div>
+                      {newCatBudgetNum > flexRemaining && flexRemaining > 0 && (
+                        <span style={{ fontSize: 11, color: 'rgba(255,159,10,0.5)', marginTop: 4, display: 'block' }}>
+                          Only €{Math.round(flexRemaining)} available
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Buttons */}
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        onClick={handleCreateCategory}
+                        disabled={createDisabled}
+                        style={{
+                          height: 40,
+                          width: 120,
+                          borderRadius: 12,
+                          background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)',
+                          opacity: createDisabled ? 0.3 : 1,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: 'white',
+                          transition: 'opacity 200ms',
+                        }}
+                      >
+                        Create
+                      </button>
+                      <button
+                        onClick={handleCancelAddCat}
+                        style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            </div>
+
+            {/* Johnny in Empty Space */}
+            {hasExpenses && !isOverflow && (
+              <motion.div
+                className="flex flex-col items-center justify-center"
+                animate={{ opacity: 1 }}
+                transition={{ type: 'spring', duration: 0.4, damping: 25 }}
+                style={{ padding: '12px 0', minHeight: spaceRatio > 0.3 ? 80 : spaceRatio > 0.1 ? 60 : 40 }}
+              >
+                <div className="relative flex items-center justify-center">
+                  <motion.div
+                    animate={{ y: spaceRatio > 0.1 ? [0, -4, 0] : 0 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    <img
+                      src={johnnyImage}
+                      alt="Johnny"
+                      style={{
+                        width: spaceRatio > 0.3 ? 48 : spaceRatio > 0.1 ? 36 : 24,
+                        height: spaceRatio > 0.3 ? 48 : spaceRatio > 0.1 ? 36 : 24,
+                        transition: 'width 400ms, height 400ms',
+                      }}
+                    />
+                  </motion.div>
+
+                  {/* Thought bubble (moderate space or afford thinking) */}
+                  {(spaceRatio <= 0.3 && spaceRatio > 0.1 || johnnyAffordState === 'thinking') && (
+                    <div className="absolute flex items-end gap-0.5" style={{ right: -20, top: 0 }}>
+                      <div style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }} />
+                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }} />
+                      <div className="flex items-center justify-center" style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }}>
+                        <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.20)' }}>...</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sweat drop (tiny space or afford stressed) */}
+                  {(spaceRatio <= 0.1 && spaceRatio > 0 || johnnyAffordState === 'stressed') && (
+                    <svg className="absolute" style={{ right: -4, top: -2, width: 6, height: 10 }} viewBox="0 0 6 10">
+                      <path d="M3 0 C3 0 6 5 6 7 C6 8.66 4.66 10 3 10 C1.34 10 0 8.66 0 7 C0 5 3 0 3 0Z" fill="rgba(255,255,255,0.25)" />
+                    </svg>
+                  )}
+                </div>
+
+                {/* Text below Johnny */}
+                {spaceRatio > 0.3 && (
+                  <>
+                    <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
+                      €{Math.round(adjustedRemaining)} free
+                    </span>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.15)' }}>
+                      €{Math.round(adjustedDaily)}/day
+                    </span>
+                  </>
+                )}
+                {spaceRatio > 0.1 && spaceRatio <= 0.3 && (
+                  <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
+                    €{Math.round(adjustedRemaining)}
+                  </span>
+                )}
+              </motion.div>
+            )}
           </div>
 
           {/* Savings Bar */}
@@ -1035,6 +1332,22 @@ function MyMoneyContent() {
             <ShieldCheck size={12} className="text-primary-white/15" strokeWidth={1.5} />
            </div>
           </div>
+
+          {/* Johnny peek + amber glow for overflow */}
+          {hasExpenses && isOverflow && (
+            <div className="flex flex-col items-center mt-1">
+              <motion.div
+                animate={{ y: [0, -2, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                style={{ marginTop: -10 }}
+              >
+                <img src={johnnyImage} alt="Johnny" style={{ width: 20, height: 20, opacity: 0.6 }} />
+              </motion.div>
+              <span style={{ fontSize: 12, color: 'rgba(255,159,10,0.5)', marginTop: 2 }}>
+                €{overAmount} over
+              </span>
+            </div>
+          )}
         </div>{/* End flow lines + container wrapper */}
 
         {/* Impact Summary Row */}
@@ -1078,6 +1391,15 @@ function MyMoneyContent() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Johnny's Tip Card */}
+        <div className="mt-3">
+          <JohnnyTip tips={[
+            "Try adjusting a category slider to see how it affects your goals.",
+            "The gap between blocks is your breathing room. Keep it healthy!",
+            "Small daily savings add up. Even €2/day is €60/month.",
+          ]} />
         </div>
       </div>
 
