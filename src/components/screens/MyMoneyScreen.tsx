@@ -1271,8 +1271,8 @@ function MyMoneyContent() {
                           value={newCatBudget}
                           onChange={handleNewCatBudgetInput}
                           placeholder="Monthly budget"
-                          className="flex-1 bg-transparent border-none outline-none"
-                          style={{ fontSize: 16, fontWeight: 700, color: 'white' }}
+                          className="flex-1 bg-transparent border-none outline-none placeholder:text-white/40"
+                          style={{ fontSize: 16, fontWeight: 700, color: 'white', caretColor: 'white' }}
                         />
                       </div>
                       {newCatBudgetNum > flexRemaining && flexRemaining > 0 && (
