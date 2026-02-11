@@ -1,97 +1,127 @@
 
 
-# My Money - Block Sizing & Layout Fix
+# My Money - Unified Goals + Time Zoom
 
-## What This Does
+## Overview
 
-Transforms the spending blocks from a full-width vertical list into a 2D Tetris-like grid where each block's area is proportional to its budget. Adds colored accent stripes for stronger visual identity.
+This is a major restructuring that merges goals into the Tetris container as blocks, adds a time zoom toggle, and removes the separate Goals tab. Goals and spending blocks coexist in the same 2D grid, with their relative sizes changing dramatically based on the selected time zoom.
 
-## Changes (only `MyMoneyScreen.tsx`)
+## Files to Modify
 
-### 1. Replace Vertical List with CSS Grid
+### 1. `src/components/TabBar.tsx`
+- Remove the Goals tab (Target icon)
+- Tabs become: Home (index 0), My Money (index 1), Profile (index 2)
+- Remove `Target` import from lucide-react
 
-Replace the `flex flex-col` block container (line 948) with a CSS Grid layout:
+### 2. `src/App.tsx`
+- Remove `GoalsScreen` import
+- Update `renderScreen` switch: case 0 = Home, case 1 = MyMoney, case 2 = Profile (placeholder)
+- No case 3 needed
 
-```
-display: grid
-grid-template-columns: repeat(auto-fill, minmax(80px, 1fr))
-grid-auto-rows: minmax(60px, auto)
-gap: 6px
-padding: 8px
-```
+### 3. `src/context/AppContext.tsx`
+- Add `updateGoal` to update goal contributions (already exists)
+- No major changes needed -- goals data stays here
 
-### 2. Size Tier Calculation
+### 4. `src/components/screens/MyMoneyScreen.tsx` (main work)
 
-For each category, compute `colSpan` and `rowSpan` based on `sizeRatio = cat.monthlyBudget / flexBudget`:
+#### Remove
+- Goal cards row (lines 758-846) -- the floating cards above the container
+- Flow lines SVG (lines 851-878) -- the dashed lines connecting cards to container
 
-| sizeRatio | colSpan | rowSpan | Visual |
-|-----------|---------|---------|--------|
-| > 0.25 | 3 | 2 | Huge block |
-| > 0.15 | 2 | 2 | Large block |
-| > 0.08 | 2 | 1 | Medium block |
-| <= 0.08 | 1 | 1 | Small block |
+#### Add: Time Zoom State + Logic
+- New state: `timeZoom: 'month' | 'year' | '5year'` (default: 'month')
+- Multiplier map: `{ month: 1, year: 12, '5year': 60 }`
+- All block sizing now uses `amount * multiplier` relative to `totalIncome * multiplier`
 
-Each block gets `grid-column: span X` and `grid-row: span Y`. The `height` calculation is removed -- blocks fill their grid cells naturally via `height: 100%`.
+#### Add: Time Zoom Toggle UI
+- Inside the container, overlaying the fixed bar area (top-right corner)
+- Three frosted glass pills: "Month" | "Year" | "5 Year"
+- Selected pill: white/20 bg, white text. Others: white/8, white/40 text
 
-The expanded block overrides to `grid-column: 1 / -1` (full width) with a fixed height of `280px`, pushing other blocks down.
+#### Modify: Block Sizing (`getSizeTier`)
+- Now takes `amount` and `totalBudgetForZoom` instead of just budget/flexBudget
+- For spending blocks at month zoom: `amount = cat.monthlyBudget`, total = `config.monthlyIncome`
+- For spending blocks at year zoom: `amount = cat.monthlyBudget * 12`, total = `config.monthlyIncome * 12`
+- For goal blocks at month zoom: `amount = goal.monthlyContribution`, total = `config.monthlyIncome`
+- For goal blocks at 5year zoom: `amount = goal.target`, total = `config.monthlyIncome * 60`
+- Same tier thresholds (>0.25 = huge, >0.15 = large, >0.08 = medium, else small)
 
-### 3. Accent Stripe
+#### Add: Goal Blocks in the Grid
+- Goals from AppContext rendered as blocks in the same CSS grid
+- All blocks (spending + goals) sorted by their zoom-adjusted amount descending
+- Goal block visual differences:
+  - Border: `2px dashed` (not solid) in goal tint at 30%
+  - Accent stripe: green (#34C759 at 50%) for all goals
+  - Background: white/8 (more transparent)
+  - Small Target icon (10px, white/15) in top-right corner
+  - Fill: green (#34C759 at 25%) rising from bottom, height = `(saved / target) * 100%`
+  - At 100% funded: solid border, CheckCircle replaces Target icon
 
-Each block gets a 4px wide vertical stripe on the LEFT edge:
-- Rendered as a `position: absolute; left: 0; top: 0; bottom: 0; width: 4px` div
-- Background: tint color at 50% opacity
-- Border-radius: `16px 0 0 16px` (matches block's left corners)
+Goal tint colors:
+- ShieldCheck: #34C759, Plane: #5AC8FA, Car: #007AFF, Home: #6366F1, Laptop: #8B5CF6, GraduationCap: #14B8A6, Target: #34C759
 
-Block border updated to `1.5px solid` at tint 25%.
+Goal block content tiers (same adaptive pattern as spending):
+- Large: icon + name + "saved/target" + progress bar + percentage
+- Medium: icon + name + saved/target on one line
+- Small: icon + saved + /target + percentage
 
-### 4. Adaptive Block Content
+#### Add: Goal Block Expansion
+- Tapping a goal block expands to full width, 280px (same as spending)
+- Content:
+  1. Progress ring (80px) centered, green fill arc
+  2. "saved of target" text + "X% funded"
+  3. Contribution slider (green track/thumb instead of category tint)
+     - Range: 0 to (current contribution + flexRemaining)
+     - Label: "EUR[amount]/month"
+     - Impact: "At EUR X/month, reach goal in Y months (Mon Year)"
+     - If changed up: "Reaching X months sooner" in green
+     - If changed down: "Reaching X months later" in amber
+  4. Timeline bar (simple horizontal)
+  5. Save/Cancel buttons (same pattern)
 
-Content layout adapts based on size tier:
+#### Add: "Add Goal" Dashed Block
+- Small (1x1) dashed block in green/15 with Plus icon + "Add goal" text
+- Tapping expands inline form (same pattern as Add Category):
+  - Icon picker (goal icons: ShieldCheck, Plane, Car, Home, Laptop, GraduationCap, Heart, Target, Dumbbell, Gamepad2)
+  - Name input
+  - Target amount input
+  - Monthly contribution input
+  - "Create" button (green gradient) + "Cancel"
+- On create: calls `addGoal` from AppContext
 
-**Large (colSpan >= 2, rowSpan >= 2):**
-- Top-left: icon (18px) + name (14px)
-- Top-right: spent (16px bold)
-- Below spent: "of EUR[budget]" (11px white/35)
-- Center: horizontal progress bar (full width - 24px, 4px tall, tint fill)
+#### Modify: Fixed Bar Text
+- Scales with zoom: month shows monthly, year shows annual, 5year shows 5-year totals
 
-**Medium (colSpan 2, rowSpan 1):**
-- Single row: icon (16px) + name (13px) + spent (14px bold)
-- Second row: "of EUR[budget]" + short progress bar
+#### Modify: Savings Bar
+- Month: "Savings EUR X/mo"
+- Year: "Savings EUR X/yr"
+- 5 Year: "Savings EUR X / 5yr"
 
-**Small (colSpan 1, rowSpan 1):**
-- Icon (16px) centered
-- Spent (14px bold) centered
-- "/EUR[budget]" (10px white/30)
-- No name text (icon + accent color identify it)
-- No progress bar (fill IS the progress)
+#### Modify: Impact Summary
+- Left: "EUR[remaining * multiplier] left"
+- Daily stays the same (always today's rate)
+- Right: "EUR[dailyAllowance]/day"
 
-### 5. Updated Color Map
+#### Modify: Spending Slider Goal Impact Text
+- When slider decreases: "If moved to savings: [goal] reaches target X months sooner"
+- When slider increases: "Savings pressure: [goal] may be delayed X months"
 
-Add `Gift: '#FFD700'` to `tintMap` (was `#FF6B9D`, now gold for distinction). All other tints unchanged. Background tint lowered to 20% (from 25-30%) so accent stripe pops more.
+#### Add: Zoom Transition Animation
+- When switching zoom levels, all blocks resize via `layout` animation (500ms spring)
+- The grid naturally re-packs as sizes change
 
-Block background gradient updated: `linear-gradient(135deg, tint@20%, rgba(255,255,255,0.06))`.
-
-### 6. Fill, Ghost Fill, Expand -- Unchanged Logic
-
-- Fill still rises from bottom with same color logic
-- Ghost fill (Can I Afford) renders identically, just adapts to the block's grid size
-- Expand: the block animates to `grid-column: 1 / -1` and height 280px. Other blocks reflow. On collapse, returns to original span/size.
-- Slider, save/cancel, transactions list -- all unchanged
-- Dimming other blocks during afford -- unchanged
-
-### 7. Johnny Placement
-
-Johnny renders after the grid (below all blocks, inside the main area). Same size-tier logic based on `spaceRatio`. The grid's natural flow leaves empty space at the bottom for Johnny when blocks don't fill the container.
-
-### 8. Sorting
-
-Blocks are sorted by budget descending (already the case via `sortedCategories`). In a grid, largest blocks appear first (top-left), smallest fill remaining gaps.
+#### Sorting All Blocks Together
+- Create a unified array of `{ type: 'spending' | 'goal' | 'add-goal', amount, ...data }`
+- Sort by zoom-adjusted amount descending
+- "Add goal" block always sorted last (smallest)
+- Render spending blocks and goal blocks from the same sorted array
 
 ## Technical Notes
 
-- The `blockHeight()` function is removed. Block heights are determined by grid row spans and `grid-auto-rows: minmax(60px, auto)`.
-- Each block's `motion.div` gets `style={{ gridColumn: 'span X', gridRow: 'span Y', height: '100%' }}` with expansion overriding to `gridColumn: '1 / -1', height: 280`.
-- The accent stripe is a simple absolute-positioned div inside each block -- no SVG needed.
-- Content adaptation uses a `sizeTier` variable computed from `sizeRatio`, driving conditional rendering within the same block component.
-- Only `MyMoneyScreen.tsx` is modified.
+- The `goals` array from `useApp()` is already available in MyMoneyContent
+- `addGoal` and `updateGoal` from AppContext handle persistence
+- Goal contribution slider updates use `updateGoal(id, { monthlyContribution: newValue })`
+- The expand/collapse state needs to handle both spending and goal blocks -- expand `expandedId` to work with goal IDs too (prefix or unified namespace)
+- Time zoom multiplier is purely a display/sizing concern -- underlying data stays monthly
+- The CSS grid naturally handles mixed block types since they're all `motion.div` elements with grid-column/row spans
 
