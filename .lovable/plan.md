@@ -1,82 +1,95 @@
 
 
-# My Money - Prompt 4: Tap to Expand & Trade-Off Slider
+# My Money - Prompt 5: Goals Above the Container
 
 ## What This Does
 
-Adds tap-to-expand behavior to spending blocks. Tapping a block reveals a budget slider, impact text, confirmation buttons, and a recent transaction list inside it. Only one block expanded at a time.
+Adds a horizontal row of goal cards above the Tetris container, with SVG flow lines connecting them down to the savings bar. Goal cards react live when the trade-off slider is dragged.
 
 ## Changes (only `MyMoneyScreen.tsx`)
 
-### New State
+### New Imports
 
-- `expandedId: string | null` -- which block is currently expanded
-- `sliderValue: number` -- current slider position for the expanded block
-- `originalBudget: number` -- the budget value when expansion started (for cancel/revert)
+- `useApp` from `@/context/AppContext` (to access `goals` array)
+- `iconMap` from `@/context/AppContext` (to resolve goal icon strings to Lucide components)
+- `Laptop, Plane, Car, Home, Target, GraduationCap, Heart` from `lucide-react` (goal icons not yet imported)
+- `useRef` for container/card DOM measurements
 
-### Block Rendering Changes
+### Goal Cards Row
 
-Each block switches from a plain `div` to a `motion.div` (Framer Motion) for animated height.
+Inserted between the Header and the Container (before the container div). Only renders if `goals.length > 0`.
 
-- **Collapsed height**: same as current `blockHeight(budget)` calculation
-- **Expanded height**: collapsed height + 220px
-- **Animation**: `animate={{ height }}` with `transition={{ type: 'spring', duration: 0.3, damping: 25 }}`
-- **onClick**: toggles `expandedId`. If expanding a new block while another is expanded, the old one auto-collapses and any unsaved slider changes revert.
+- Wrapper: `overflow-x-auto` horizontal scroll container, `flex` row, `gap-3`, `pb-4` (16px below), hide scrollbar via CSS
+- If 1-3 goals: `justify-evenly` across full width
+- If 4+: natural flex row, scrollable
 
-### Expanded Content (rendered inside the block when expanded)
+Each goal card (110px wide, 72px tall):
+- Background: `rgba(255,255,255,0.12)`, `backdrop-filter: blur(8px)`
+- Border: `1px solid rgba(255,255,255,0.15)` -- changes to `rgba(52,199,89,0.25)` if fully funded
+- Border radius: 16px
+- Content stacked vertically centered:
+  - Goal icon (18px, white/50) resolved via `iconMap` from AppContext
+  - Name (11px, white/60, truncate, max 1 line)
+  - "EUR[saved] / EUR[target]" (10px, white/35)
+  - Mini progress bar at bottom: 3px tall, full width minus 12px padding each side, rounded. Fill green #34C759 at 40%, bg white/10
+- Fully funded: green/25 border + small CheckCircle (10px, green/40) absolute top-right
 
-Wrapped in `AnimatePresence` with fade in/out (150ms). Stacked below the existing icon/name/amount row with a thin divider (`1px solid white/5`).
+### SVG Flow Lines
 
-1. **Budget Slider**
-   - HTML `<input type="range">` styled with CSS (or a custom slider using pointer events)
-   - Track: full width minus 24px padding, 6px tall, white/10 background, filled portion in category tint at 35%
-   - Thumb: 28px circle, white fill, 2.5px border in tint color, shadow
-   - Range: min=0, max=currentBudget + flexRemaining
-   - Live value label above: current value in 18px bold white
-   - End labels: "EUR0" and "EUR[max]" in 10px white/15
-   - On drag: updates `sliderValue` state, which feeds into:
-     - Impact summary row shows adjusted `flexRemaining` and `dailyAllowance` (computed as: `realFlexRemaining - (sliderValue - originalBudget)` and divide by `daysRemaining`)
-     - Block height recalculates proportionally using `sliderValue` instead of `cat.monthlyBudget`
+An SVG element rendered as a sibling between the goal cards row and the container, using `position: relative` layout. The SVG is absolutely positioned to overlay the gap between cards and the savings bar.
 
-2. **Impact Text** (13px white/60)
-   - Compares `sliderValue` vs `originalBudget`
-   - Decreased: green text showing freed amount and new daily
-   - Increased: amber text showing tightened budget and new daily
-   - Unchanged: "Drag the slider to adjust this budget" in white/25
+Approach: Use `useRef` on the wrapper div that contains both goal cards and container. Measure positions with `useLayoutEffect` after render. Draw bezier curves from each card's bottom-center to evenly spaced points along the savings bar width.
 
-3. **Confirmation Buttons** (only when `sliderValue !== originalBudget`)
-   - "Save": purple gradient pill, calls `updateCategory(id, { monthlyBudget: sliderValue })`, updates `originalBudget` to match
-   - "Cancel": white/10 pill, resets `sliderValue` to `originalBudget`
+- SVG spans from goal cards bottom to savings bar top (z-index behind container content)
+- Each path: cubic bezier S-curve
+- Stroke: `rgba(255,255,255,0.08)`, 1.5px base
+- Stroke-dasharray: `4 4`
+- Line thickness scaled by `1.5 + (contribution / monthlySavingsTarget) * 2` (capped at 3.5px)
 
-4. **Transaction List**
-   - Pulls transactions from context where `categoryId` matches and date is current month
-   - Sorted newest first, max 4 shown
-   - Each row: description (13px white/60), date below (10px white/25), amount right (13px white/50)
-   - Dividers between rows (1px white/5)
-   - Empty: "No spending yet" centered in 12px white/20
+Simplified approach (no DOM measurement needed): Since the layout is predictable, calculate positions mathematically:
+- Card bottom Y = 0 (top of SVG)
+- Savings bar Y = goal cards height (72) + gap (16) + container height (the full container)
+- X positions: evenly distribute across container width for both card centers and savings bar anchor points
 
-### Impact Summary Row (live updates)
+The SVG renders behind the container using `position: absolute` and `z-index: 0`, with the container at `z-index: 1` (its semi-transparent bg lets lines show through faintly).
 
-When a slider is being dragged, the impact summary temporarily shows adjusted values:
-- `adjustedRemaining = flexRemaining - (sliderValue - originalBudget)`
-- `adjustedDaily = adjustedRemaining / daysRemaining`
+### Live Connection to Slider
 
-When no block is expanded or slider is at original, show real computed values from context.
+New state: track `sliderDiff` (already computed as `sliderValue - originalBudget`).
 
-### Fill Behavior in Expanded State
+When `sliderDiff !== 0` and goals exist:
+- Calculate `totalContributions = sum of all goal monthlyContributions`
+- For each goal with a contribution:
+  - `ratio = goal.monthlyContribution / totalContributions`
+  - `goalDiff = Math.round(sliderDiff * ratio * -1)` (negative slider diff = positive for goals)
+  - Show floating label below card: "+EUR[X]/mo" in green (10px) if positive, "-EUR[X]/mo" in amber if negative
+  - Card border briefly glows green/15 or amber/15
+  - Flow line opacity increases to white/15 (positive) or decreases to white/5 (negative)
 
-The fill percentage stays `spent / budget` but uses `sliderValue` as the budget when that block is expanded and slider has moved. The fill div continues to sit behind all content with the same absolute positioning.
+When slider is saved or cancelled, labels disappear.
 
-### Auto-Cancel on Collapse
+### Impact Text Addition
 
-When `expandedId` changes (user taps different block or same block), if previous block had unsaved changes, revert: set `sliderValue` back. Since state is local and `updateCategory` was never called, context data is already correct.
+In the `ExpandedContent` component, below the existing impact text, add a goal impact line when `sliderDiff !== 0`:
+- Find the most affected goal (largest `|monthsChange|`)
+- Calculate: `oldMonths = (target - saved) / oldContribution`, `newContribution = oldContribution + diff * ratio`, `newMonths = (target - saved) / newContribution`
+- Display: "[Goal name]: [X] months sooner" (green/40) or "[X] months later" (amber/40) in 11px
+
+Pass goals data into `ExpandedContent` as a prop, along with `monthlySavingsTarget`.
+
+### Layout Order (top to bottom in the px-4 div)
+
+1. Header (existing)
+2. Goal cards row (NEW) -- only if goals exist
+3. Container (existing, with relative positioning wrapper for SVG)
+4. Impact summary row (existing)
+5. FAB (existing, fixed position)
 
 ## Technical Notes
 
-- Import `motion, AnimatePresence` from `framer-motion`
-- Import `format, parseISO, isToday, isYesterday` from `date-fns` for transaction date display
-- Use `transactions` and `updateCategory` from `useBudget()` (already available in context)
-- The slider uses a custom styled `<input type="range">` with CSS appearance reset and custom thumb/track styles via inline styles
-- `daysRemaining` is available from `useBudget()`
-- Only `MyMoneyScreen.tsx` changes. No other files modified.
+- Goals come from `useApp()` which wraps the app above `BudgetProvider`. Both contexts are available in `MyMoneyContent`.
+- The SVG flow lines use a simplified approach: an absolutely positioned SVG behind the container. The wrapper div gets `position: relative` so the SVG can be positioned within it.
+- Flow line paths use `M x1,0 C x1,h*0.3 x2,h*0.7 x2,h` for a smooth S-curve where h is the container height.
+- Goal card scroll container uses `-ms-overflow-style: none; scrollbar-width: none; &::-webkit-scrollbar { display: none }` via inline styles.
+- No other files are modified.
 
