@@ -255,14 +255,18 @@ function MyMoneyContent() {
       </div>
 
       {/* FAB */}
-      <motion.button
-        whileTap={{ scale: 0.95 }}
+      <button
         onClick={() => setShowAddTx(true)}
-        className="fixed bottom-20 right-4 z-30 w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
-        style={{ background: 'linear-gradient(135deg, #8B5CF6, #A855F7)', boxShadow: '0 4px 20px rgba(139,92,246,0.4)' }}
+        className="fixed z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
+        style={{
+          bottom: 80,
+          right: 16,
+          background: 'linear-gradient(135deg, #8B5CF6, #A855F7)',
+          boxShadow: '0 4px 20px rgba(139,92,246,0.4)',
+        }}
       >
         <Plus size={24} className="text-white" strokeWidth={2} />
-      </motion.button>
+      </button>
 
       <AddTransactionSheet open={showAddTx} onClose={handleCloseTxSheet} prefillAmount={prefillAmount} prefillCategoryId={prefillCategoryId} />
       <EditBudgetSheet open={showSettings} onClose={() => setShowSettings(false)} />
