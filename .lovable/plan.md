@@ -1,36 +1,44 @@
 
-# My Money Screen - Container Shell Rebuild (Prompt 1 of 7)
 
-## What This Does
+# My Money - Prompt 3: Block Fill & Add Transaction
 
-Strips the My Money screen down to a clean, empty shell: just the container with its three zones (fixed bar, empty main area with dotted grid, savings bar), a header, an impact summary row, and a FAB. No blocks, no sliders, no What If mode, no "Can I Afford" input, no Johnny tips.
+## What Changes
 
-## Changes
+Two additions to the existing My Money screen. No changes to container, fixed bar, savings bar, or impact summary layout.
 
-### 1. Rewrite `MyMoneyScreen.tsx`
+### A. Spending Fill Inside Each Block
 
-Remove all current content and replace with:
+Add a colored rectangle inside each spending block that rises from the bottom based on spent/budget ratio.
 
-- **Header row** (48px): "My Money" 22px bold white (left) + Sliders icon button 24px white/50 (right). Bottom margin 12px.
-- **Container** (the game board):
-  - Width: 100% minus 32px (16px padding each side)
-  - Height: 55vh
-  - Background: white/5, border 2px solid white/20, rounded 20px, inner glow
-  - **Fixed Expenses Bar** (top, 36px): Lock icon 12px + "No fixed expenses" 11px white/20, right "Fixed: EUR0" 11px white/20, bottom border white/8
-  - **Main Area** (remaining height, empty state): dotted grid pattern (white/3, 24px spacing) via CSS background-image, centered text "Your budget blocks will appear here" 16px white/20, sub-text "Add categories in Settings to get started" 12px white/15
-  - **Savings Bar** (bottom, 36px): PiggyBank icon 12px green/30 + "Savings EUR0/mo" 11px white/25, right ShieldCheck icon 12px white/15, green/8 background, green/12 top border
-- **Impact Summary Row** (12px below container, 40px): frosted glass white/10, "EUR0 remaining" left, "Set up budget" pill center, "EUR0/day" right
-- **FAB** (fixed bottom-right, 20px from right, 20px above tab bar): purple-to-pink gradient (#8B5CF6 to #FF6B9D), 56px, Plus icon, shows toast "Add Transaction coming soon" on tap
+**In `MyMoneyScreen.tsx`:**
 
-Still wraps in `BudgetProvider` and checks `config.setupComplete` to show `SetupWizard` if needed. Keeps `EditBudgetSheet` wired to the Sliders icon. Removes all other imports and state (mode toggle, afford input, TetrisContainer, JohnnyTip, SimulationProvider, category picker, etc.).
+- For each category block, calculate `fillPercent = Math.min((spent / budget) * 100, 110)` and render an absolutely positioned div at the bottom of the block
+- Fill div: `position: absolute`, `bottom: 0`, `left: 0`, `width: 100%`, `height: fillPercent%`, with matching bottom border-radius (16px) and `0` top radius (unless fill is 100%+, then match all corners)
+- Fill color logic:
+  - 0-70%: category tint at 40% opacity
+  - 70-90%: amber `#FF9F0A` at 35%
+  - 90-100%: amber at 40%
+  - Over 100%: amber at 50%, plus block border changes to amber at 35%
+- Text content (icon, name, spent/budget) gets `position: relative` and `z-index: 1` so it renders on top of the fill
+- **Staggered load animation**: Each fill starts at height 0 and animates to its target using CSS transition + a per-block delay. Use inline style `transition: height 600ms ease-out` with `transitionDelay: ${index * 100}ms`. Use a `useState` flag that flips after mount to trigger the animation (initial render = height 0, after useEffect = real height).
+- **Smooth growth on new transaction**: Since fills use CSS transitions, adding a transaction updates `spent` in context, which recalculates `fillPercent`, and the CSS transition handles the smooth 400ms rise automatically.
+- Brief highlight flash on affected block after transaction: track `lastAddedCategoryId` in state, apply a temporary white/10 overlay that fades out after 200ms.
 
-### 2. No other files changed
+### B. Working FAB with Add Transaction Sheet
 
-`TetrisContainer.tsx`, `CategoryBlock.tsx`, and `JohnnyTip.tsx` remain in the codebase but are simply not imported. They will be rebuilt in later prompts.
+**In `MyMoneyScreen.tsx`:**
+
+- Import the existing `AddTransactionSheet` component
+- Add state: `showAddTransaction: boolean` and `lastAddedCategoryId: string | null`
+- Change FAB onClick from `toast(...)` to `setShowAddTransaction(true)`
+- Render `<AddTransactionSheet open={showAddTransaction} onClose={handleTransactionClose} />`
+- `handleTransactionClose`: sets `showAddTransaction` to false, and triggers the highlight flash on the affected block
+
+The existing `AddTransactionSheet` already has all the required functionality (type toggle, custom keypad via `NumberKeypad`, category pills, description input, date selector, recurring toggle, save button). It already calls `addTransaction` from `BudgetContext` and persists to localStorage. No changes needed to `AddTransactionSheet.tsx` or `NumberKeypad.tsx`.
 
 ## Technical Notes
 
-- The dotted grid pattern uses CSS `background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px)` with `background-size: 24px 24px`
-- The container uses `display: flex; flex-direction: column` so the fixed bar and savings bar stick to top/bottom with the main area taking `flex: 1`
-- FAB gradient changes from the current purple-only to purple-to-pink (#8B5CF6 to #FF6B9D) per spec
-- Toast uses the existing `sonner` toast for the FAB tap
+- The fill animation on load uses a common pattern: render with `height: 0`, then in a `useEffect(() => { requestAnimationFrame(() => setAnimated(true)) }, [])` flip to real heights. Each block's fill div has `style={{ height: animated ? fillPercent + '%' : '0%', transition: 'height 600ms ease-out', transitionDelay: index * 100 + 'ms' }}`
+- The highlight flash uses a state variable `flashCategoryId` set on transaction save, cleared after 500ms via setTimeout. The affected block gets a white/10 overlay div that fades via CSS animation.
+- Only `MyMoneyScreen.tsx` is modified. No other files change.
+
