@@ -30,7 +30,7 @@ const tintMap: Record<string, string> = {
   Coffee: '#C4956A',
   Smartphone: '#FF6B9D',
   MoreHorizontal: '#FFFFFF',
-  Gift: '#FF6B9D',
+  Gift: '#FFD700',
   BookOpen: '#007AFF',
   Shirt: '#8B5CF6',
   Wrench: '#5AC8FA',
@@ -554,17 +554,15 @@ function MyMoneyContent() {
   const FIXED_BAR = 36;
   const SAVINGS_BAR = 36;
   const GAP = 6;
-  const MIN_H = 56;
-  const MAX_H = 160;
-  const EXPAND_EXTRA = 220;
 
-  const totalGaps = Math.max(0, sortedCategories.length - 1) * GAP;
-
-  function blockHeight(budget: number): number {
-    if (flexBudget <= 0) return MIN_H;
-    const containerPx = window.innerHeight * 0.55 - FIXED_BAR - SAVINGS_BAR - totalGaps;
-    const raw = (budget / flexBudget) * containerPx;
-    return Math.max(MIN_H, Math.min(MAX_H, raw));
+  // Size tier calculation for grid layout
+  function getSizeTier(budget: number): { colSpan: number; rowSpan: number; tier: 'huge' | 'large' | 'medium' | 'small' } {
+    if (flexBudget <= 0) return { colSpan: 1, rowSpan: 1, tier: 'small' };
+    const sizeRatio = budget / flexBudget;
+    if (sizeRatio > 0.25) return { colSpan: 3, rowSpan: 2, tier: 'huge' };
+    if (sizeRatio > 0.15) return { colSpan: 2, rowSpan: 2, tier: 'large' };
+    if (sizeRatio > 0.08) return { colSpan: 2, rowSpan: 1, tier: 'medium' };
+    return { colSpan: 1, rowSpan: 1, tier: 'small' };
   }
 
   // Container ref for SVG flow lines
@@ -945,15 +943,25 @@ function MyMoneyContent() {
                 </motion.div>
               </div>
             ) : (
-              <div className="flex flex-col" style={{ gap: GAP }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                  gridAutoRows: 'minmax(60px, auto)',
+                  gap: GAP,
+                  padding: 0,
+                }}
+              >
                 {sortedCategories.map((cat, index) => {
                   const tint = getTint(cat.icon);
                   const Icon = budgetIconMap[cat.icon] || MoreHorizontal;
                   const spent = getCategorySpent(cat.id, 'month');
                   const isExpanded = expandedId === cat.id;
                   const effectiveBudget = isExpanded ? sliderValue : cat.monthlyBudget;
-                  const collapsedH = blockHeight(isExpanded ? effectiveBudget : cat.monthlyBudget);
-                  const h = isExpanded ? collapsedH + EXPAND_EXTRA : collapsedH;
+                  const { colSpan, rowSpan, tier } = getSizeTier(cat.monthlyBudget);
+                  const isLarge = tier === 'huge' || tier === 'large';
+                  const isMedium = tier === 'medium';
+                  const isSmall = tier === 'small';
                   const fillPercent = effectiveBudget > 0
                     ? Math.min((spent / effectiveBudget) * 100, 110)
                     : 0;
@@ -963,6 +971,7 @@ function MyMoneyContent() {
                     ? '16px'
                     : '0 0 16px 16px';
                   const isFlashing = flashCategoryId === cat.id;
+                  const progressPercent = effectiveBudget > 0 ? Math.min((spent / effectiveBudget) * 100, 100) : 0;
 
                   // Ghost fill for "Can I Afford"
                   const isAffordTarget = affordAmountNum > 0 && cat.id === affordCategoryId;
@@ -981,18 +990,36 @@ function MyMoneyContent() {
                   return (
                     <motion.div
                       key={cat.id}
-                      className="relative flex-shrink-0 overflow-hidden cursor-pointer"
-                      animate={{ height: h, opacity: shouldDim ? 0.85 : 1 }}
+                      className="relative overflow-hidden cursor-pointer"
+                      layout
+                      animate={{ opacity: shouldDim ? 0.85 : 1 }}
                       transition={{ type: 'spring', duration: 0.3, damping: 25 }}
                       onClick={() => handleExpand(cat.id, cat.monthlyBudget)}
                       style={{
+                        gridColumn: isExpanded ? '1 / -1' : `span ${colSpan}`,
+                        gridRow: isExpanded ? 'auto' : `span ${rowSpan}`,
+                        height: isExpanded ? 280 : '100%',
                         borderRadius: 16,
-                        background: `linear-gradient(135deg, ${hexToRgba(tint, 0.25)}, rgba(255,255,255,0.08))`,
-                        border: `1.5px solid ${isOver ? hexToRgba('#FF9F0A', 0.35) : hexToRgba(tint, 0.20)}`,
+                        background: `linear-gradient(135deg, ${hexToRgba(tint, 0.20)}, rgba(255,255,255,0.06))`,
+                        border: `1.5px solid ${isOver ? hexToRgba('#FF9F0A', 0.35) : hexToRgba(tint, 0.25)}`,
                         backdropFilter: 'blur(8px)',
                         WebkitBackdropFilter: 'blur(8px)',
                       }}
                     >
+                      {/* Accent Stripe */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: 4,
+                          background: hexToRgba(tint, 0.50),
+                          borderRadius: '16px 0 0 16px',
+                          zIndex: 2,
+                        }}
+                      />
+
                       {/* Fill */}
                       <div
                         style={{
@@ -1064,42 +1091,79 @@ function MyMoneyContent() {
                         />
                       )}
 
-                      {/* Content */}
-                      <div className="absolute top-3 left-3 right-3 flex items-center justify-between" style={{ zIndex: 1 }}>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Icon size={20} className="text-primary-white/70 flex-shrink-0" strokeWidth={1.5} />
-                          <span style={{ fontSize: 14 }} className="font-semibold text-primary-white truncate">
-                            {cat.name}
-                          </span>
-                        </div>
-                        <span style={{ fontSize: 13 }} className="flex-shrink-0 ml-2">
-                          <span className={spent === 0 ? 'text-primary-white/30' : 'text-primary-white/70'}>
-                            €{Math.round(spent)}
-                          </span>
-                          <span className="text-primary-white/50"> / €{Math.round(effectiveBudget)}</span>
-                        </span>
-                      </div>
-
-                      {/* Expanded Content */}
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <div style={{ marginTop: collapsedH }}>
-                            <ExpandedContent
-                              cat={cat}
-                              tint={tint}
-                              sliderValue={sliderValue}
-                              originalBudget={originalBudget}
-                              flexRemaining={flexRemaining}
-                              daysRemaining={daysRemaining}
-                              dailyAllowance={dailyAllowance}
-                              transactions={catTransactions}
-                              onSliderChange={setSliderValue}
-                              onSave={handleSliderSave}
-                              onCancel={handleSliderCancel}
-                            />
+                      {/* Content - adapts to size tier */}
+                      {!isExpanded && isLarge && (
+                        <div className="absolute inset-0 flex flex-col p-3 pl-4" style={{ zIndex: 1 }}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Icon size={18} className="text-primary-white/70 flex-shrink-0" strokeWidth={1.5} />
+                              <span style={{ fontSize: 14 }} className="text-primary-white truncate">{cat.name}</span>
+                            </div>
+                            <div className="flex flex-col items-end flex-shrink-0">
+                              <span style={{ fontSize: 16 }} className="font-bold text-primary-white">€{Math.round(spent)}</span>
+                              <span style={{ fontSize: 11 }} className="text-primary-white/35">of €{Math.round(effectiveBudget)}</span>
+                            </div>
                           </div>
-                        )}
-                      </AnimatePresence>
+                          <div className="flex-1" />
+                          {/* Progress bar */}
+                          <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.10)', width: '100%' }}>
+                            <div style={{ height: '100%', width: `${progressPercent}%`, borderRadius: 2, background: hexToRgba(tint, 0.60), transition: 'width 300ms ease' }} />
+                          </div>
+                        </div>
+                      )}
+
+                      {!isExpanded && isMedium && (
+                        <div className="absolute inset-0 flex flex-col justify-center p-2 pl-3" style={{ zIndex: 1 }}>
+                          <div className="flex items-center gap-1.5">
+                            <Icon size={16} className="text-primary-white/70 flex-shrink-0" strokeWidth={1.5} />
+                            <span style={{ fontSize: 13 }} className="text-primary-white truncate flex-1">{cat.name}</span>
+                            <span style={{ fontSize: 14 }} className="font-bold text-primary-white flex-shrink-0">€{Math.round(spent)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span style={{ fontSize: 11 }} className="text-primary-white/35">of €{Math.round(effectiveBudget)}</span>
+                            <div className="flex-1" style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.10)' }}>
+                              <div style={{ height: '100%', width: `${progressPercent}%`, borderRadius: 2, background: hexToRgba(tint, 0.50), transition: 'width 300ms ease' }} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {!isExpanded && isSmall && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-1 pl-2" style={{ zIndex: 1 }}>
+                          <Icon size={16} className="text-primary-white/70" strokeWidth={1.5} />
+                          <span style={{ fontSize: 14 }} className="font-bold text-primary-white mt-0.5">€{Math.round(spent)}</span>
+                          <span style={{ fontSize: 10 }} className="text-primary-white/30">/€{Math.round(effectiveBudget)}</span>
+                        </div>
+                      )}
+
+                      {/* Expanded: show full content header + expanded details */}
+                      {isExpanded && (
+                        <div className="absolute inset-0 flex flex-col" style={{ zIndex: 1 }}>
+                          <div className="flex items-center justify-between p-3 pl-4">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Icon size={20} className="text-primary-white/70 flex-shrink-0" strokeWidth={1.5} />
+                              <span style={{ fontSize: 14 }} className="font-semibold text-primary-white truncate">{cat.name}</span>
+                            </div>
+                            <span style={{ fontSize: 13 }} className="flex-shrink-0 ml-2">
+                              <span className={spent === 0 ? 'text-primary-white/30' : 'text-primary-white/70'}>€{Math.round(spent)}</span>
+                              <span className="text-primary-white/50"> / €{Math.round(effectiveBudget)}</span>
+                            </span>
+                          </div>
+                          <ExpandedContent
+                            cat={cat}
+                            tint={tint}
+                            sliderValue={sliderValue}
+                            originalBudget={originalBudget}
+                            flexRemaining={flexRemaining}
+                            daysRemaining={daysRemaining}
+                            dailyAllowance={dailyAllowance}
+                            transactions={catTransactions}
+                            onSliderChange={setSliderValue}
+                            onSave={handleSliderSave}
+                            onCancel={handleSliderCancel}
+                          />
+                        </div>
+                      )}
                     </motion.div>
                   );
                 })}
