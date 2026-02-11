@@ -4,6 +4,8 @@ import {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { format, parseISO, isToday, isYesterday, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { SetupWizard } from '@/components/budget/SetupWizard';
 import { EditBudgetSheet } from '@/components/budget/EditBudgetSheet';
@@ -43,11 +45,227 @@ function getFillColor(percent: number, tint: string): string {
   return hexToRgba(tint, 0.40);
 }
 
+function formatTransactionDate(dateStr: string): string {
+  const date = parseISO(dateStr);
+  if (isToday(date)) return 'Today';
+  if (isYesterday(date)) return 'Yesterday';
+  return format(date, 'MMM d');
+}
+
+function ExpandedContent({
+  cat,
+  tint,
+  sliderValue,
+  originalBudget,
+  flexRemaining,
+  daysRemaining,
+  dailyAllowance,
+  transactions,
+  onSliderChange,
+  onSave,
+  onCancel,
+}: {
+  cat: { id: string; name: string; monthlyBudget: number };
+  tint: string;
+  sliderValue: number;
+  originalBudget: number;
+  flexRemaining: number;
+  daysRemaining: number;
+  dailyAllowance: number;
+  transactions: Array<{ id: string; amount: number; description: string; date: string }>;
+  onSliderChange: (val: number) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const max = originalBudget + flexRemaining;
+  const diff = sliderValue - originalBudget;
+  const hasChanged = Math.round(sliderValue) !== Math.round(originalBudget);
+  const newFlexRemaining = flexRemaining - diff;
+  const newDaily = daysRemaining > 0 ? newFlexRemaining / daysRemaining : 0;
+  const originalDaily = dailyAllowance;
+  const fillPercent = max > 0 ? (sliderValue / max) * 100 : 0;
+
+  // Get current month transactions for this category
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+  const catTransactions = transactions
+    .filter(t => {
+      const date = parseISO(t.date);
+      return isWithinInterval(date, { start: monthStart, end: monthEnd });
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const displayTransactions = catTransactions.slice(0, 4);
+  const moreCount = catTransactions.length - 4;
+
+  // Custom range input styles
+  const thumbSize = 28;
+  const rangeStyle = `
+    input[type="range"].budget-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      outline: none;
+      background: linear-gradient(to right, ${hexToRgba(tint, 0.35)} ${fillPercent}%, rgba(255,255,255,0.10) ${fillPercent}%);
+    }
+    input[type="range"].budget-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: ${thumbSize}px;
+      height: ${thumbSize}px;
+      border-radius: 50%;
+      background: white;
+      border: 2.5px solid ${tint};
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      cursor: pointer;
+    }
+    input[type="range"].budget-slider::-moz-range-thumb {
+      width: ${thumbSize}px;
+      height: ${thumbSize}px;
+      border-radius: 50%;
+      background: white;
+      border: 2.5px solid ${tint};
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      cursor: pointer;
+    }
+  `;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="relative px-3 pb-3"
+      style={{ zIndex: 2 }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Divider */}
+      <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', marginBottom: 12 }} />
+
+      {/* Budget Slider */}
+      <div className="flex flex-col gap-1">
+        <div className="text-center">
+          <span style={{ fontSize: 18 }} className="font-bold text-primary-white">
+            €{Math.round(sliderValue)}
+          </span>
+        </div>
+        <div className="px-0">
+          <style>{rangeStyle}</style>
+          <input
+            type="range"
+            className="budget-slider"
+            min={0}
+            max={Math.round(max)}
+            value={Math.round(sliderValue)}
+            onChange={(e) => onSliderChange(Number(e.target.value))}
+            style={{ width: '100%' }}
+          />
+          <div className="flex justify-between mt-0.5">
+            <span style={{ fontSize: 10 }} className="text-primary-white/15">€0</span>
+            <span style={{ fontSize: 10 }} className="text-primary-white/15">€{Math.round(max)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Impact Text */}
+      <div style={{ fontSize: 13, marginTop: 8 }}>
+        {!hasChanged ? (
+          <span className="text-primary-white/25">Drag the slider to adjust this budget</span>
+        ) : diff < 0 ? (
+          <span className="text-primary-white/60">
+            Reducing by €{Math.abs(Math.round(diff))} frees up €{Math.abs(Math.round(diff))}/month. Daily budget: €{Math.round(originalDaily)}{' '}
+            <span style={{ color: hexToRgba('#34C759', 0.7) }}>→ €{Math.round(newDaily)}/day</span>
+          </span>
+        ) : (
+          <span className="text-primary-white/60">
+            Adding €{Math.round(diff)} tightens budget. Daily budget: €{Math.round(originalDaily)}{' '}
+            <span style={{ color: hexToRgba('#FF9F0A', 0.7) }}>→ €{Math.round(newDaily)}/day</span>
+          </span>
+        )}
+      </div>
+
+      {/* Confirmation Buttons */}
+      {hasChanged && (
+        <div className="flex justify-center gap-3 mt-3">
+          <button
+            onClick={onSave}
+            className="text-primary-white font-medium"
+            style={{
+              height: 36,
+              width: 100,
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)',
+              fontSize: 13,
+            }}
+          >
+            Save
+          </button>
+          <button
+            onClick={onCancel}
+            className="text-primary-white/40 font-medium"
+            style={{
+              height: 36,
+              width: 100,
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.10)',
+              fontSize: 13,
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Transaction List */}
+      <div className="mt-3">
+        <div className="flex justify-between items-center mb-2">
+          <span style={{ fontSize: 12 }} className="text-primary-white/30">Recent</span>
+          <span style={{ fontSize: 12, color: hexToRgba('#8B5CF6', 0.7) }}>See all</span>
+        </div>
+        {displayTransactions.length === 0 ? (
+          <div className="text-center py-2">
+            <span style={{ fontSize: 12 }} className="text-primary-white/20">No spending yet</span>
+          </div>
+        ) : (
+          <div>
+            {displayTransactions.map((t, i) => (
+              <div key={t.id}>
+                {i > 0 && <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />}
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <div style={{ fontSize: 13 }} className="text-primary-white/60 truncate">
+                      {t.description || 'Untitled'}
+                    </div>
+                    <div style={{ fontSize: 10 }} className="text-primary-white/25">
+                      {formatTransactionDate(t.date)}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 13 }} className="text-primary-white/50 ml-2 flex-shrink-0">
+                    -€{t.amount.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {moreCount > 0 && (
+              <div className="text-center pt-1">
+                <span style={{ fontSize: 11 }} className="text-primary-white/20">and {moreCount} more</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 function MyMoneyContent() {
   const {
     config, expenseCategories, fixedCategories, flexBudget, flexSpent,
     flexRemaining, dailyAllowance, paceStatus, getCategorySpent,
-    totalFixed,
+    totalFixed, transactions, updateCategory, daysRemaining,
   } = useBudget();
   const [showSettings, setShowSettings] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
@@ -55,11 +273,20 @@ function MyMoneyContent() {
   const initialAnimDone = useRef(false);
   const [flashCategoryId, setFlashCategoryId] = useState<string | null>(null);
 
+  // Expand state
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [sliderValue, setSliderValue] = useState(0);
+  const [originalBudget, setOriginalBudget] = useState(0);
+
+  const sortedCategories = useMemo(
+    () => [...expenseCategories].sort((a, b) => b.monthlyBudget - a.monthlyBudget),
+    [expenseCategories]
+  );
+
   // Staggered fill animation on mount
   useEffect(() => {
     requestAnimationFrame(() => {
       setAnimated(true);
-      // Mark initial animation done after last block finishes
       setTimeout(() => { initialAnimDone.current = true; }, 600 + sortedCategories.length * 100);
     });
   }, []);
@@ -73,16 +300,34 @@ function MyMoneyContent() {
 
   const handleTransactionClose = useCallback(() => {
     setShowAddTransaction(false);
-    // We could track the last added category from context, but for simplicity
-    // flash the most recently changed category on next render
   }, []);
 
-  const hasExpenses = expenseCategories.length > 0;
+  const handleExpand = useCallback((catId: string, budget: number) => {
+    if (expandedId === catId) {
+      // Collapse - auto-cancel
+      setExpandedId(null);
+      setSliderValue(0);
+      setOriginalBudget(0);
+    } else {
+      // Expand new block (auto-cancels previous since we never saved)
+      setExpandedId(catId);
+      setSliderValue(budget);
+      setOriginalBudget(budget);
+    }
+  }, [expandedId]);
 
-  const sortedCategories = useMemo(
-    () => [...expenseCategories].sort((a, b) => b.monthlyBudget - a.monthlyBudget),
-    [expenseCategories]
-  );
+  const handleSliderSave = useCallback(() => {
+    if (expandedId) {
+      updateCategory(expandedId, { monthlyBudget: Math.round(sliderValue) });
+      setOriginalBudget(Math.round(sliderValue));
+    }
+  }, [expandedId, sliderValue, updateCategory]);
+
+  const handleSliderCancel = useCallback(() => {
+    setSliderValue(originalBudget);
+  }, [originalBudget]);
+
+  const hasExpenses = expenseCategories.length > 0;
 
   // Block heights
   const FIXED_BAR = 36;
@@ -90,6 +335,7 @@ function MyMoneyContent() {
   const GAP = 6;
   const MIN_H = 56;
   const MAX_H = 160;
+  const EXPAND_EXTRA = 220;
 
   const totalGaps = Math.max(0, sortedCategories.length - 1) * GAP;
 
@@ -99,6 +345,11 @@ function MyMoneyContent() {
     const raw = (budget / flexBudget) * containerPx;
     return Math.max(MIN_H, Math.min(MAX_H, raw));
   }
+
+  // Compute adjusted impact values when slider is active
+  const sliderDiff = expandedId ? sliderValue - originalBudget : 0;
+  const adjustedRemaining = flexRemaining - sliderDiff;
+  const adjustedDaily = daysRemaining > 0 ? Math.max(0, adjustedRemaining / daysRemaining) : 0;
 
   const fixedBarText = useMemo(() => {
     if (fixedCategories.length === 0) return null;
@@ -130,7 +381,6 @@ function MyMoneyContent() {
         <div
           className="flex flex-col overflow-hidden"
           style={{
-            height: '55vh',
             background: 'rgba(255,255,255,0.05)',
             border: '2px solid rgba(255,255,255,0.20)',
             borderRadius: 20,
@@ -180,9 +430,12 @@ function MyMoneyContent() {
                   const tint = getTint(cat.icon);
                   const Icon = iconMap[cat.icon] || MoreHorizontal;
                   const spent = getCategorySpent(cat.id, 'month');
-                  const h = blockHeight(cat.monthlyBudget);
-                  const fillPercent = cat.monthlyBudget > 0
-                    ? Math.min((spent / cat.monthlyBudget) * 100, 110)
+                  const isExpanded = expandedId === cat.id;
+                  const effectiveBudget = isExpanded ? sliderValue : cat.monthlyBudget;
+                  const collapsedH = blockHeight(isExpanded ? effectiveBudget : cat.monthlyBudget);
+                  const h = isExpanded ? collapsedH + EXPAND_EXTRA : collapsedH;
+                  const fillPercent = effectiveBudget > 0
+                    ? Math.min((spent / effectiveBudget) * 100, 110)
                     : 0;
                   const isOver = fillPercent > 100;
                   const fillColor = getFillColor(fillPercent, tint);
@@ -191,12 +444,17 @@ function MyMoneyContent() {
                     : '0 0 16px 16px';
                   const isFlashing = flashCategoryId === cat.id;
 
+                  // Get transactions for this category
+                  const catTransactions = transactions.filter(t => t.type === 'expense' && t.categoryId === cat.id);
+
                   return (
-                    <div
+                    <motion.div
                       key={cat.id}
-                      className="relative flex-shrink-0 overflow-hidden"
+                      className="relative flex-shrink-0 overflow-hidden cursor-pointer"
+                      animate={{ height: h }}
+                      transition={{ type: 'spring', duration: 0.3, damping: 25 }}
+                      onClick={() => handleExpand(cat.id, cat.monthlyBudget)}
                       style={{
-                        height: h,
                         borderRadius: 16,
                         background: `linear-gradient(135deg, ${hexToRgba(tint, 0.25)}, rgba(255,255,255,0.08))`,
                         border: `1.5px solid ${isOver ? hexToRgba('#FF9F0A', 0.35) : hexToRgba(tint, 0.20)}`,
@@ -244,10 +502,31 @@ function MyMoneyContent() {
                           <span className={spent === 0 ? 'text-primary-white/30' : 'text-primary-white/70'}>
                             €{Math.round(spent)}
                           </span>
-                          <span className="text-primary-white/50"> / €{Math.round(cat.monthlyBudget)}</span>
+                          <span className="text-primary-white/50"> / €{Math.round(effectiveBudget)}</span>
                         </span>
                       </div>
-                    </div>
+
+                      {/* Expanded Content */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <div style={{ marginTop: collapsedH }}>
+                            <ExpandedContent
+                              cat={cat}
+                              tint={tint}
+                              sliderValue={sliderValue}
+                              originalBudget={originalBudget}
+                              flexRemaining={flexRemaining}
+                              daysRemaining={daysRemaining}
+                              dailyAllowance={dailyAllowance}
+                              transactions={catTransactions}
+                              onSliderChange={setSliderValue}
+                              onSave={handleSliderSave}
+                              onCancel={handleSliderCancel}
+                            />
+                          </div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
                   );
                 })}
               </div>
@@ -287,7 +566,7 @@ function MyMoneyContent() {
           }}
         >
           <span style={{ fontSize: 13 }} className="text-primary-white/50">
-            €{Math.round(flexRemaining)} left
+            €{Math.round(adjustedRemaining)} left
           </span>
           <span
             className="flex items-center gap-1 px-2 py-0.5 rounded-full text-primary-white font-medium"
@@ -297,7 +576,7 @@ function MyMoneyContent() {
             {paceLabel}
           </span>
           <span style={{ fontSize: 13 }} className="text-primary-white/50">
-            €{Math.round(dailyAllowance)}/day
+            €{Math.round(adjustedDaily)}/day
           </span>
         </div>
       </div>
