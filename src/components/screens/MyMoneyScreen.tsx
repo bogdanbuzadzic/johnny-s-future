@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { Plus, Sliders, Lock, PiggyBank, ShieldCheck, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
 import {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
@@ -10,8 +10,9 @@ import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { SetupWizard } from '@/components/budget/SetupWizard';
 import { EditBudgetSheet } from '@/components/budget/EditBudgetSheet';
 import { AddTransactionSheet } from '@/components/budget/AddTransactionSheet';
+import { useApp, iconMap as goalIconMap } from '@/context/AppContext';
 
-const iconMap: Record<string, LucideIcon> = {
+const budgetIconMap: Record<string, LucideIcon> = {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
 };
 
@@ -267,6 +268,7 @@ function MyMoneyContent() {
     flexRemaining, dailyAllowance, paceStatus, getCategorySpent,
     totalFixed, transactions, updateCategory, daysRemaining,
   } = useBudget();
+  const { goals } = useApp();
   const [showSettings, setShowSettings] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [animated, setAnimated] = useState(false);
@@ -351,6 +353,35 @@ function MyMoneyContent() {
   const adjustedRemaining = flexRemaining - sliderDiff;
   const adjustedDaily = daysRemaining > 0 ? Math.max(0, adjustedRemaining / daysRemaining) : 0;
 
+  // Goal-related calculations for live slider connection
+  const monthlySavingsTarget = config.monthlySavingsTarget || 0;
+  const activeGoals = goals.filter(g => g.monthlyContribution > 0);
+  const totalContributions = activeGoals.reduce((sum, g) => sum + g.monthlyContribution, 0);
+
+  const goalDiffs = useMemo(() => {
+    if (sliderDiff === 0 || totalContributions === 0) return [];
+    return activeGoals.map(g => {
+      const ratio = g.monthlyContribution / totalContributions;
+      const goalDiff = Math.round(sliderDiff * ratio * -1);
+      const oldMonths = g.monthlyContribution > 0 ? (g.target - g.saved) / g.monthlyContribution : Infinity;
+      const newContribution = g.monthlyContribution + (sliderDiff * ratio * -1);
+      const newMonths = newContribution > 0 ? (g.target - g.saved) / newContribution : Infinity;
+      const monthsChange = oldMonths - newMonths;
+      return { ...g, goalDiff, monthsChange, ratio };
+    });
+  }, [sliderDiff, activeGoals, totalContributions]);
+
+  const mostAffectedGoal = useMemo(() => {
+    if (goalDiffs.length === 0) return null;
+    return goalDiffs.reduce((best, g) =>
+      Math.abs(g.monthsChange) > Math.abs(best.monthsChange) ? g : best
+    , goalDiffs[0]);
+  }, [goalDiffs]);
+
+  // Container ref for SVG flow lines
+  const containerWrapperRef = useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = useState(300);
+
   const fixedBarText = useMemo(() => {
     if (fixedCategories.length === 0) return null;
     const items = fixedCategories.map(c => `${c.name} €${Math.round(c.monthlyBudget)}`);
@@ -377,16 +408,120 @@ function MyMoneyContent() {
           </button>
         </div>
 
-        {/* Container */}
-        <div
-          className="flex flex-col overflow-hidden"
-          style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '2px solid rgba(255,255,255,0.20)',
-            borderRadius: 20,
-            boxShadow: 'inset 0 0 30px rgba(255,255,255,0.03)',
-          }}
-        >
+        {/* Goal Cards Row */}
+        {goals.length > 0 && (
+          <div
+            className={`flex gap-3 pb-4 ${goals.length <= 3 ? 'justify-evenly' : ''}`}
+            style={{
+              overflowX: goals.length > 3 ? 'auto' : 'visible',
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none',
+            }}
+          >
+            {goals.map(goal => {
+              const GoalIcon = goalIconMap[goal.icon] || goalIconMap.Target;
+              const progress = goal.target > 0 ? (goal.saved / goal.target) * 100 : 0;
+              const isFunded = goal.saved >= goal.target;
+              const diff = goalDiffs.find(d => d.id === goal.id);
+              const hasDiff = diff && diff.goalDiff !== 0;
+              const isPositive = diff && diff.goalDiff > 0;
+
+              return (
+                <div key={goal.id} className="flex flex-col items-center flex-shrink-0">
+                  <div
+                    className="relative flex flex-col items-center justify-center px-2 py-2"
+                    style={{
+                      width: 110,
+                      height: 72,
+                      background: 'rgba(255,255,255,0.12)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)',
+                      border: `1px solid ${isFunded ? 'rgba(52,199,89,0.25)' : hasDiff ? (isPositive ? 'rgba(52,199,89,0.15)' : 'rgba(255,159,10,0.15)') : 'rgba(255,255,255,0.15)'}`,
+                      borderRadius: 16,
+                      transition: 'border-color 300ms ease',
+                    }}
+                  >
+                    {isFunded && (
+                      <CheckCircle size={10} style={{ color: 'rgba(52,199,89,0.4)', position: 'absolute', top: 6, right: 6 }} />
+                    )}
+                    <GoalIcon size={18} className="text-primary-white/50" strokeWidth={1.5} />
+                    <span style={{ fontSize: 11 }} className="text-primary-white/60 truncate w-full text-center mt-1">
+                      {goal.name}
+                    </span>
+                    <span style={{ fontSize: 10 }} className="text-primary-white/35">
+                      €{goal.saved} / €{goal.target}
+                    </span>
+                    {/* Mini progress bar */}
+                    <div style={{ width: 'calc(100% - 24px)', height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.10)', marginTop: 4 }}>
+                      <div style={{ width: `${Math.min(progress, 100)}%`, height: '100%', borderRadius: 2, background: 'rgba(52,199,89,0.4)', transition: 'width 300ms ease' }} />
+                    </div>
+                  </div>
+                  {/* Floating diff label */}
+                  <AnimatePresence>
+                    {hasDiff && (
+                      <motion.span
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        style={{
+                          fontSize: 10,
+                          marginTop: 2,
+                          color: isPositive ? 'rgba(52,199,89,0.5)' : 'rgba(255,159,10,0.5)',
+                        }}
+                      >
+                        {isPositive ? '+' : ''}€{diff!.goalDiff}/mo
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Flow Lines + Container Wrapper */}
+        <div ref={containerWrapperRef} className="relative">
+          {/* SVG Flow Lines (behind container) */}
+          {goals.length > 0 && goals.some(g => g.monthlyContribution > 0) && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{ zIndex: 0 }}
+            >
+              {goals.filter(g => g.monthlyContribution > 0).map((goal, i, arr) => {
+                const cardX = goals.length <= 3
+                  ? ((goals.indexOf(goal) + 0.5) / goals.length) * 100
+                  : ((goals.indexOf(goal) * 110 + 55) / (goals.length * 110)) * 100;
+                const barX = ((i + 0.5) / arr.length) * 100;
+                const thickness = Math.min(3.5, 1.5 + (goal.monthlyContribution / (monthlySavingsTarget || 1)) * 2);
+                const hasDiff = goalDiffs.find(d => d.id === goal.id);
+                const lineOpacity = hasDiff && hasDiff.goalDiff > 0 ? 0.15 : hasDiff && hasDiff.goalDiff < 0 ? 0.05 : 0.08;
+
+                return (
+                  <path
+                    key={goal.id}
+                    d={`M ${cardX}% 0 C ${cardX}% 30%, ${barX}% 70%, ${barX}% 100%`}
+                    fill="none"
+                    stroke={`rgba(255,255,255,${lineOpacity})`}
+                    strokeWidth={thickness}
+                    strokeDasharray="4 4"
+                    style={{ transition: 'stroke 500ms ease' }}
+                  />
+                );
+              })}
+            </svg>
+          )}
+
+          {/* Container */}
+          <div
+            className="flex flex-col overflow-hidden relative"
+            style={{
+              background: 'rgba(255,255,255,0.05)',
+              border: '2px solid rgba(255,255,255,0.20)',
+              borderRadius: 20,
+              boxShadow: 'inset 0 0 30px rgba(255,255,255,0.03)',
+              zIndex: 1,
+            }}
+          >
           {/* Fixed Expenses Bar */}
           <div
             className="flex items-center justify-between px-3 flex-shrink-0"
@@ -428,7 +563,7 @@ function MyMoneyContent() {
               <div className="flex flex-col" style={{ gap: GAP }}>
                 {sortedCategories.map((cat, index) => {
                   const tint = getTint(cat.icon);
-                  const Icon = iconMap[cat.icon] || MoreHorizontal;
+                  const Icon = budgetIconMap[cat.icon] || MoreHorizontal;
                   const spent = getCategorySpent(cat.id, 'month');
                   const isExpanded = expandedId === cat.id;
                   const effectiveBudget = isExpanded ? sliderValue : cat.monthlyBudget;
@@ -551,33 +686,51 @@ function MyMoneyContent() {
               </span>
             </div>
             <ShieldCheck size={12} className="text-primary-white/15" strokeWidth={1.5} />
+           </div>
           </div>
-        </div>
+        </div>{/* End flow lines + container wrapper */}
 
         {/* Impact Summary Row */}
         <div
-          className="mt-3 flex items-center justify-between px-4"
+          className="mt-3 flex flex-col px-4"
           style={{
-            height: 40,
+            minHeight: 40,
             background: 'rgba(255,255,255,0.10)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
             borderRadius: 16,
+            padding: '8px 16px',
           }}
         >
-          <span style={{ fontSize: 13 }} className="text-primary-white/50">
-            €{Math.round(adjustedRemaining)} left
-          </span>
-          <span
-            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-primary-white font-medium"
-            style={{ fontSize: 11, background: hexToRgba(paceColor, 0.7) }}
-          >
-            <PaceIcon size={12} strokeWidth={1.5} />
-            {paceLabel}
-          </span>
-          <span style={{ fontSize: 13 }} className="text-primary-white/50">
-            €{Math.round(adjustedDaily)}/day
-          </span>
+          <div className="flex items-center justify-between">
+            <span style={{ fontSize: 13 }} className="text-primary-white/50">
+              €{Math.round(adjustedRemaining)} left
+            </span>
+            <span
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-primary-white font-medium"
+              style={{ fontSize: 11, background: hexToRgba(paceColor, 0.7) }}
+            >
+              <PaceIcon size={12} strokeWidth={1.5} />
+              {paceLabel}
+            </span>
+            <span style={{ fontSize: 13 }} className="text-primary-white/50">
+              €{Math.round(adjustedDaily)}/day
+            </span>
+          </div>
+          {/* Goal impact line during slider drag */}
+          {mostAffectedGoal && sliderDiff !== 0 && (
+            <div style={{ fontSize: 11, marginTop: 4 }}>
+              {mostAffectedGoal.monthsChange > 0 ? (
+                <span style={{ color: 'rgba(52,199,89,0.4)' }}>
+                  {mostAffectedGoal.name}: {Math.round(mostAffectedGoal.monthsChange)} months sooner
+                </span>
+              ) : (
+                <span style={{ color: 'rgba(255,159,10,0.4)' }}>
+                  {mostAffectedGoal.name}: {Math.abs(Math.round(mostAffectedGoal.monthsChange))} months later
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
