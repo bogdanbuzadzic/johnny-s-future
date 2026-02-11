@@ -721,12 +721,12 @@ function MyMoneyContent() {
               <button onClick={handleBuyIt} className="text-primary-white font-semibold"
                 style={{ width: 120, height: 36, borderRadius: 12, background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)', fontSize: 13 }}>Buy it</button>
               <button onClick={handleClearAfford}
-                style={{ width: 80, height: 36, borderRadius: 12, background: 'rgba(255,255,255,0.10)', fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Clear</button>
+                style={{ height: 36, borderRadius: 12, background: 'rgba(255,255,255,0.10)', fontSize: 13, padding: '0 16px', color: 'rgba(255,255,255,0.4)' }}>Clear</button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Container */}
+        {/* Tetris Container */}
         <div className="relative">
           <div className="flex flex-col overflow-hidden relative" style={{
             background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.20)', borderRadius: 20,
@@ -881,13 +881,20 @@ function MyMoneyContent() {
                       </div>
                     )}
                     
-                    {/* "€X free" pill */}
+                    {/* "€X free" pill - shows transition during slider drag */}
                     <div style={{
                       background: 'rgba(255,255,255,0.10)', borderRadius: 999,
                       padding: '4px 16px', marginTop: isOverflow ? 0 : 4, zIndex: 2,
                     }}>
                       {isOverflow ? (
                         <span style={{ fontSize: 12, color: 'rgba(255,159,10,0.5)' }}>€{overAmount} over</span>
+                      ) : sliderDiff !== 0 ? (
+                        <span style={{ fontSize: 12 }}>
+                          <span style={{ color: 'rgba(255,255,255,0.25)' }}>€{Math.round(flexRemaining)} </span>
+                          <span style={{ color: sliderDiff < 0 ? 'rgba(52,199,89,0.6)' : 'rgba(255,159,10,0.6)' }}>
+                            → €{Math.round(adjustedRemaining)} free
+                          </span>
+                        </span>
                       ) : (
                         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>€{Math.round(adjustedRemaining)} free</span>
                       )}
@@ -966,10 +973,11 @@ function MyMoneyContent() {
                           )}
                         </motion.div>
                       </motion.div>
-                      {goalBlocks.map((block, index) => (
+                      {goalBlocks.map((block) => (
                         <GoalBlock key={block.id} goal={block.data} blockId={block.id} amount={block.amount}
                           getSizeTier={getSizeTier} expandedId={expandedId} sliderValue={sliderValue} originalBudget={originalBudget}
                           animated={animated} flexRemaining={flexRemaining}
+                          spendingSliderDiff={sliderDiff}
                           onExpand={(id, contribution) => handleExpand(id, contribution, 'goal')}
                           onSliderChange={setSliderValue} onSave={handleSliderSave} onCancel={handleSliderCancel} />
                       ))}
@@ -994,7 +1002,6 @@ function MyMoneyContent() {
               <ShieldCheck size={12} className="text-primary-white/15" strokeWidth={1.5} />
             </div>
           </div>
-
         </div>
 
         {/* Impact Summary Row */}
@@ -1198,12 +1205,13 @@ function SpendingBlock({
 // Goal Block Component
 function GoalBlock({
   goal, blockId, amount, getSizeTier, expandedId, sliderValue, originalBudget,
-  animated, flexRemaining, onExpand, onSliderChange, onSave, onCancel,
+  animated, flexRemaining, spendingSliderDiff = 0, onExpand, onSliderChange, onSave, onCancel,
 }: {
   goal: Goal; blockId: string; amount: number;
   getSizeTier: (amount: number) => { colSpan: number; rowSpan: number; tier: string };
   expandedId: string | null; sliderValue: number; originalBudget: number;
   animated: boolean; flexRemaining: number;
+  spendingSliderDiff?: number;
   onExpand: (id: string, contribution: number) => void;
   onSliderChange: (val: number) => void; onSave: () => void; onCancel: () => void;
 }) {
@@ -1218,8 +1226,15 @@ function GoalBlock({
   const isFunded = goal.saved >= goal.target;
   const green = '#34C759';
 
+  // Visual scaling from spending slider drag
+  const isSpendingDragging = spendingSliderDiff !== 0;
+  const scaleBoost = isSpendingDragging ? 1 + (spendingSliderDiff * -0.0005) : 1;
+  const visualScale = Math.max(0.85, Math.min(1.15, scaleBoost));
+  const pulseColor = spendingSliderDiff < 0 ? 'rgba(52,199,89,0.15)' : spendingSliderDiff > 0 ? 'rgba(255,159,10,0.15)' : 'transparent';
+
   return (
     <motion.div key={blockId} className="relative overflow-hidden cursor-pointer" layout
+      animate={{ scale: isExpanded ? 1 : visualScale }}
       transition={{ type: 'spring', duration: 0.5, damping: 25 }}
       onClick={() => onExpand(blockId, goal.monthlyContribution)}
       style={{
@@ -1228,9 +1243,10 @@ function GoalBlock({
         height: isExpanded ? 280 : '100%',
         borderRadius: 16,
         background: 'rgba(255,255,255,0.15)',
-        border: isFunded ? '1.5px solid rgba(52,199,89,0.25)' : '1.5px solid rgba(255,255,255,0.15)',
+        border: isFunded ? '1.5px solid rgba(52,199,89,0.25)' : isSpendingDragging ? `1.5px solid ${pulseColor}` : '1.5px solid rgba(255,255,255,0.15)',
         backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-        ...(isFunded ? { boxShadow: '0 0 12px rgba(52,199,89,0.1)' } : {}),
+        boxShadow: isFunded ? '0 0 12px rgba(52,199,89,0.1)' : isSpendingDragging ? `0 0 12px ${pulseColor}` : 'none',
+        transition: 'border-color 500ms ease, box-shadow 500ms ease',
       }}>
       {/* Progress Fill - subtle white rising from bottom */}
       <div style={{
