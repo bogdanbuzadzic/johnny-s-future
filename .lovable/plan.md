@@ -1,108 +1,171 @@
 
 
-# My Money Tetris - Three Fixes
+# My Money Screen - Complete Rebuild
 
-## Fix 1: Full-Width Vertical Stack Layout
+## Overview
 
-### File: `src/components/budget/TetrisContainer.tsx`
+Tear down and rebuild the My Money screen (tab 2) with a fundamentally new layout: a 2D horizontal container where spending blocks fill from the LEFT as columns and goal blocks fill from the RIGHT, with a gap in between showing Johnny and flex remaining. This replaces the current vertical stack.
 
-**Replace the bin-packing `blockLayout` calculation (lines 227-257)** with a simple vertical stack:
+## Architecture
 
-- Sort `expenseCategories` by budget descending (biggest first)
-- Each block gets `width = containerInnerWidth` (full width)
-- Block height is proportional to budget:
-  - `totalFlexZoneHeight` = container height minus fixed bar, savings bar, and empty space minimum
-  - `proportionalHeight = (categoryBudget / flexBudget) * totalFlexZoneHeight`
-  - `blockHeight = clamp(proportionalHeight, 52, 120)`
-- Gap: 6px between blocks
+Three files change significantly:
 
-**Replace the row-based rendering (lines 360-425)** with a simple vertical map:
+| File | Action |
+|------|--------|
+| `src/components/screens/MyMoneyScreen.tsx` | Rewrite -- new layout order, mode toggle, impact summary, Johnny tip |
+| `src/components/budget/TetrisContainer.tsx` | Rewrite -- 2D horizontal container with spending columns (left) + goal columns (right) + gap |
+| `src/components/budget/CategoryBlock.tsx` | Rewrite -- tall vertical column with icon/name/amount stacked vertically, bottom-up spending fill, vertical slider on right edge |
 
-- No more `blockLayout.rows.map` with nested `row.map`
-- Single flat list: `sortedBlocks.map(block => <CategoryBlock ... />)` with `mb-1.5` spacing
-- Each block gets `width={containerInnerWidth}` and `height={computedHeight}`
+Two files get minor updates:
 
-**Recalculate `blockRowsHeight` and `emptySpaceHeight`** based on new per-block heights summed vertically.
+| File | Action |
+|------|--------|
+| `src/components/budget/AddTransactionSheet.tsx` | No changes needed (prefill already works) |
+| `src/context/AppContext.tsx` | Read goals from here -- no changes needed |
 
-**Add "Add category" dashed block** after the last category block:
+## Screen Layout (top to bottom)
 
-- Full width, 48px tall, 2px dashed white/15 border, transparent bg, rounded-2xl
-- Center: Plus icon (20px, white/30) + "Add category" text (14px, white/30)
-- Local state `addingCategory: boolean` to toggle inline form
-- On tap, the block expands (spring 300ms) to ~200px showing:
-  - Icon picker: horizontal scroll of 36px circle pills with icons (UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Gift, BookOpen, Smartphone, Shirt, MoreHorizontal). Tap selects (purple border). One selected at a time.
-  - Name input: frosted glass text field, placeholder "Category name", 14px
-  - Budget input: "EUR" prefix + number input, 18px bold white
-  - Color dot: auto-assigned from tint color map based on icon/name
-  - "Create" button: purple gradient pill, full width, 40px, disabled until all filled
-  - "Cancel" text below in white/30, collapses form
-- On Create: calls `addCategory({ name, icon, tintColor, monthlyBudget, type: 'expense' })`, collapses form, new block appears with drop-in animation
+1. **"Can I afford" input** (moved to top, always visible)
+2. **Mode toggle** ("My Month" / "What If")
+3. **The 2D Tetris Container** (50-55vh, the core visual)
+4. **Impact Summary row**
+5. **Johnny's Tip card**
+6. **FAB** (fixed bottom-right)
 
-### File: `src/components/budget/CategoryBlock.tsx`
+NO terrain/TerrainPath on this screen anymore.
 
-- The `width` prop now always equals container width -- no changes needed, it already uses `style={{ width }}`
-- The `height` prop changes to reflect proportional height -- already used as `minHeight`
+## Technical Details
 
----
+### MyMoneyScreen.tsx -- Full Rewrite
 
-## Fix 2: Add Category Inline Form
+**Removed:** TerrainPath import and rendering, period toggle from header, Sparkles optimize button, terrain daily allowance delta section.
 
-Handled inside `TetrisContainer.tsx` as described above. New local state:
+**New state:**
+- `mode: 'month' | 'whatif'` -- mode toggle
+- `period: 'month' | 'week'` -- moved inside container header
+- Existing afford test state stays the same
 
-- `addingCategory: boolean`
-- `newCatIcon: string`
-- `newCatName: string`
-- `newCatBudget: string`
+**Layout order:**
+1. "Can I afford" input row (existing logic, moved to top below header)
+2. Mode toggle: two frosted pills centered, "My Month" (white/20 when selected) and "What If" (purple/15 + Sparkles icon when selected)
+3. TetrisContainer (passes `mode`, `period`, goals from AppContext)
+4. Impact summary row (frosted glass, 36px): flex remaining | pace pill | daily allowance. In What If mode: before/after with goal timeline impact
+5. Johnny's Tip card with dynamic tips referencing user data
+6. FAB (existing)
 
-Icon-to-tint mapping reuses the existing `CATEGORY_TINTS` from `CategoryBlock.tsx` plus a fallback mapping for icons that don't match category names.
+### TetrisContainer.tsx -- Full Rewrite
 
----
+**New props:**
+- `mode: 'month' | 'whatif'`
+- `goals: Goal[]` (from AppContext)
+- `ghostTestAmount`, `ghostTestCategoryId` (existing)
 
-## Fix 3: Always-Visible Slider on Every Block
+**Container dimensions:**
+- Width: `window.innerWidth - 24` (capped at 400)
+- Height: 50-55% of viewport
+- Background: white/5, border 2px white/20, rounded 20px, inner glow
+- In What If mode: pulsing dashed border
 
-### File: `src/components/budget/CategoryBlock.tsx`
+**Inside the container (top to bottom):**
 
-**Add a slim slider track at the bottom of every block (collapsed state):**
+1. **Fixed expenses bar** (32px, top): Lock icon + inline "Rent 450 . Electric 60" + "Fixed: EUR[total]"
+2. **Main zone** (full remaining height minus fixed and savings bars):
+   - **Spending columns** pack from LEFT edge
+   - **Goal columns** pack from RIGHT edge  
+   - **Gap** in the middle with Johnny
+3. **Savings bar** (32px, bottom): PiggyBank icon + "Savings EUR[amount]/mo"
 
-- Below the content div (icon + name + spent/budget), inside the block but always visible
-- Track: 3px tall, full width with 12px padding each side, category tint at 20% opacity, rounded
-- Filled portion: represents `spent / budget` progress (same color as spending fill)
-- Draggable thumb: 16px circle, white fill, 2px category tint border, subtle shadow
-- Thumb position: represents budget amount on 0 to maxPossible scale
+**Spending column sizing:**
+- Each column width = `(categoryBudget / flexBudget) * availableWidth`
+- Minimum width: 60px
+- Column height: full zone height (~316px)
+- Columns sit side by side left to right
+- Sort: by budget descending
 
-**Thumb drag behavior:**
-- Uses Radix Slider (already imported) in a compact form
-- `onValueChange` calls `onSliderChange(id, newValue)` for live preview
-- During drag, show a floating label above the thumb: frosted pill (white/20, 28px tall) with "EUR[value]" in 14px bold white, plus "EUR[daily]/day" in 10px white/30 below
-- On release (onValueCommit or pointer up): show inline confirmation replacing the spent/budget text: "Set to EUR[new]?" with Check icon (green) and X icon (white/30)
-- Check confirms (saves), X cancels (reverts)
-- Auto-cancel after 3 seconds with no action
+**Goal column sizing:**
+- Each goal width = `(goal.monthlyContribution / totalGoalContributions) * savingsTarget` scaled to container
+- Goals fill from right edge leftward
+- Dashed border (aspirational feel), purple tint at 15%
+- Content: goal icon, name, circular progress ring (40px), saved/target, monthly contribution
+- Fill from bottom: green at 20% representing progress
+- NO slider on goals -- they resize automatically when spending changes
 
-**Remove the slider from the expanded area:**
-- The expanded section no longer includes the large slider, the "EUR[value]" heading, min/max labels, or confirmation row
-- Keep: subscription info, spending timeline, progress bar, transactions, cancel sim, edit name
+**The Gap:**
+- Space between rightmost spending column and leftmost goal column
+- Johnny (40px) centered vertically in gap
+- "EUR[flexRemaining]" above Johnny, "EUR[daily]/day" below
+- When gap shrinks to 0: amber glow at collision, Johnny squeezed (only head visible)
 
-**Expanded block layout becomes:**
-1. Subscription annual cost (if hasRecurring)
-2. Mini spending timeline
-3. Progress bar (3px)
-4. Transaction list
-5. "What if I cancel?" (if hasRecurring)
-6. "Edit name" link
+**Column block content (stacked vertically in each column):**
+- Top: Lucide icon (18px)
+- Name (11px, 2 lines max)
+- "EUR[spent]" (16px bold)
+- "of EUR[budget]" (10px)
+- Spending fill rises from BOTTOM
+- Vertical slider track on RIGHT edge (3px wide, full height)
+  - Thumb: 16px circle, white, category tint border
+  - Drag UP = increase budget (column widens, goals shrink)
+  - Drag DOWN = decrease budget (column narrows, goals grow)
+  - Floating label during drag
+  - Save/cancel on release with 3s auto-revert
 
-The slider thumb on the collapsed block must not trigger the expand/collapse tap. Use `onClick stopPropagation` on the slider area and `onPointerDown` to differentiate slider interaction from block tap.
+**Weekly/Monthly toggle:** Small pills inside the container top area, only affects spending blocks.
 
-### File: `src/components/budget/TetrisContainer.tsx`
+**"+" add category:** Small Plus circle (28px) at right edge of spending columns. In My Month: creates real category. In What If: creates simulated block (dashed, pulsing).
 
-- All existing slider preview state (`sliderPreviewBudgets`, `activeSliderBlockId`, handlers) remains the same
-- The data flow is identical; only the UI location of the slider moves from inside expanded to the block's bottom edge
+**What If mode extras:**
+- X button on each spending block (top-right) to remove from simulation
+- Tap goal to set target date, recalculate contribution
+- "Save changes" button in impact summary to commit
 
----
+### CategoryBlock.tsx -- Full Rewrite as Vertical Column
 
-## Files Changed Summary
+Completely different component -- a tall, narrow column instead of a wide, short row.
 
-| File | Changes |
-|------|---------|
-| `src/components/budget/TetrisContainer.tsx` | Replace bin-packing with vertical stack, add "Add category" inline form, update height calculations |
-| `src/components/budget/CategoryBlock.tsx` | Add always-visible slim slider at block bottom, remove slider from expanded area, add confirmation UX |
+**Props:** id, name, icon, tintColor, budget, spent, width (column width), height (full zone height), transactions, slider callbacks, ghost amount, mode
+
+**Visual structure (vertical, top-aligned):**
+- Rounded 12px column, full height
+- Background: tint at 30% + white/8
+- Border: 1px solid tint at 25%
+- Content stacked vertically: icon -> name -> spent -> "of budget"
+- Spending fill: absolute positioned, rises from BOTTOM
+- Vertical slider: 3px track on RIGHT edge, full height, thumb at budget position
+- In What If mode: X button at top-right corner
+
+**Vertical slider implementation:**
+- Custom implementation since Radix Slider is horizontal-only
+- Track: 3px wide div on right edge, full column height
+- Thumb: positioned based on budget/maxPossible ratio (bottom=0, top=max)
+- Drag handler: onPointerDown/Move/Up on the track area
+- During drag: floating label next to thumb with "EUR[amount]"
+- On release: inline "Save?" with check/X at top of column, 3s auto-revert
+
+### GoalBlock -- New Component (inline in TetrisContainer)
+
+Rendered for each goal with monthlyContribution > 0.
+
+**Visual:**
+- Full height column, rounded 12px
+- Background: purple at 15% + white/5
+- Border: 1px dashed white/15
+- Content: goal icon, name, progress ring (40px), saved/target, monthly/mo
+- Fill from bottom: green at 20% representing (saved/target)
+- Fully funded: green glow
+
+## Data Flow
+
+- Spending blocks: `BudgetContext.expenseCategories` + transactions
+- Goal blocks: `AppContext.goals` (read-only from this screen)
+- Fixed bar: `BudgetContext.fixedCategories`
+- Savings bar: `BudgetContext.config.monthlySavingsTarget`
+- Container total width represents income
+- When a spending slider changes: goal columns auto-resize because flex remaining changes
+
+## Implementation Order
+
+1. Rewrite `CategoryBlock.tsx` as a vertical column component with bottom-up fill and vertical slider
+2. Rewrite `TetrisContainer.tsx` with 2D horizontal layout (spending left, goals right, gap middle)
+3. Rewrite `MyMoneyScreen.tsx` with new layout order, mode toggle, impact summary, tips
+4. Test: setup wizard still works, blocks render correctly, slider drag resizes columns, goals respond, afford input shows ghost
 
