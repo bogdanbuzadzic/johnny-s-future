@@ -1,127 +1,108 @@
 
 
-# My Money - Unified Goals + Time Zoom
+# My Money - Goal Block Visual Fix
 
-## Overview
+## What This Does
 
-This is a major restructuring that merges goals into the Tetris container as blocks, adds a time zoom toggle, and removes the separate Goals tab. Goals and spending blocks coexist in the same 2D grid, with their relative sizes changing dramatically based on the selected time zoom.
+Redesigns goal blocks to look like neutral frosted glass cards, clearly distinct from the colorful spending blocks. Removes green accent stripes and colored tints from goals. Adds a purple-to-pink gradient progress bar and circular progress ring.
 
-## Files to Modify
+## Changes (only `src/components/screens/MyMoneyScreen.tsx`)
 
-### 1. `src/components/TabBar.tsx`
-- Remove the Goals tab (Target icon)
-- Tabs become: Home (index 0), My Money (index 1), Profile (index 2)
-- Remove `Target` import from lucide-react
+### 1. GoalBlock Component (lines 1166-1274) - Visual Overhaul
 
-### 2. `src/App.tsx`
-- Remove `GoalsScreen` import
-- Update `renderScreen` switch: case 0 = Home, case 1 = MyMoney, case 2 = Profile (placeholder)
-- No case 3 needed
+**Background**: Change from `rgba(255,255,255,0.08)` to `rgba(255,255,255,0.15)` + `backdrop-blur-md`
 
-### 3. `src/context/AppContext.tsx`
-- Add `updateGoal` to update goal contributions (already exists)
-- No major changes needed -- goals data stays here
+**Border**: Change from `2px dashed` in goal tint to `1.5px solid rgba(255,255,255,0.15)` (neutral, not dashed)
 
-### 4. `src/components/screens/MyMoneyScreen.tsx` (main work)
+**Remove accent stripe**: Delete the 4px green stripe div (lines 1201-1203)
 
-#### Remove
-- Goal cards row (lines 758-846) -- the floating cards above the container
-- Flow lines SVG (lines 851-878) -- the dashed lines connecting cards to container
+**Fill**: Change from green at 25% to `rgba(255,255,255,0.08)` (very subtle brightening)
 
-#### Add: Time Zoom State + Logic
-- New state: `timeZoom: 'month' | 'year' | '5year'` (default: 'month')
-- Multiplier map: `{ month: 1, year: 12, '5year': 60 }`
-- All block sizing now uses `amount * multiplier` relative to `totalIncome * multiplier`
+**Fully funded state**: Border becomes `1.5px solid rgba(52,199,89,0.25)`, add `boxShadow: '0 0 12px rgba(52,199,89,0.1)'`, CheckCircle stays
 
-#### Add: Time Zoom Toggle UI
-- Inside the container, overlaying the fixed bar area (top-right corner)
-- Three frosted glass pills: "Month" | "Year" | "5 Year"
-- Selected pill: white/20 bg, white text. Others: white/8, white/40 text
+### 2. Large Goal Block Content (lines 1223-1237) - New Layout
 
-#### Modify: Block Sizing (`getSizeTier`)
-- Now takes `amount` and `totalBudgetForZoom` instead of just budget/flexBudget
-- For spending blocks at month zoom: `amount = cat.monthlyBudget`, total = `config.monthlyIncome`
-- For spending blocks at year zoom: `amount = cat.monthlyBudget * 12`, total = `config.monthlyIncome * 12`
-- For goal blocks at month zoom: `amount = goal.monthlyContribution`, total = `config.monthlyIncome`
-- For goal blocks at 5year zoom: `amount = goal.target`, total = `config.monthlyIncome * 60`
-- Same tier thresholds (>0.25 = huge, >0.15 = large, >0.08 = medium, else small)
+Replace with:
+- Left side: icon (20px, white/50) + name (14px bold white) on first line
+- Below: "saved / target" in 12px white/40
+- Below: progress bar (full width minus right section, 5px tall, rounded)
+  - Track: white/10
+  - Fill: `linear-gradient(90deg, #8B5CF6, #FF6B9D)` (purple-to-pink gradient)
+- Below bar: "[X]% complete" in 11px white/30
+- Right side: circular progress ring (48px)
+  - Track: white/10, 3px stroke
+  - Fill: purple-to-pink gradient (using SVG linearGradient), 3px stroke
+  - Center text: "[X]%" in 13px bold white/50
+- Bottom-right: target date in 11px white/25 + monthly contribution in 11px white/25
 
-#### Add: Goal Blocks in the Grid
-- Goals from AppContext rendered as blocks in the same CSS grid
-- All blocks (spending + goals) sorted by their zoom-adjusted amount descending
-- Goal block visual differences:
-  - Border: `2px dashed` (not solid) in goal tint at 30%
-  - Accent stripe: green (#34C759 at 50%) for all goals
-  - Background: white/8 (more transparent)
-  - Small Target icon (10px, white/15) in top-right corner
-  - Fill: green (#34C759 at 25%) rising from bottom, height = `(saved / target) * 100%`
-  - At 100% funded: solid border, CheckCircle replaces Target icon
+### 3. Medium Goal Block Content (lines 1239-1247)
 
-Goal tint colors:
-- ShieldCheck: #34C759, Plane: #5AC8FA, Car: #007AFF, Home: #6366F1, Laptop: #8B5CF6, GraduationCap: #14B8A6, Target: #34C759
+Replace with:
+- Icon (16px) + name (13px white) + saved/target (12px white/40)
+- Smaller progress ring (36px) on right
+- Progress bar below name/amount (same gradient fill)
+- Monthly contribution at bottom
 
-Goal block content tiers (same adaptive pattern as spending):
-- Large: icon + name + "saved/target" + progress bar + percentage
-- Medium: icon + name + saved/target on one line
-- Small: icon + saved + /target + percentage
+### 4. Small Goal Block Content (lines 1249-1255)
 
-#### Add: Goal Block Expansion
-- Tapping a goal block expands to full width, 280px (same as spending)
-- Content:
-  1. Progress ring (80px) centered, green fill arc
-  2. "saved of target" text + "X% funded"
-  3. Contribution slider (green track/thumb instead of category tint)
-     - Range: 0 to (current contribution + flexRemaining)
-     - Label: "EUR[amount]/month"
-     - Impact: "At EUR X/month, reach goal in Y months (Mon Year)"
-     - If changed up: "Reaching X months sooner" in green
-     - If changed down: "Reaching X months later" in amber
-  4. Timeline bar (simple horizontal)
-  5. Save/Cancel buttons (same pattern)
+Replace with:
+- Icon (16px) centered
+- Saved amount in 14px bold white
+- "/target" in 10px white/30
+- Percentage in 10px white/25
+- No progress ring, no progress bar (fill from bottom acts as indicator)
 
-#### Add: "Add Goal" Dashed Block
-- Small (1x1) dashed block in green/15 with Plus icon + "Add goal" text
-- Tapping expands inline form (same pattern as Add Category):
-  - Icon picker (goal icons: ShieldCheck, Plane, Car, Home, Laptop, GraduationCap, Heart, Target, Dumbbell, Gamepad2)
-  - Name input
-  - Target amount input
-  - Monthly contribution input
-  - "Create" button (green gradient) + "Cancel"
-- On create: calls `addGoal` from AppContext
+### 5. Progress Ring Implementation
 
-#### Modify: Fixed Bar Text
-- Scales with zoom: month shows monthly, year shows annual, 5year shows 5-year totals
+Add inline SVG with a `linearGradient` definition for the purple-to-pink arc:
+```
+<defs>
+  <linearGradient id={`goalGrad-${blockId}`} x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stopColor="#8B5CF6" />
+    <stop offset="100%" stopColor="#FF6B9D" />
+  </linearGradient>
+</defs>
+```
 
-#### Modify: Savings Bar
-- Month: "Savings EUR X/mo"
-- Year: "Savings EUR X/yr"
-- 5 Year: "Savings EUR X / 5yr"
+Ring track: `stroke="rgba(255,255,255,0.10)"`, 3px
+Ring fill: `stroke={url(#goalGrad-${blockId})}`, 3px, dasharray/dashoffset for progress
 
-#### Modify: Impact Summary
-- Left: "EUR[remaining * multiplier] left"
-- Daily stays the same (always today's rate)
-- Right: "EUR[dailyAllowance]/day"
+### 6. ExpandedGoalContent (lines 230-354) - Update Progress Ring
 
-#### Modify: Spending Slider Goal Impact Text
-- When slider decreases: "If moved to savings: [goal] reaches target X months sooner"
-- When slider increases: "Savings pressure: [goal] may be delayed X months"
+Change the expanded progress ring's stroke from green to the same purple-to-pink gradient. Add SVG `linearGradient` defs. Keep all slider/timeline/save-cancel behavior unchanged.
 
-#### Add: Zoom Transition Animation
-- When switching zoom levels, all blocks resize via `layout` animation (500ms spring)
-- The grid naturally re-packs as sizes change
+### 7. Target Date Calculation
 
-#### Sorting All Blocks Together
-- Create a unified array of `{ type: 'spending' | 'goal' | 'add-goal', amount, ...data }`
-- Sort by zoom-adjusted amount descending
-- "Add goal" block always sorted last (smallest)
-- Render spending blocks and goal blocks from the same sorted array
+For large/medium blocks, compute estimated completion:
+```
+const remaining = goal.target - goal.saved;
+const monthsToGoal = goal.monthlyContribution > 0 ? Math.ceil(remaining / goal.monthlyContribution) : Infinity;
+const completionDate = new Date();
+completionDate.setMonth(completionDate.getMonth() + monthsToGoal);
+const dateStr = isFinite(monthsToGoal) ? format(completionDate, 'MMM yyyy') : '--';
+```
 
-## Technical Notes
+## Visual Comparison After Changes
 
-- The `goals` array from `useApp()` is already available in MyMoneyContent
-- `addGoal` and `updateGoal` from AppContext handle persistence
-- Goal contribution slider updates use `updateGoal(id, { monthlyContribution: newValue })`
-- The expand/collapse state needs to handle both spending and goal blocks -- expand `expandedId` to work with goal IDs too (prefix or unified namespace)
-- Time zoom multiplier is purely a display/sizing concern -- underlying data stays monthly
-- The CSS grid naturally handles mixed block types since they're all `motion.div` elements with grid-column/row spans
+| Property | Spending Block | Goal Block |
+|----------|---------------|------------|
+| Background | Category tint at 20% | White at 15% (neutral) |
+| Border | 1.5px solid, tint at 25% | 1.5px solid, white/15 |
+| Left stripe | 4px, tint at 50% | None |
+| Fill rising | Tint at 40% | White at 8% |
+| Progress bar | None | Purple-to-pink gradient, 5px |
+| Progress ring | None | 36-48px, purple-to-pink |
+| Overall feel | Colorful, bold, active | Clean, glass, calm |
+
+## What Does NOT Change
+
+- Spending blocks: completely untouched
+- Container, fixed bar, savings bar
+- Time zoom logic
+- Expand/collapse behavior and slider mechanics
+- Can I Afford input and ghost fills
+- Johnny mascot
+- FAB button
+- Grid layout and sizing tiers
+- Add category / Add goal forms
 
