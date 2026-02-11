@@ -6,7 +6,6 @@ import { AppProvider, useApp } from "@/context/AppContext";
 import { TabBar } from "@/components/TabBar";
 import { HomeScreen } from "@/components/screens/HomeScreen";
 import { PlaceholderScreen } from "@/components/screens/PlaceholderScreen";
-import { GoalsScreen } from "@/components/screens/GoalsScreen";
 import { MyMoneyScreen } from "@/components/screens/MyMoneyScreen";
 import { TimelineSheet } from "@/components/sheets/TimelineSheet";
 import { TodayDrawer } from "@/components/sheets/TodayDrawer";
@@ -23,8 +22,6 @@ function AppContent() {
       case 1:
         return <MyMoneyScreen />;
       case 2:
-        return <GoalsScreen />;
-      case 3:
         return <PlaceholderScreen title="Profile" message="Profile coming soon" />;
       default:
         return <HomeScreen />;
