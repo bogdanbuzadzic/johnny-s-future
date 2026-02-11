@@ -1,95 +1,112 @@
 
 
-# My Money - Prompt 5: Goals Above the Container
+# My Money - Prompt 6: "Can I Afford" Input
 
 ## What This Does
 
-Adds a horizontal row of goal cards above the Tetris container, with SVG flow lines connecting them down to the savings bar. Goal cards react live when the trade-off slider is dragged.
+Adds a "Can I afford" input row between the header and the goal cards. Typing an amount shows a ghost fill on the selected category's block, displays an affordability answer, and lets the user "Buy it" (pre-filling the Add Transaction sheet).
 
 ## Changes (only `MyMoneyScreen.tsx`)
 
-### New Imports
+### New Import
 
-- `useApp` from `@/context/AppContext` (to access `goals` array)
-- `iconMap` from `@/context/AppContext` (to resolve goal icon strings to Lucide components)
-- `Laptop, Plane, Car, Home, Target, GraduationCap, Heart` from `lucide-react` (goal icons not yet imported)
-- `useRef` for container/card DOM measurements
+- `FlaskConical` from `lucide-react`
 
-### Goal Cards Row
+### New State (in `MyMoneyContent`)
 
-Inserted between the Header and the Container (before the container div). Only renders if `goals.length > 0`.
+- `affordAmount: string` -- raw input string (digits + optional decimal)
+- `affordCategoryId: string | null` -- selected category for the afford check; defaults to the category with the most remaining budget
+- `showCategoryPicker: boolean` -- controls the dropdown popover
 
-- Wrapper: `overflow-x-auto` horizontal scroll container, `flex` row, `gap-3`, `pb-4` (16px below), hide scrollbar via CSS
-- If 1-3 goals: `justify-evenly` across full width
-- If 4+: natural flex row, scrollable
+### Default Category
 
-Each goal card (110px wide, 72px tall):
-- Background: `rgba(255,255,255,0.12)`, `backdrop-filter: blur(8px)`
-- Border: `1px solid rgba(255,255,255,0.15)` -- changes to `rgba(52,199,89,0.25)` if fully funded
-- Border radius: 16px
-- Content stacked vertically centered:
-  - Goal icon (18px, white/50) resolved via `iconMap` from AppContext
-  - Name (11px, white/60, truncate, max 1 line)
-  - "EUR[saved] / EUR[target]" (10px, white/35)
-  - Mini progress bar at bottom: 3px tall, full width minus 12px padding each side, rounded. Fill green #34C759 at 40%, bg white/10
-- Fully funded: green/25 border + small CheckCircle (10px, green/40) absolute top-right
+On mount (and when categories change), compute default `affordCategoryId` as the expense category with the highest `(monthlyBudget - spent)`.
 
-### SVG Flow Lines
+### "Can I Afford" Input Row (new JSX)
 
-An SVG element rendered as a sibling between the goal cards row and the container, using `position: relative` layout. The SVG is absolutely positioned to overlay the gap between cards and the savings bar.
+Inserted below the header, above the goal cards row. Always visible.
 
-Approach: Use `useRef` on the wrapper div that contains both goal cards and container. Measure positions with `useLayoutEffect` after render. Draw bezier curves from each card's bottom-center to evenly spaced points along the savings bar width.
+- Frosted glass container: `rgba(255,255,255,0.12)`, `backdrop-blur: blur(12px)`, rounded 16px, 48px tall, full width
+- Left: `FlaskConical` icon (18px). Color changes based on answer state (green/white/amber)
+- Center: `<input type="text" inputMode="decimal">` styled inline. Placeholder: "Can I afford EUR..." in 14px white/25. When typing: "EUR" prefix in white/40 + number in 16px white
+- Right: category picker pill -- shows selected category icon (16px) + abbreviated name (11px white/40), `rgba(255,255,255,0.10)` background, rounded-full, 32px tall
+- Tapping the pill toggles `showCategoryPicker`. A small dropdown appears below it (frosted glass, rounded 12px, z-50) listing all expense categories as rows (icon + name). Tapping a row selects it and closes the dropdown.
 
-- SVG spans from goal cards bottom to savings bar top (z-index behind container content)
-- Each path: cubic bezier S-curve
-- Stroke: `rgba(255,255,255,0.08)`, 1.5px base
-- Stroke-dasharray: `4 4`
-- Line thickness scaled by `1.5 + (contribution / monthlySavingsTarget) * 2` (capped at 3.5px)
+### Answer Text
 
-Simplified approach (no DOM measurement needed): Since the layout is predictable, calculate positions mathematically:
-- Card bottom Y = 0 (top of SVG)
-- Savings bar Y = goal cards height (72) + gap (16) + container height (the full container)
-- X positions: evenly distribute across container width for both card centers and savings bar anchor points
+When `parseFloat(affordAmount) > 0`, calculate:
+```
+categoryRemaining = categoryBudget - categorySpent
+flexRemainingAfter = flexRemaining - affordAmountNum
+dailyAfter = flexRemainingAfter / daysRemaining
+```
 
-The SVG renders behind the container using `position: absolute` and `z-index: 0`, with the container at `z-index: 1` (its semi-transparent bg lets lines show through faintly).
+Display answer inline to the right of the EUR amount inside the input row, in 13px:
+- `flexRemainingAfter > flexBudget * 0.30` AND within category: "Yes, comfortably" (green)
+- `flexRemainingAfter > flexBudget * 0.10` AND within category: "Yes, but watch it" (white)
+- `flexRemainingAfter > 0` AND within category: "Tight. EUR[daily]/day for [days] days" (amber)
+- `flexRemainingAfter <= 0`: "EUR[over] over budget" (amber)
 
-### Live Connection to Slider
+The FlaskConical icon color matches the answer color.
 
-New state: track `sliderDiff` (already computed as `sliderValue - originalBudget`).
+### Ghost Fill on Affected Block
 
-When `sliderDiff !== 0` and goals exist:
-- Calculate `totalContributions = sum of all goal monthlyContributions`
-- For each goal with a contribution:
-  - `ratio = goal.monthlyContribution / totalContributions`
-  - `goalDiff = Math.round(sliderDiff * ratio * -1)` (negative slider diff = positive for goals)
-  - Show floating label below card: "+EUR[X]/mo" in green (10px) if positive, "-EUR[X]/mo" in amber if negative
-  - Card border briefly glows green/15 or amber/15
-  - Flow line opacity increases to white/15 (positive) or decreases to white/5 (negative)
+When `affordAmountNum > 0`:
+- Find the block matching `affordCategoryId`
+- Render a "ghost" div stacked on top of the real spending fill:
+  - Height: `(affordAmountNum / categoryBudget) * 100` percent of block height
+  - Bottom position: immediately above the current fill top edge
+  - Color: `rgba(255,255,255,0.15)` with a dashed top border (`2px dashed rgba(255,255,255,0.20)`)
+  - Pulsing animation: opacity cycles 10%-20% over 2s (uses the existing `ghostPulse` keyframe from `ghost-pulse.css`)
+  - Label inside: "+EUR[amount]" in 12px white/30, centered
+- If ghost + real fill exceed 100%, the overflow portion gets amber tint (`rgba(255,159,10,0.20)`)
+- All OTHER blocks get `opacity: 0.85` to dim them
 
-When slider is saved or cancelled, labels disappear.
+### Goal Card Reactions
 
-### Impact Text Addition
+When `affordAmountNum > 0` and goals have contributions:
+- Calculate how spending this amount affects goal timelines (same proportional logic as Prompt 5 but reversed -- spending more means goals take longer)
+- Show amber "~X days later" labels (10px amber/40) below affected goal cards using the existing `AnimatePresence` floating label pattern
 
-In the `ExpandedContent` component, below the existing impact text, add a goal impact line when `sliderDiff !== 0`:
-- Find the most affected goal (largest `|monthsChange|`)
-- Calculate: `oldMonths = (target - saved) / oldContribution`, `newContribution = oldContribution + diff * ratio`, `newMonths = (target - saved) / newContribution`
-- Display: "[Goal name]: [X] months sooner" (green/40) or "[X] months later" (amber/40) in 11px
+### Action Buttons
 
-Pass goals data into `ExpandedContent` as a prop, along with `monthlySavingsTarget`.
+When `affordAmountNum > 0`, two buttons fade in below the input row with 8px gap:
 
-### Layout Order (top to bottom in the px-4 div)
+- "Buy it": 120px wide, 36px tall, purple gradient, white text 13px, rounded 12px. Tapping opens `AddTransactionSheet` with `prefillAmount={affordAmountNum}` and `prefillCategoryId={affordCategoryId}`. On sheet close after save: clear `affordAmount`, ghost dissolves, blocks restore opacity, goal labels disappear.
+- "Clear": 80px wide, 36px tall, white/10 bg, white/30 text, rounded 12px. Clears `affordAmount` to empty string.
 
-1. Header (existing)
-2. Goal cards row (NEW) -- only if goals exist
-3. Container (existing, with relative positioning wrapper for SVG)
-4. Impact summary row (existing)
-5. FAB (existing, fixed position)
+### Changing Category While Amount Entered
+
+When user selects a different category from the picker while an amount is typed:
+- Ghost fill moves from old block to new block (the old one loses ghost, new one gains it -- React re-render handles this naturally since ghost rendering is conditional on `cat.id === affordCategoryId`)
+- Answer recalculates based on new category's remaining budget
+
+### Clear Triggers
+
+Ghost + answer clear when:
+- User deletes all text (backspace to empty)
+- User taps "Clear"
+- After successful "Buy it" transaction
+- Input blurs AND value is empty
+
+Ghost + answer do NOT clear when:
+- Category changes (ghost moves instead)
+- User taps input to edit number
+
+### Layout Order (top to bottom)
+
+1. Header
+2. "Can I afford" input row (NEW)
+3. Action buttons ("Buy it" / "Clear") -- only when amount > 0 (NEW)
+4. Goal cards row (existing)
+5. Container with flow lines (existing)
+6. Impact summary row (existing)
+7. FAB (existing)
 
 ## Technical Notes
 
-- Goals come from `useApp()` which wraps the app above `BudgetProvider`. Both contexts are available in `MyMoneyContent`.
-- The SVG flow lines use a simplified approach: an absolutely positioned SVG behind the container. The wrapper div gets `position: relative` so the SVG can be positioned within it.
-- Flow line paths use `M x1,0 C x1,h*0.3 x2,h*0.7 x2,h` for a smooth S-curve where h is the container height.
-- Goal card scroll container uses `-ms-overflow-style: none; scrollbar-width: none; &::-webkit-scrollbar { display: none }` via inline styles.
+- The ghost fill CSS animation uses the already-imported `ghost-pulse.css` keyframe (`ghostPulse`).
+- The `AddTransactionSheet` already accepts `prefillAmount` and `prefillCategoryId` props and handles them in a `useEffect` on open.
+- The input uses `inputMode="decimal"` for mobile numeric keyboard and validates input to only allow digits and one decimal point via an `onChange` handler.
+- The category picker dropdown uses absolute positioning relative to the input row, with z-index 50.
 - No other files are modified.
-
