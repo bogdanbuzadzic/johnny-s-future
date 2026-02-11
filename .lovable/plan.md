@@ -1,138 +1,97 @@
 
 
-# My Money - Prompt 7: Add Category Row & Johnny Mascot
+# My Money - Block Sizing & Layout Fix
 
 ## What This Does
 
-Two additions inside the Tetris container: (A) an inline "Add category" form below the spending blocks, and (B) Johnny the piggy bank mascot in the remaining empty space. Also adds a Johnny's Tip card below the impact summary.
+Transforms the spending blocks from a full-width vertical list into a 2D Tetris-like grid where each block's area is proportional to its budget. Adds colored accent stripes for stronger visual identity.
 
 ## Changes (only `MyMoneyScreen.tsx`)
 
-### New Imports
+### 1. Replace Vertical List with CSS Grid
 
-- `Gift, BookOpen, Shirt, Wrench, Heart, ChevronDown` from `lucide-react` (additional icons for the icon picker)
-- `johnnyImage` from `@/assets/johnny.png`
-- `JohnnyTip` from `@/components/budget/JohnnyTip`
+Replace the `flex flex-col` block container (line 948) with a CSS Grid layout:
 
-### New State
-
-- `showAddCatForm: boolean` -- whether the inline add-category form is expanded
-- `newCatIcon: string` -- selected icon name (empty string = none selected)
-- `newCatName: string` -- typed category name (max 20 chars)
-- `newCatBudget: string` -- typed budget amount (digits + decimal)
-- `iconPickerFlash: boolean` -- briefly true if user taps Create without selecting an icon
-
-### Extended Icon Maps
-
-Add `Gift, BookOpen, Shirt, Wrench, Heart` to `budgetIconMap` and extend `tintMap` with:
-- `Gift: '#FF6B9D'`
-- `BookOpen: '#007AFF'`
-- `Shirt: '#8B5CF6'`
-- `Wrench: '#5AC8FA'`
-- `Heart: '#FF6B9D'`
-
-Define `addCatIconOptions` array: `['UtensilsCrossed', 'ShoppingBag', 'Bus', 'Film', 'Dumbbell', 'CreditCard', 'Coffee', 'Smartphone', 'Gift', 'BookOpen', 'Shirt', 'Wrench', 'Heart', 'MoreHorizontal']`
-
-### A. Add Category Row
-
-Rendered inside the container's main area, below the blocks (after the `sortedCategories.map(...)` loop), before the empty space.
-
-**Collapsed state** (default):
-- 48px tall, full width, dashed border (`2px dashed rgba(255,255,255,0.12)`), transparent bg, rounded 16px
-- Center: `Plus` icon (20px, white/25) + "Add category" text (14px, white/25)
-- 6px gap above (same as between blocks)
-- `onClick`: sets `showAddCatForm = true`
-
-**Expanded state** (`showAddCatForm = true`):
-- `motion.div` animates height from 48px to ~240px (spring 300ms, damping 25)
-- Same dashed border but now contains the form
-
-**Form contents** (stacked vertically, 12px gaps, 12px padding):
-
-1. **Icon Picker**: horizontal scrollable row of 40px circles. Each shows a Lucide icon (18px). Unselected: `rgba(255,255,255,0.08)` bg, white/40 icon. Selected: tint color at 20% bg, tint at 25% border, white/70 icon. 8px gap between circles.
-
-2. **Name Input**: frosted glass field (`rgba(255,255,255,0.10)`, rounded 12px, 40px tall). Placeholder "Category name" (13px white/20). White text. Max 20 chars. Color dot preview (8px circle, tint at 60%) rendered to the right of the input.
-
-3. **Budget Input**: same styling. Left "EUR" prefix (14px white/30). Placeholder "Monthly budget" (13px white/20). Numbers only. 16px bold white text. Warning text below if parsed value exceeds `flexRemaining`: "Only EUR[flexRemaining] available" in 11px amber/50.
-
-4. **Buttons Row**: centered, 12px gap.
-   - "Create" pill: 40px tall, ~120px wide, purple gradient. Disabled (gradient at 30% opacity) until icon + name + budget all filled. On tap: validates, calls `addCategory({ name, icon: newCatIcon, monthlyBudget: parsed, type: 'expense' })`, collapses form, resets fields, sets `flashCategoryId` to the new category's ID for the drop-in flash.
-   - "Cancel" text: 13px white/30, resets all fields, collapses form.
-
-**Note**: Since `addCategory` from BudgetContext auto-generates `id` and `sortOrder`, we just pass `{ name, icon, monthlyBudget, type }`. To get the new ID for flashing, we read `expenseCategories` after the state update.
-
-### B. Johnny in the Empty Space
-
-Rendered inside the container's main area, below the add-category row.
-
-**Calculate empty space**: Estimate based on flex remaining as a proportion of the container. Use `flexRemaining / flexBudget` as the "space ratio" to determine Johnny's size tier.
-
-**Size tiers** (based on available flex ratio):
-
-| Condition | Johnny Size | Content |
-|-----------|-------------|---------|
-| `flexRemaining / flexBudget > 0.3` (large space) | 48px | Johnny + "EUR[flexRemaining] free" (14px white/25) + "EUR[daily]/day" (11px white/15) + idle bob |
-| `0.1 < ratio <= 0.3` (moderate) | 36px | Johnny + "EUR[flexRemaining]" only + thought bubble (3 ascending circles) |
-| `0 < ratio <= 0.1` (tiny) | 24px | Johnny only + sweat drop SVG teardrop |
-| `flexRemaining <= 0` (overflow) | 20px peek | Johnny peeks from below container. Container gets amber glow `box-shadow: 0 -6px 20px rgba(255,159,10,0.25)`. "EUR[overAmount] over" text between container and impact summary. |
-
-**Idle bob**: `motion.div` with `animate={{ y: [0, -4, 0] }}` on loop, 2s duration.
-
-**Thought bubble**: Three `div` circles (3px, 5px, 8px) with white/10 bg, ascending to the right of Johnny. The 8px circle contains "..." in 7px white/20.
-
-**Sweat drop**: Small SVG teardrop (6px wide) with white/25 fill, positioned top-right of Johnny.
-
-**Reactions to "Can I Afford"**:
-- "comfortably": normal happy state
-- "tight" or "watch it": thought bubble appears
-- "over budget": sweat drop appears, Johnny shifts down slightly
-
-**Reactions to slider drag**: Johnny's size tier recalculates using `adjustedRemaining` instead of `flexRemaining` during drag, so Johnny visually shifts as space changes.
-
-All position/size changes use `motion.div` spring transitions (400ms, damping 25).
-
-### Updated Empty State (zero categories)
-
-When `hasExpenses` is false, replace the current empty state with:
-- Dotted grid pattern (existing)
-- Johnny at center, 48px, idle bob
-- Above: "Let's build your budget!" (16px white/25)
-- Below: "Tap the + below to create your first category" (12px white/15)
-- Animated `ChevronDown` (white/15, pulse 2s) pointing at the add-category row
-- The add-category dashed row still renders below
-
-### Johnny's Tip Card
-
-Below the impact summary row, with 12px gap. Uses the existing `JohnnyTip` component:
 ```
-<JohnnyTip tips={[
-  "Try adjusting a category slider to see how it affects your goals.",
-  "The gap between blocks is your breathing room. Keep it healthy!",
-  "Small daily savings add up. Even EUR2/day is EUR60/month.",
-]} />
+display: grid
+grid-template-columns: repeat(auto-fill, minmax(80px, 1fr))
+grid-auto-rows: minmax(60px, auto)
+gap: 6px
+padding: 8px
 ```
 
-### Layout Order (final, inside the scrollable area)
+### 2. Size Tier Calculation
 
-1. Header
-2. "Can I Afford" input row
-3. Action buttons (Buy it / Clear)
-4. Goal cards row
-5. Flow Lines + Container wrapper:
-   - Fixed bar
-   - Spending blocks
-   - Add category row (NEW)
-   - Johnny in empty space (NEW)
-   - Savings bar
-6. Over-budget text (if overflow, NEW)
-7. Impact summary row
-8. Johnny's Tip card (NEW)
-9. FAB (fixed position)
+For each category, compute `colSpan` and `rowSpan` based on `sizeRatio = cat.monthlyBudget / flexBudget`:
+
+| sizeRatio | colSpan | rowSpan | Visual |
+|-----------|---------|---------|--------|
+| > 0.25 | 3 | 2 | Huge block |
+| > 0.15 | 2 | 2 | Large block |
+| > 0.08 | 2 | 1 | Medium block |
+| <= 0.08 | 1 | 1 | Small block |
+
+Each block gets `grid-column: span X` and `grid-row: span Y`. The `height` calculation is removed -- blocks fill their grid cells naturally via `height: 100%`.
+
+The expanded block overrides to `grid-column: 1 / -1` (full width) with a fixed height of `280px`, pushing other blocks down.
+
+### 3. Accent Stripe
+
+Each block gets a 4px wide vertical stripe on the LEFT edge:
+- Rendered as a `position: absolute; left: 0; top: 0; bottom: 0; width: 4px` div
+- Background: tint color at 50% opacity
+- Border-radius: `16px 0 0 16px` (matches block's left corners)
+
+Block border updated to `1.5px solid` at tint 25%.
+
+### 4. Adaptive Block Content
+
+Content layout adapts based on size tier:
+
+**Large (colSpan >= 2, rowSpan >= 2):**
+- Top-left: icon (18px) + name (14px)
+- Top-right: spent (16px bold)
+- Below spent: "of EUR[budget]" (11px white/35)
+- Center: horizontal progress bar (full width - 24px, 4px tall, tint fill)
+
+**Medium (colSpan 2, rowSpan 1):**
+- Single row: icon (16px) + name (13px) + spent (14px bold)
+- Second row: "of EUR[budget]" + short progress bar
+
+**Small (colSpan 1, rowSpan 1):**
+- Icon (16px) centered
+- Spent (14px bold) centered
+- "/EUR[budget]" (10px white/30)
+- No name text (icon + accent color identify it)
+- No progress bar (fill IS the progress)
+
+### 5. Updated Color Map
+
+Add `Gift: '#FFD700'` to `tintMap` (was `#FF6B9D`, now gold for distinction). All other tints unchanged. Background tint lowered to 20% (from 25-30%) so accent stripe pops more.
+
+Block background gradient updated: `linear-gradient(135deg, tint@20%, rgba(255,255,255,0.06))`.
+
+### 6. Fill, Ghost Fill, Expand -- Unchanged Logic
+
+- Fill still rises from bottom with same color logic
+- Ghost fill (Can I Afford) renders identically, just adapts to the block's grid size
+- Expand: the block animates to `grid-column: 1 / -1` and height 280px. Other blocks reflow. On collapse, returns to original span/size.
+- Slider, save/cancel, transactions list -- all unchanged
+- Dimming other blocks during afford -- unchanged
+
+### 7. Johnny Placement
+
+Johnny renders after the grid (below all blocks, inside the main area). Same size-tier logic based on `spaceRatio`. The grid's natural flow leaves empty space at the bottom for Johnny when blocks don't fill the container.
+
+### 8. Sorting
+
+Blocks are sorted by budget descending (already the case via `sortedCategories`). In a grid, largest blocks appear first (top-left), smallest fill remaining gaps.
 
 ## Technical Notes
 
-- The `addCategory` function from `useBudget()` is already available -- just needs to be destructured.
-- Johnny image is already imported in `JohnnyTip.tsx` as `@/assets/johnny.png` -- reuse same import.
-- The ghost-pulse CSS animation already exists for the afford ghost fill.
-- The add-category form stops click propagation to prevent interfering with block expand/collapse.
-- Only `MyMoneyScreen.tsx` is modified. No other files change.
+- The `blockHeight()` function is removed. Block heights are determined by grid row spans and `grid-auto-rows: minmax(60px, auto)`.
+- Each block's `motion.div` gets `style={{ gridColumn: 'span X', gridRow: 'span Y', height: '100%' }}` with expansion overriding to `gridColumn: '1 / -1', height: 280`.
+- The accent stripe is a simple absolute-positioned div inside each block -- no SVG needed.
+- Content adaptation uses a `sizeTier` variable computed from `sizeRatio`, driving conditional rendering within the same block component.
+- Only `MyMoneyScreen.tsx` is modified.
+
