@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { Plus, Sliders, Lock, PiggyBank, ShieldCheck, CheckCircle, AlertTriangle, AlertCircle, FlaskConical, ChevronDown, Target } from 'lucide-react';
+import { Plus, Sliders, Lock, PiggyBank, ShieldCheck, CheckCircle, AlertTriangle, AlertCircle, FlaskConical, ChevronDown, Target, Sparkles, CircleX, RotateCcw } from 'lucide-react';
 import {
   UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
   Gift, BookOpen, Shirt, Wrench, Heart,
@@ -417,6 +417,21 @@ function MyMoneyContent() {
   const [newGoalTarget, setNewGoalTarget] = useState('');
   const [newGoalContribution, setNewGoalContribution] = useState('');
 
+  // === WHAT IF MODE ===
+  type WhatIfSimulation = {
+    categoryId: string;
+    originalBudget: number;
+    newBudget: number;
+    simType: 'spending' | 'goal' | 'removed' | 'new-spending' | 'new-goal';
+    // For new items:
+    name?: string;
+    icon?: string;
+    target?: number;
+    saved?: number;
+  };
+  const [whatIfMode, setWhatIfMode] = useState(false);
+  const [simulations, setSimulations] = useState<WhatIfSimulation[]>([]);
+
   // Default afford category
   useEffect(() => {
     if (expenseCategories.length > 0 && !affordCategoryId) {
@@ -460,6 +475,45 @@ function MyMoneyContent() {
     return { text: `Tight. €${Math.round(dailyAfter)}/day left for ${daysRemaining} days`, color: '#FF9F0A' };
   }, [affordAmountNum, affordCategoryId, expenseCategories, categorySpentMap, flexRemaining, daysRemaining, flexBudget]);
 
+  // What If helpers
+  const getEffectiveBudget = useCallback((categoryId: string, realBudget: number) => {
+    if (!whatIfMode) return realBudget;
+    const sim = simulations.find(s => s.categoryId === categoryId);
+    if (!sim) return realBudget;
+    if (sim.simType === 'removed') return 0;
+    return sim.newBudget;
+  }, [whatIfMode, simulations]);
+
+  const getEffectiveContribution = useCallback((goalId: string, realContribution: number) => {
+    if (!whatIfMode) return realContribution;
+    const sim = simulations.find(s => s.categoryId === goalId);
+    if (!sim) return realContribution;
+    if (sim.simType === 'removed') return 0;
+    return sim.newBudget;
+  }, [whatIfMode, simulations]);
+
+  const isRemoved = useCallback((id: string) => {
+    return whatIfMode && simulations.some(s => s.categoryId === id && s.simType === 'removed');
+  }, [whatIfMode, simulations]);
+
+  // What If: compute adjusted flex values accounting for all simulations
+  const whatIfFlexAdjustment = useMemo(() => {
+    if (!whatIfMode) return 0;
+    let adj = 0;
+    for (const sim of simulations) {
+      if (sim.simType === 'spending' || sim.simType === 'new-spending') {
+        adj += (sim.newBudget - sim.originalBudget);
+      } else if (sim.simType === 'goal' || sim.simType === 'new-goal') {
+        adj += (sim.newBudget - sim.originalBudget);
+      } else if (sim.simType === 'removed') {
+        adj -= sim.originalBudget; // freed money
+      }
+    }
+    return adj;
+  }, [whatIfMode, simulations]);
+
+  const effectiveFlexRemaining = flexRemaining - whatIfFlexAdjustment;
+
   // Goal impact calculations
   const activeGoals = goals.filter(g => g.monthlyContribution > 0);
   const totalContributions = activeGoals.reduce((sum, g) => sum + g.monthlyContribution, 0);
@@ -468,7 +522,7 @@ function MyMoneyContent() {
   const spendingSliderDiff = expandedId && expandedType === 'spending' ? sliderValue - originalBudget : 0;
   const goalSliderDiff = expandedId && expandedType === 'goal' ? sliderValue - originalBudget : 0;
   const sliderDiff = spendingSliderDiff; // alias for spending-specific consumers
-  const adjustedRemaining = flexRemaining - spendingSliderDiff - goalSliderDiff;
+  const adjustedRemaining = effectiveFlexRemaining - spendingSliderDiff - goalSliderDiff;
   const adjustedDaily = daysRemaining > 0 ? Math.max(0, adjustedRemaining / daysRemaining) : 0;
 
   const mostAffectedGoal = useMemo(() => {
@@ -526,16 +580,92 @@ function MyMoneyContent() {
   }, [expandedId]);
 
   const handleSliderSave = useCallback(() => {
-    if (expandedId && expandedType === 'spending') {
-      updateCategory(expandedId, { monthlyBudget: Math.round(sliderValue) });
-      setOriginalBudget(Math.round(sliderValue));
-    } else if (expandedId && expandedType === 'goal') {
-      updateGoal(expandedId, { monthlyContribution: Math.round(sliderValue) });
-      setOriginalBudget(Math.round(sliderValue));
+    if (!expandedId) return;
+    const rounded = Math.round(sliderValue);
+    if (whatIfMode) {
+      // In What If mode: store as simulation instead of saving
+      setSimulations(prev => {
+        const existing = prev.findIndex(s => s.categoryId === expandedId);
+        const sim: WhatIfSimulation = {
+          categoryId: expandedId,
+          originalBudget: Math.round(originalBudget),
+          newBudget: rounded,
+          simType: expandedType === 'spending' ? 'spending' : 'goal',
+        };
+        if (existing >= 0) {
+          const updated = [...prev];
+          updated[existing] = { ...updated[existing], newBudget: rounded };
+          return updated;
+        }
+        return [...prev, sim];
+      });
+      setOriginalBudget(rounded);
+    } else {
+      if (expandedType === 'spending') {
+        updateCategory(expandedId, { monthlyBudget: rounded });
+        setOriginalBudget(rounded);
+      } else if (expandedType === 'goal') {
+        updateGoal(expandedId, { monthlyContribution: rounded });
+        setOriginalBudget(rounded);
+      }
     }
-  }, [expandedId, expandedType, sliderValue, updateCategory, updateGoal]);
+  }, [expandedId, expandedType, sliderValue, originalBudget, whatIfMode, updateCategory, updateGoal]);
 
   const handleSliderCancel = useCallback(() => { setSliderValue(originalBudget); }, [originalBudget]);
+
+  // What If mode handlers
+  const handleWhatIfReset = useCallback(() => {
+    setSimulations([]);
+    setExpandedId(null); setExpandedType(null); setSliderValue(0); setOriginalBudget(0);
+  }, []);
+
+  const handleWhatIfDone = useCallback(() => {
+    setSimulations([]);
+    setWhatIfMode(false);
+    setExpandedId(null); setExpandedType(null); setSliderValue(0); setOriginalBudget(0);
+  }, []);
+
+  const handleWhatIfSaveAll = useCallback(() => {
+    for (const sim of simulations) {
+      if (sim.simType === 'spending') {
+        updateCategory(sim.categoryId, { monthlyBudget: sim.newBudget });
+      } else if (sim.simType === 'goal') {
+        updateGoal(sim.categoryId, { monthlyContribution: sim.newBudget });
+      } else if (sim.simType === 'new-spending' && sim.name && sim.icon) {
+        addCategory({ name: sim.name, icon: sim.icon, monthlyBudget: sim.newBudget, type: 'expense' });
+      } else if (sim.simType === 'new-goal' && sim.name && sim.icon && sim.target !== undefined) {
+        const months = sim.newBudget > 0 ? Math.ceil((sim.target) / sim.newBudget) : -1;
+        const targetDate = new Date();
+        targetDate.setMonth(targetDate.getMonth() + (months > 0 ? months : 0));
+        addGoal({
+          name: sim.name, icon: sim.icon, target: sim.target, saved: sim.saved || 0,
+          monthlyContribution: sim.newBudget,
+          targetDate: months > 0 ? format(targetDate, 'MMM yyyy') : 'Not started',
+          monthIndex: months > 0 ? months : -1,
+        });
+      }
+      // 'removed' simulations are NOT applied (removal was just a simulation)
+    }
+    setSimulations([]);
+    setWhatIfMode(false);
+    setExpandedId(null); setExpandedType(null); setSliderValue(0); setOriginalBudget(0);
+  }, [simulations, updateCategory, updateGoal, addCategory, addGoal]);
+
+  const handleWhatIfRemove = useCallback((id: string, originalBudget: number) => {
+    setSimulations(prev => {
+      const existing = prev.findIndex(s => s.categoryId === id);
+      if (existing >= 0 && prev[existing].simType === 'removed') {
+        // Restore it
+        return prev.filter((_, i) => i !== existing);
+      }
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = { ...updated[existing], simType: 'removed', newBudget: 0 };
+        return updated;
+      }
+      return [...prev, { categoryId: id, originalBudget, newBudget: 0, simType: 'removed' as const }];
+    });
+  }, []);
 
   const handleAffordInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -551,9 +681,18 @@ function MyMoneyContent() {
     if (!newCatName.trim() || !newCatBudget) return;
     const parsed = parseFloat(newCatBudget);
     if (isNaN(parsed) || parsed <= 0) return;
-    addCategory({ name: newCatName.trim(), icon: newCatIcon, monthlyBudget: parsed, type: 'expense' });
+    if (whatIfMode) {
+      // In What If: add as simulated block
+      const simId = `sim-cat-${Date.now()}`;
+      setSimulations(prev => [...prev, {
+        categoryId: simId, originalBudget: 0, newBudget: parsed,
+        simType: 'new-spending', name: newCatName.trim(), icon: newCatIcon,
+      }]);
+    } else {
+      addCategory({ name: newCatName.trim(), icon: newCatIcon, monthlyBudget: parsed, type: 'expense' });
+    }
     setShowAddCatForm(false); setNewCatIcon(''); setNewCatName(''); setNewCatBudget('');
-  }, [newCatIcon, newCatName, newCatBudget, addCategory]);
+  }, [newCatIcon, newCatName, newCatBudget, addCategory, whatIfMode]);
 
   const handleCancelAddCat = useCallback(() => {
     setShowAddCatForm(false); setNewCatIcon(''); setNewCatName(''); setNewCatBudget('');
@@ -570,15 +709,23 @@ function MyMoneyContent() {
     const target = parseFloat(newGoalTarget);
     const contribution = parseFloat(newGoalContribution);
     if (isNaN(target) || target <= 0 || isNaN(contribution) || contribution < 0) return;
-    const months = contribution > 0 ? Math.ceil(target / contribution) : -1;
-    const targetDate = new Date();
-    targetDate.setMonth(targetDate.getMonth() + (months > 0 ? months : 0));
-    addGoal({
-      name: newGoalName.trim(), icon: newGoalIcon, target, saved: 0, monthlyContribution: contribution,
-      targetDate: months > 0 ? format(targetDate, 'MMM yyyy') : 'Not started', monthIndex: months > 0 ? months : -1,
-    });
+    if (whatIfMode) {
+      const simId = `sim-goal-${Date.now()}`;
+      setSimulations(prev => [...prev, {
+        categoryId: simId, originalBudget: 0, newBudget: contribution,
+        simType: 'new-goal', name: newGoalName.trim(), icon: newGoalIcon, target, saved: 0,
+      }]);
+    } else {
+      const months = contribution > 0 ? Math.ceil(target / contribution) : -1;
+      const targetDate = new Date();
+      targetDate.setMonth(targetDate.getMonth() + (months > 0 ? months : 0));
+      addGoal({
+        name: newGoalName.trim(), icon: newGoalIcon, target, saved: 0, monthlyContribution: contribution,
+        targetDate: months > 0 ? format(targetDate, 'MMM yyyy') : 'Not started', monthIndex: months > 0 ? months : -1,
+      });
+    }
     setShowAddGoalForm(false); setNewGoalIcon(''); setNewGoalName(''); setNewGoalTarget(''); setNewGoalContribution('');
-  }, [newGoalIcon, newGoalName, newGoalTarget, newGoalContribution, addGoal]);
+  }, [newGoalIcon, newGoalName, newGoalTarget, newGoalContribution, addGoal, whatIfMode]);
 
   const handleCancelAddGoal = useCallback(() => {
     setShowAddGoalForm(false); setNewGoalIcon(''); setNewGoalName(''); setNewGoalTarget(''); setNewGoalContribution('');
@@ -601,35 +748,56 @@ function MyMoneyContent() {
     return { colSpan: 1, rowSpan: 1, tier: 'small' };
   }
 
-  // Build separate spending and goal block arrays
-  type SpendingBlockItem = { type: 'spending'; id: string; amount: number; data: typeof expenseCategories[0] };
-  type GoalBlockItem = { type: 'goal'; id: string; amount: number; data: Goal };
+  // Build separate spending and goal block arrays (including simulated blocks)
+  type SpendingBlockItem = { type: 'spending'; id: string; amount: number; data: typeof expenseCategories[0]; isSimulated?: boolean };
+  type GoalBlockItem = { type: 'goal'; id: string; amount: number; data: Goal; isSimulated?: boolean };
 
   const spendingBlocks = useMemo<SpendingBlockItem[]>(() => {
     const blocks: SpendingBlockItem[] = [];
     for (const cat of expenseCategories) {
-      const amt = cat.monthlyBudget * multiplier;
+      const effectiveBudget = getEffectiveBudget(cat.id, cat.monthlyBudget);
+      const amt = effectiveBudget * multiplier;
       blocks.push({ type: 'spending', id: cat.id, amount: amt, data: cat });
+    }
+    // Add simulated spending blocks
+    if (whatIfMode) {
+      for (const sim of simulations.filter(s => s.simType === 'new-spending')) {
+        blocks.push({
+          type: 'spending', id: sim.categoryId, amount: sim.newBudget * multiplier, isSimulated: true,
+          data: { id: sim.categoryId, name: sim.name || 'New', icon: sim.icon || 'MoreHorizontal', monthlyBudget: sim.newBudget, type: 'expense' as const, sortOrder: 999 },
+        });
+      }
     }
     blocks.sort((a, b) => b.amount - a.amount);
     return blocks;
-  }, [expenseCategories, multiplier]);
+  }, [expenseCategories, multiplier, whatIfMode, simulations, getEffectiveBudget]);
 
   const goalBlocks = useMemo<GoalBlockItem[]>(() => {
     const blocks: GoalBlockItem[] = [];
     for (const goal of goals) {
-      const amt = timeZoom === '5year' ? goal.target : goal.monthlyContribution * multiplier;
+      const effectiveContrib = getEffectiveContribution(goal.id, goal.monthlyContribution);
+      const amt = timeZoom === '5year' ? goal.target : effectiveContrib * multiplier;
       blocks.push({ type: 'goal', id: `goal-${goal.id}`, amount: amt, data: goal });
+    }
+    // Add simulated goal blocks
+    if (whatIfMode) {
+      for (const sim of simulations.filter(s => s.simType === 'new-goal')) {
+        blocks.push({
+          type: 'goal', id: sim.categoryId, amount: sim.newBudget * multiplier, isSimulated: true,
+          data: { id: sim.categoryId, name: sim.name || 'New Goal', icon: sim.icon || 'Target', target: sim.target || 0, saved: sim.saved || 0, monthlyContribution: sim.newBudget, targetDate: '--', monthIndex: -1 } as Goal,
+        });
+      }
     }
     blocks.sort((a, b) => b.amount - a.amount);
     return blocks;
-  }, [goals, multiplier, timeZoom]);
+  }, [goals, multiplier, timeZoom, whatIfMode, simulations, getEffectiveContribution]);
 
   // Johnny size
   const totalSliderDiff = spendingSliderDiff + goalSliderDiff;
-  const spaceRatio = flexBudget > 0 ? (flexRemaining - totalSliderDiff) / flexBudget : 1;
+  const effectiveFlexForRatio = effectiveFlexRemaining - totalSliderDiff;
+  const spaceRatio = flexBudget > 0 ? effectiveFlexForRatio / flexBudget : 1;
   const isOverflow = spaceRatio <= 0;
-  const overAmount = isOverflow ? Math.abs(Math.round(flexRemaining - totalSliderDiff)) : 0;
+  const overAmount = isOverflow ? Math.abs(Math.round(effectiveFlexForRatio)) : 0;
 
   const johnnyAffordState = useMemo(() => {
     if (!affordAnswer || affordAmountNum <= 0) return 'happy';
@@ -731,13 +899,69 @@ function MyMoneyContent() {
           )}
         </AnimatePresence>
 
+        {/* Mode Toggle: My Month / What If */}
+        <div className="flex items-center mb-3">
+          {!whatIfMode ? (
+            <div className="flex items-center gap-2">
+              <button className="text-primary-white font-medium"
+                style={{ fontSize: 12, padding: '6px 14px', borderRadius: 999, background: 'rgba(255,255,255,0.20)' }}>
+                My Month
+              </button>
+              <button onClick={() => setWhatIfMode(true)} className="text-primary-white/40 font-medium flex items-center gap-1"
+                style={{ fontSize: 12, padding: '6px 14px', borderRadius: 999, background: 'rgba(255,255,255,0.08)' }}>
+                <Sparkles size={12} strokeWidth={1.5} /> What If
+              </button>
+            </div>
+          ) : (
+            /* What If Toolbar */
+            <div className="flex items-center justify-between w-full gap-2">
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.40)' }}>Changes: {simulations.length}</span>
+              <button onClick={handleWhatIfReset} className="flex items-center gap-1 text-primary-white/40"
+                style={{ height: 36, padding: '0 14px', borderRadius: 999, background: 'rgba(255,255,255,0.10)', fontSize: 12 }}>
+                <RotateCcw size={12} strokeWidth={1.5} /> Reset
+              </button>
+              <button onClick={handleWhatIfSaveAll} className="text-primary-white font-medium"
+                style={{ height: 36, padding: '0 14px', borderRadius: 999, background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)', fontSize: 12 }}>
+                Save all
+              </button>
+              <button onClick={handleWhatIfDone} style={{ fontSize: 12, color: 'rgba(255,255,255,0.40)' }}>Done</button>
+            </div>
+          )}
+        </div>
+
+        {/* What If Banner */}
+        <AnimatePresence>
+          {whatIfMode && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }} className="mb-3">
+              <div className="flex items-center gap-2 px-4 py-2" style={{
+                background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                borderRadius: 12, border: '1px solid rgba(255,255,255,0.10)',
+              }}>
+                <Sparkles size={14} style={{ color: 'rgba(255,255,255,0.30)' }} strokeWidth={1.5} />
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)' }}>What If mode — changes are temporary</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Tetris Container */}
         <div className="relative">
           <div className="flex flex-col overflow-hidden relative" style={{
-            background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.20)', borderRadius: 20,
+            background: 'rgba(255,255,255,0.05)',
+            border: whatIfMode ? '2px dashed rgba(255,255,255,0.12)' : '2px solid rgba(255,255,255,0.20)',
+            borderRadius: 20,
             boxShadow: isOverflow ? 'inset 0 0 30px rgba(255,255,255,0.03), 0 -6px 20px rgba(255,159,10,0.25)' : 'inset 0 0 30px rgba(255,255,255,0.03)',
-            zIndex: 1, transition: 'box-shadow 400ms ease',
+            zIndex: 1, transition: 'box-shadow 400ms ease, border 400ms ease',
+            animation: whatIfMode ? 'pulse 3s ease-in-out infinite' : undefined,
           }}>
+            {/* Playground label */}
+            {whatIfMode && (
+              <div className="absolute top-1 right-2 z-30 flex items-center gap-1">
+                <Sparkles size={9} style={{ color: 'rgba(255,255,255,0.15)' }} />
+                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.15)' }}>Playground</span>
+              </div>
+            )}
             {/* Fixed Expenses Bar + Time Zoom Toggle */}
             <div className="flex items-center justify-between px-3 flex-shrink-0" style={{
               height: 36, background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)',
@@ -791,10 +1015,12 @@ function MyMoneyContent() {
                         affordAmountNum={affordAmountNum} affordCategoryId={affordCategoryId}
                         spent={categorySpentMap[block.data.id] || 0}
                         transactions={transactions}
-                        flexRemaining={flexRemaining} daysRemaining={daysRemaining} dailyAllowance={dailyAllowance}
+                        flexRemaining={effectiveFlexRemaining} daysRemaining={daysRemaining} dailyAllowance={dailyAllowance}
                         onExpand={(id, budget) => handleExpand(id, budget, 'spending')}
                         onSliderChange={setSliderValue} onSave={handleSliderSave} onCancel={handleSliderCancel}
-                        goalImpactText={goalImpactText} />
+                        goalImpactText={goalImpactText}
+                        whatIfMode={whatIfMode} isBlockRemoved={isRemoved(block.id)} isBlockSimulated={block.isSimulated || false}
+                        onWhatIfRemove={(id) => handleWhatIfRemove(id, block.data.monthlyBudget)} />
                     ))}
                     {/* Add Category */}
                     <motion.div key="add-cat" layout transition={{ type: 'spring', duration: 0.5, damping: 25 }}
@@ -981,11 +1207,13 @@ function MyMoneyContent() {
                       {goalBlocks.map((block) => (
                         <GoalBlock key={block.id} goal={block.data} blockId={block.id} amount={block.amount}
                           getSizeTier={getSizeTier} expandedId={expandedId} sliderValue={sliderValue} originalBudget={originalBudget}
-                          animated={animated} flexRemaining={flexRemaining}
+                          animated={animated} flexRemaining={effectiveFlexRemaining}
                           spendingSliderDiff={sliderDiff}
                           daysRemaining={daysRemaining} dailyAllowance={dailyAllowance}
                           onExpand={(id, contribution) => handleExpand(id, contribution, 'goal')}
-                          onSliderChange={setSliderValue} onSave={handleSliderSave} onCancel={handleSliderCancel} />
+                          onSliderChange={setSliderValue} onSave={handleSliderSave} onCancel={handleSliderCancel}
+                          whatIfMode={whatIfMode} isBlockRemoved={isRemoved(block.data.id)} isBlockSimulated={block.isSimulated || false}
+                          onWhatIfRemove={(id) => handleWhatIfRemove(id, block.data.monthlyContribution)} />
                       ))}
                     </div>
                   )}
@@ -1065,6 +1293,7 @@ function SpendingBlock({
   animated, initialAnimDone, flashCategoryId, affordAmountNum, affordCategoryId,
   spent, transactions, flexRemaining, daysRemaining, dailyAllowance,
   onExpand, onSliderChange, onSave, onCancel, goalImpactText,
+  whatIfMode = false, isBlockRemoved = false, isBlockSimulated = false, onWhatIfRemove,
 }: {
   cat: any; index: number; amount: number;
   getSizeTier: (amount: number) => { colSpan: number; rowSpan: number; tier: string };
@@ -1076,6 +1305,8 @@ function SpendingBlock({
   onExpand: (id: string, budget: number) => void;
   onSliderChange: (val: number) => void; onSave: () => void; onCancel: () => void;
   goalImpactText: { text: string; color: string } | null;
+  whatIfMode?: boolean; isBlockRemoved?: boolean; isBlockSimulated?: boolean;
+  onWhatIfRemove?: (id: string) => void;
 }) {
   const tint = getTint(cat.icon);
   const Icon = budgetIconMap[cat.icon] || MoreHorizontal;
@@ -1096,24 +1327,32 @@ function SpendingBlock({
   const ghostFillPercent = isAffordTarget && effectiveBudget > 0 ? (affordAmountNum / effectiveBudget) * 100 : 0;
   const combinedPercent = fillPercent + ghostFillPercent;
   const isGhostOverflow = combinedPercent > 100;
-  const shouldDim = affordAmountNum > 0 && cat.id !== affordCategoryId;
+  const shouldDim = (affordAmountNum > 0 && cat.id !== affordCategoryId) || isBlockRemoved;
 
   const catTransactions = transactions.filter((t: any) => t.type === 'expense' && t.categoryId === cat.id);
 
   return (
     <motion.div key={cat.id} className="relative overflow-hidden cursor-pointer" layout
-      animate={{ opacity: shouldDim ? 0.85 : 1 }}
+      animate={{ opacity: isBlockRemoved ? 0.2 : shouldDim ? 0.85 : 1 }}
       transition={{ type: 'spring', duration: 0.5, damping: 25 }}
-      onClick={() => onExpand(cat.id, cat.monthlyBudget)}
+      onClick={() => isBlockRemoved && onWhatIfRemove ? onWhatIfRemove(cat.id) : onExpand(cat.id, cat.monthlyBudget)}
       style={{
         gridColumn: isExpanded ? '1 / -1' : `span ${colSpan}`,
         gridRow: isExpanded ? 'auto' : `span ${rowSpan}`,
         height: isExpanded ? 280 : '100%',
         borderRadius: 16,
         background: `linear-gradient(135deg, ${hexToRgba(tint, 0.20)}, rgba(255,255,255,0.06))`,
-        border: `1.5px solid ${isOver ? hexToRgba('#FF9F0A', 0.35) : hexToRgba(tint, 0.25)}`,
+        border: isBlockSimulated ? `2px dashed ${hexToRgba(tint, 0.30)}` : `1.5px solid ${isOver ? hexToRgba('#FF9F0A', 0.35) : hexToRgba(tint, 0.25)}`,
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+        animation: isBlockSimulated ? 'ghostPulse 2s ease-in-out infinite' : undefined,
       }}>
+      {/* What If CircleX */}
+      {whatIfMode && !isExpanded && onWhatIfRemove && (
+        <button onClick={(e) => { e.stopPropagation(); onWhatIfRemove(cat.id); }}
+          className="absolute z-20" style={{ top: 4, right: 4 }}>
+          <CircleX size={14} style={{ color: 'rgba(255,255,255,0.20)' }} />
+        </button>
+      )}
       {/* Accent Stripe */}
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
         background: hexToRgba(tint, 0.50), borderRadius: '16px 0 0 16px', zIndex: 2 }} />
@@ -1213,6 +1452,7 @@ function GoalBlock({
   goal, blockId, amount, getSizeTier, expandedId, sliderValue, originalBudget,
   animated, flexRemaining, spendingSliderDiff = 0, daysRemaining, dailyAllowance,
   onExpand, onSliderChange, onSave, onCancel,
+  whatIfMode = false, isBlockRemoved = false, isBlockSimulated = false, onWhatIfRemove,
 }: {
   goal: Goal; blockId: string; amount: number;
   getSizeTier: (amount: number) => { colSpan: number; rowSpan: number; tier: string };
@@ -1222,6 +1462,8 @@ function GoalBlock({
   daysRemaining: number; dailyAllowance: number;
   onExpand: (id: string, contribution: number) => void;
   onSliderChange: (val: number) => void; onSave: () => void; onCancel: () => void;
+  whatIfMode?: boolean; isBlockRemoved?: boolean; isBlockSimulated?: boolean;
+  onWhatIfRemove?: (id: string) => void;
 }) {
   const goalTint = getGoalTint(goal.icon);
   const GoalIcon = goalIconMap[goal.icon] || Target;
@@ -1242,20 +1484,28 @@ function GoalBlock({
 
   return (
     <motion.div key={blockId} className="relative overflow-hidden cursor-pointer" layout
-      animate={{ scale: isExpanded ? 1 : visualScale }}
+      animate={{ scale: isExpanded ? 1 : visualScale, opacity: isBlockRemoved ? 0.2 : 1 }}
       transition={{ type: 'spring', duration: 0.5, damping: 25 }}
-      onClick={() => onExpand(blockId, goal.monthlyContribution)}
+      onClick={() => isBlockRemoved && onWhatIfRemove ? onWhatIfRemove(goal.id) : onExpand(blockId, goal.monthlyContribution)}
       style={{
         gridColumn: isExpanded ? '1 / -1' : `span ${colSpan}`,
         gridRow: isExpanded ? 'auto' : `span ${rowSpan}`,
         height: isExpanded ? 280 : '100%',
         borderRadius: 16,
         background: 'rgba(255,255,255,0.15)',
-        border: isFunded ? '1.5px solid rgba(52,199,89,0.25)' : isSpendingDragging ? `1.5px solid ${pulseColor}` : '1.5px solid rgba(255,255,255,0.15)',
+        border: isBlockSimulated ? '2px dashed rgba(255,255,255,0.20)' : isFunded ? '1.5px solid rgba(52,199,89,0.25)' : isSpendingDragging ? `1.5px solid ${pulseColor}` : '1.5px solid rgba(255,255,255,0.15)',
         backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
         boxShadow: isFunded ? '0 0 12px rgba(52,199,89,0.1)' : isSpendingDragging ? `0 0 12px ${pulseColor}` : 'none',
         transition: 'border-color 500ms ease, box-shadow 500ms ease',
+        animation: isBlockSimulated ? 'ghostPulse 2s ease-in-out infinite' : undefined,
       }}>
+      {/* What If CircleX */}
+      {whatIfMode && !isExpanded && onWhatIfRemove && (
+        <button onClick={(e) => { e.stopPropagation(); onWhatIfRemove(goal.id); }}
+          className="absolute z-20" style={{ top: 4, right: 4 }}>
+          <CircleX size={14} style={{ color: 'rgba(255,255,255,0.20)' }} />
+        </button>
+      )}
       {/* Progress Fill - subtle white rising from bottom */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, width: '100%',
