@@ -21,11 +21,12 @@ interface EditBudgetSheetProps {
 }
 
 export function EditBudgetSheet({ open, onClose }: EditBudgetSheetProps) {
-  const { config, updateConfig, resetMonth, expenseCategories, deleteCategory } = useBudget();
+  const { config, updateConfig, resetMonth, resetAll, expenseCategories, deleteCategory } = useBudget();
 
   const [editingField, setEditingField] = useState<'income' | 'savings' | null>(null);
   const [editValue, setEditValue] = useState('');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showResetAllConfirm, setShowResetAllConfirm] = useState(false);
 
   const handleStartEdit = (field: 'income' | 'savings') => {
     setEditingField(field);
@@ -44,6 +45,12 @@ export function EditBudgetSheet({ open, onClose }: EditBudgetSheetProps) {
   const handleReset = () => {
     resetMonth();
     setShowResetConfirm(false);
+  };
+
+  const handleResetAll = () => {
+    resetAll();
+    setShowResetAllConfirm(false);
+    onClose();
   };
 
   return (
@@ -170,6 +177,20 @@ export function EditBudgetSheet({ open, onClose }: EditBudgetSheetProps) {
                   </div>
                 </div>
               )}
+
+              {/* Start from scratch */}
+              <button
+                onClick={() => setShowResetAllConfirm(true)}
+                className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left"
+              >
+                <div className="w-10 h-10 rounded-full glass-light flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-destructive" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <p className="text-white font-medium">Start from scratch</p>
+                  <p className="text-white/50 text-sm">Delete everything and restart setup</p>
+                </div>
+              </button>
             </div>
           </div>
         </SheetContent>
@@ -188,6 +209,23 @@ export function EditBudgetSheet({ open, onClose }: EditBudgetSheetProps) {
             <AlertDialogCancel className="glass-light border-0 text-white hover:bg-white/20">Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleReset} className="bg-destructive text-white hover:bg-destructive/90">
               Reset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Reset All confirmation */}
+      <AlertDialog open={showResetAllConfirm} onOpenChange={setShowResetAllConfirm}>
+        <AlertDialogContent className="glass border-0 rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Start from scratch?</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/60">
+              This will permanently delete all your categories, transactions, and settings. You'll go back to the setup wizard.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="glass-light border-0 text-white hover:bg-white/20">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetAll} className="bg-destructive text-white hover:bg-destructive/90">
+              Delete everything
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
