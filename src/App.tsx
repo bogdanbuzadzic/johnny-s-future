@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { TabBar } from "@/components/TabBar";
 import { HomeScreen } from "@/components/screens/HomeScreen";
-import { PlaceholderScreen } from "@/components/screens/PlaceholderScreen";
+import { ProfileScreen } from "@/components/screens/ProfileScreen";
 import { MyMoneyScreen } from "@/components/screens/MyMoneyScreen";
 import { TimelineSheet } from "@/components/sheets/TimelineSheet";
 import { TodayDrawer } from "@/components/sheets/TodayDrawer";
@@ -22,7 +22,7 @@ function AppContent() {
       case 1:
         return <MyMoneyScreen />;
       case 2:
-        return <PlaceholderScreen title="Profile" message="Profile coming soon" />;
+        return <ProfileScreen />;
       default:
         return <HomeScreen />;
     }
