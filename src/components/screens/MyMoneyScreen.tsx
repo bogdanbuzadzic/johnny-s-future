@@ -1013,7 +1013,6 @@ function MyMoneyContent() {
                         getSizeTier={getSizeTier} expandedId={expandedId} sliderValue={sliderValue} originalBudget={originalBudget}
                         animated={animated} initialAnimDone={initialAnimDone} flashCategoryId={flashCategoryId}
                         affordAmountNum={affordAmountNum} affordCategoryId={affordCategoryId}
-                        spent={categorySpentMap[block.data.id] || 0}
                         transactions={transactions}
                         flexRemaining={effectiveFlexRemaining} daysRemaining={daysRemaining} dailyAllowance={dailyAllowance}
                         onExpand={(id, budget) => handleExpand(id, budget, 'spending')}
@@ -1291,7 +1290,7 @@ function MyMoneyContent() {
 function SpendingBlock({
   cat, index, amount, getSizeTier, expandedId, sliderValue, originalBudget,
   animated, initialAnimDone, flashCategoryId, affordAmountNum, affordCategoryId,
-  spent, transactions, flexRemaining, daysRemaining, dailyAllowance,
+  transactions, flexRemaining, daysRemaining, dailyAllowance,
   onExpand, onSliderChange, onSave, onCancel, goalImpactText,
   whatIfMode = false, isBlockRemoved = false, isBlockSimulated = false, onWhatIfRemove,
 }: {
@@ -1300,7 +1299,6 @@ function SpendingBlock({
   expandedId: string | null; sliderValue: number; originalBudget: number;
   animated: boolean; initialAnimDone: React.MutableRefObject<boolean>;
   flashCategoryId: string | null; affordAmountNum: number; affordCategoryId: string | null;
-  spent: number;
   transactions: any[]; flexRemaining: number; daysRemaining: number; dailyAllowance: number;
   onExpand: (id: string, budget: number) => void;
   onSliderChange: (val: number) => void; onSave: () => void; onCancel: () => void;
@@ -1308,6 +1306,24 @@ function SpendingBlock({
   whatIfMode?: boolean; isBlockRemoved?: boolean; isBlockSimulated?: boolean;
   onWhatIfRemove?: (id: string) => void;
 }) {
+  // Calculate spent directly from transactions every render - never cache
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const spent = useMemo(() => {
+    return transactions
+      .filter((t: any) => {
+        if (t.type !== 'expense') return false;
+        if (t.categoryId !== cat.id) return false;
+        const d = new Date(t.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      })
+      .reduce((sum: number, t: any) => {
+        const amt = typeof t.amount === 'number' ? t.amount : parseFloat(t.amount);
+        return sum + (isNaN(amt) ? 0 : amt);
+      }, 0);
+  }, [transactions, cat.id, currentMonth, currentYear]);
+
   const tint = getTint(cat.icon);
   const Icon = budgetIconMap[cat.icon] || MoreHorizontal;
   const isExpanded = expandedId === cat.id;
