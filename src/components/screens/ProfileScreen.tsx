@@ -6,7 +6,7 @@ import {
   Footprints, ClipboardCheck, PiggyBank, Compass, TrendingUp, Trophy, Clock
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { useBudget } from '@/context/BudgetContext';
+import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { useToast } from '@/hooks/use-toast';
 import { EditBudgetSheet } from '@/components/budget/EditBudgetSheet';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -105,7 +105,7 @@ const settingsRows = [
 ];
 
 // ======= Main Component =======
-export function ProfileScreen() {
+function ProfileScreenContent() {
   const { goals, setActiveTab } = useApp();
   const { config, transactions, paceStatus, flexSpent } = useBudget();
   const { toast } = useToast();
@@ -402,5 +402,13 @@ export function ProfileScreen() {
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
+  );
+}
+
+export function ProfileScreen() {
+  return (
+    <BudgetProvider>
+      <ProfileScreenContent />
+    </BudgetProvider>
   );
 }
