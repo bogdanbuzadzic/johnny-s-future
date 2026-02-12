@@ -1,108 +1,103 @@
 
 
-# My Money - Goal Block Visual Fix
+# Profile Screen — RPG Character Sheet
 
-## What This Does
+## Overview
+Replace the placeholder Profile screen (tab 3) with a full RPG-style character profile featuring an animated pixel art avatar, a module map skill tree, financial health score breakdown, achievement badges, and settings.
 
-Redesigns goal blocks to look like neutral frosted glass cards, clearly distinct from the colorful spending blocks. Removes green accent stripes and colored tints from goals. Adds a purple-to-pink gradient progress bar and circular progress ring.
+## What Gets Built
 
-## Changes (only `src/components/screens/MyMoneyScreen.tsx`)
+### 1. New File: `src/components/screens/ProfileScreen.tsx`
+A single scrollable screen containing all 6 sections described below.
 
-### 1. GoalBlock Component (lines 1166-1274) - Visual Overhaul
+### 2. Avatar Image
+Copy the uploaded pixel art image to `src/assets/avatar.png` and import it as an ES6 module.
 
-**Background**: Change from `rgba(255,255,255,0.08)` to `rgba(255,255,255,0.15)` + `backdrop-blur-md`
+### 3. App.tsx Update
+Replace `PlaceholderScreen` import/usage with `ProfileScreen`.
 
-**Border**: Change from `2px dashed` in goal tint to `1.5px solid rgba(255,255,255,0.15)` (neutral, not dashed)
+---
 
-**Remove accent stripe**: Delete the 4px green stripe div (lines 1201-1203)
+## Screen Sections
 
-**Fill**: Change from green at 25% to `rgba(255,255,255,0.08)` (very subtle brightening)
+### Section 1: Avatar Hero
+- 100x100px avatar image with idle bob animation (translateY -4px to 0, 2s infinite)
+- 130px SVG level ring behind avatar: white/10 track, purple-to-pink gradient fill proportional to health score
+- Drop shadow glow on the ring
+- User name from localStorage (`jfb_userName`, default "Bogdan")
+- Level title derived from score tier (Beginner / Explorer / Builder / Architect / Master)
+- Frosted glass score pill with star icon and count-up animation (0 to score over 800ms)
 
-**Fully funded state**: Border becomes `1.5px solid rgba(52,199,89,0.25)`, add `boxShadow: '0 0 12px rgba(52,199,89,0.1)'`, CheckCircle stays
+### Section 2: Module Map (2x3 Grid)
+Six module cards in a constellation layout with dotted connecting lines:
 
-### 2. Large Goal Block Content (lines 1223-1237) - New Layout
+| Know Yourself (Brain) | Budget Arena (LayoutGrid) | Dream Builder (Target) |
+| Future Vision (Sparkles) | Knowledge Tower (BookOpen) | Execution Hub (Building2) |
 
-Replace with:
-- Left side: icon (20px, white/50) + name (14px bold white) on first line
-- Below: "saved / target" in 12px white/40
-- Below: progress bar (full width minus right section, 5px tall, rounded)
-  - Track: white/10
-  - Fill: `linear-gradient(90deg, #8B5CF6, #FF6B9D)` (purple-to-pink gradient)
-- Below bar: "[X]% complete" in 11px white/30
-- Right side: circular progress ring (48px)
-  - Track: white/10, 3px stroke
-  - Fill: purple-to-pink gradient (using SVG linearGradient), 3px stroke
-  - Center text: "[X]%" in 13px bold white/50
-- Bottom-right: target date in 11px white/25 + monthly contribution in 11px white/25
+- Each card: 100x120px, frosted glass, icon + name + 3px progress bar + status text
+- Progress calculated from real data (BudgetContext + AppContext)
+- Last two modules locked (60% opacity, Lock icon overlay)
+- Completed modules get accent-colored glow borders; active modules have pulsing connecting lines
+- Tapping unlocked modules navigates to My Money tab or shows "coming soon" sheet
 
-### 3. Medium Goal Block Content (lines 1239-1247)
+### Section 3: Score Breakdown Card
+Frosted glass card with 4 pillar rows:
+- **Awareness** (Brain): assessment completion (0 or 25)
+- **Budget Health** (LayoutGrid): setup + pace + tracking (0-25)
+- **Goal Progress** (Target): average goal completion * 25
+- **Future Planning** (Sparkles): savings target + what-if usage + savings rate
 
-Replace with:
-- Icon (16px) + name (13px white) + saved/target (12px white/40)
-- Smaller progress ring (36px) on right
-- Progress bar below name/amount (same gradient fill)
-- Monthly contribution at bottom
+Each row shows icon, name, animated horizontal bar, and X/25 score.
 
-### 4. Small Goal Block Content (lines 1249-1255)
+### Section 4: Achievement Badges (Horizontal Scroll)
+8 achievement circles (48px each):
+- First Step, Tracker (10+ transactions), Dreamer (1+ goal), Saver, Explorer, On Track, Goal Getter, Time Traveler
+- Unlocked = bright icon; Locked = dimmed with Lock overlay
+- Tap shows toast with name/description or unlock hint
 
-Replace with:
-- Icon (16px) centered
-- Saved amount in 14px bold white
-- "/target" in 10px white/30
-- Percentage in 10px white/25
-- No progress ring, no progress bar (fill from bottom acts as indicator)
+### Section 5: Settings List
+6 rows with icon + label + ChevronRight:
+- Budget Settings (opens EditBudgetSheet)
+- Reminders, Appearance, Export Data (toast "Coming soon")
+- Privacy (toast about local storage)
+- About (small info sheet)
 
-### 5. Progress Ring Implementation
+### Section 6: Bottom Spacer
+64px spacer to clear the tab bar.
 
-Add inline SVG with a `linearGradient` definition for the purple-to-pink arc:
-```
-<defs>
-  <linearGradient id={`goalGrad-${blockId}`} x1="0%" y1="0%" x2="100%" y2="0%">
-    <stop offset="0%" stopColor="#8B5CF6" />
-    <stop offset="100%" stopColor="#FF6B9D" />
-  </linearGradient>
-</defs>
-```
+---
 
-Ring track: `stroke="rgba(255,255,255,0.10)"`, 3px
-Ring fill: `stroke={url(#goalGrad-${blockId})}`, 3px, dasharray/dashoffset for progress
+## Technical Details
 
-### 6. ExpandedGoalContent (lines 230-354) - Update Progress Ring
-
-Change the expanded progress ring's stroke from green to the same purple-to-pink gradient. Add SVG `linearGradient` defs. Keep all slider/timeline/save-cancel behavior unchanged.
-
-### 7. Target Date Calculation
-
-For large/medium blocks, compute estimated completion:
-```
-const remaining = goal.target - goal.saved;
-const monthsToGoal = goal.monthlyContribution > 0 ? Math.ceil(remaining / goal.monthlyContribution) : Infinity;
-const completionDate = new Date();
-completionDate.setMonth(completionDate.getMonth() + monthsToGoal);
-const dateStr = isFinite(monthsToGoal) ? format(completionDate, 'MMM yyyy') : '--';
+### Score Calculation
+```text
+calculateHealthScore() returns { awareness, budgetHealth, goalProgress, futurePlanning, total }
+- Each pillar: 0-25 points
+- Total: 0-100, feeds level ring + score badge + level title
 ```
 
-## Visual Comparison After Changes
+### localStorage Keys (new)
+- `jfb_userName` (string)
+- `jfb_hasCompletedAssessment` (boolean)
+- `jfb_hasUsedWhatIf` (boolean)
+- `jfb_hasUsed5YearZoom` (boolean)
+- `jfb_hasCompletedMonth` (boolean)
 
-| Property | Spending Block | Goal Block |
-|----------|---------------|------------|
-| Background | Category tint at 20% | White at 15% (neutral) |
-| Border | 1.5px solid, tint at 25% | 1.5px solid, white/15 |
-| Left stripe | 4px, tint at 50% | None |
-| Fill rising | Tint at 40% | White at 8% |
-| Progress bar | None | Purple-to-pink gradient, 5px |
-| Progress ring | None | 36-48px, purple-to-pink |
-| Overall feel | Colorful, bold, active | Clean, glass, calm |
+### Animations
+- Avatar bob: CSS keyframes, 2s ease-in-out infinite
+- Level ring: SVG stroke-dashoffset from full to target, 1000ms ease-out
+- Score count-up: requestAnimationFrame loop, 800ms
+- Progress bars: staggered fill with 100ms delay per item, 600ms duration
+- Achievement badges: staggered fade-in, 50ms delay each
+- Constellation lines: stroke-dashoffset draw animation, 800ms
 
-## What Does NOT Change
+### Data Sources
+- `useBudget()` for config, categories, transactions, paceStatus, flexSpent
+- `useApp()` for goals, setActiveTab
+- localStorage for assessment/what-if/zoom/month flags
 
-- Spending blocks: completely untouched
-- Container, fixed bar, savings bar
-- Time zoom logic
-- Expand/collapse behavior and slider mechanics
-- Can I Afford input and ghost fills
-- Johnny mascot
-- FAB button
-- Grid layout and sizing tiers
-- Add category / Add goal forms
+### Files Changed
+1. **New**: `src/assets/avatar.png` (copy from upload)
+2. **New**: `src/components/screens/ProfileScreen.tsx` (entire screen)
+3. **Edit**: `src/App.tsx` (swap PlaceholderScreen for ProfileScreen)
 
