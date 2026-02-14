@@ -35,13 +35,13 @@ export type ProfileQ = {
 
 // ── Quest Nodes ──
 export const QUEST_NODES: QuestNode[] = [
-  { key: 'module0', name: 'Know Yourself', Icon: UserCircle, subtitle: '6 questions · 3 min', lsDone: 'jfb_module0_done', lsAnswers: 'jfb_module0_answers', status: 'required', prereqs: [], badgeKey: 'first-step' },
-  { key: 'clarity', name: 'Financial Clarity', Icon: BarChart3, subtitle: '11 steps · 7 min', lsDone: 'jfb_clarity_done', lsAnswers: 'jfb_clarity_answers', status: 'required', prereqs: ['module0'], badgeKey: 'know-thyself' },
-  { key: 'module1', name: 'Risk Pulse', Icon: Flame, subtitle: '6 questions · 3 min', lsDone: 'jfb_module1_done', lsAnswers: 'jfb_module1_answers', status: 'optional', prereqs: ['clarity'], badgeKey: 'risk-taker' },
-  { key: 'module2', name: 'Time Lens', Icon: Hourglass, subtitle: '6 questions · 3 min', lsDone: 'jfb_module2_done', lsAnswers: 'jfb_module2_answers', status: 'optional', prereqs: ['clarity'], badgeKey: 'time-keeper' },
-  { key: 'module3', name: 'Confidence', Icon: Shield, subtitle: '6 questions · 3 min', lsDone: 'jfb_module3_done', lsAnswers: 'jfb_module3_answers', status: 'optional', prereqs: ['clarity'], badgeKey: 'self-aware' },
-  { key: 'module4', name: 'Social Mirror', Icon: Users, subtitle: '5 questions · 2 min', lsDone: 'jfb_module4_done', lsAnswers: 'jfb_module4_answers', status: 'optional', prereqs: ['clarity'], badgeKey: 'mirror' },
-  { key: 'module5', name: 'Money Story', Icon: BookOpen, subtitle: '6 questions · 3 min', lsDone: 'jfb_module5_done', lsAnswers: 'jfb_module5_answers', status: 'optional', prereqs: ['clarity'], badgeKey: 'deep-diver' },
+  { key: 'clarity', name: 'Financial Clarity', Icon: BarChart3, subtitle: '11 steps · 7 min', lsDone: 'jfb_clarity_done', lsAnswers: 'jfb_clarity_answers', status: 'required', prereqs: [], badgeKey: 'know-thyself' },
+  { key: 'module0', name: 'Know Yourself', Icon: UserCircle, subtitle: '6 questions · 3 min', lsDone: 'jfb_module0_done', lsAnswers: 'jfb_module0_answers', status: 'required', prereqs: ['clarity'], badgeKey: 'first-step' },
+  { key: 'module1', name: 'Risk Pulse', Icon: Flame, subtitle: '6 questions · 3 min', lsDone: 'jfb_module1_done', lsAnswers: 'jfb_module1_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'risk-taker' },
+  { key: 'module2', name: 'Time Lens', Icon: Hourglass, subtitle: '6 questions · 3 min', lsDone: 'jfb_module2_done', lsAnswers: 'jfb_module2_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'time-keeper' },
+  { key: 'module3', name: 'Confidence', Icon: Shield, subtitle: '6 questions · 3 min', lsDone: 'jfb_module3_done', lsAnswers: 'jfb_module3_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'self-aware' },
+  { key: 'module4', name: 'Social Mirror', Icon: Users, subtitle: '5 questions · 2 min', lsDone: 'jfb_module4_done', lsAnswers: 'jfb_module4_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'mirror' },
+  { key: 'module5', name: 'Money Story', Icon: BookOpen, subtitle: '6 questions · 3 min', lsDone: 'jfb_module5_done', lsAnswers: 'jfb_module5_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'deep-diver' },
   { key: 'knowledge', name: 'Knowledge Tower', Icon: BookOpen, subtitle: 'Coming soon', lsDone: '', lsAnswers: '', status: 'coming-soon', prereqs: [], badgeKey: '' },
   { key: 'execution', name: 'Execution Hub', Icon: Building2, subtitle: 'Coming soon', lsDone: '', lsAnswers: '', status: 'coming-soon', prereqs: [], badgeKey: '' },
 ];
@@ -287,14 +287,12 @@ export function getJohnnyObservations(m0: Record<string, any> | null, clarity: R
       obs.push({ icon: 'PiggyBank', text: 'Consistent saving is tough. Start with a tiny goal.' });
     if (Number(m0.q8) <= 3) obs.push({ icon: 'Clock', text: 'Future self feels distant. The 5-Year zoom might change that.' });
     if (Number(m0.q8) >= 6) obs.push({ icon: 'Clock', text: 'Strong future-self connection — that\'s a financial superpower.' });
-    const correct = [
-      m0.q7a === 'More than €102',
-      m0.q7b === 'Less than today',
-      m0.q7c === 'False',
+    const actual = m0.q7_actual !== undefined ? m0.q7_actual : [
+      m0.q7a === 'More than €102', m0.q7b === 'Less than today', m0.q7c === 'False',
     ].filter(Boolean).length;
-    const estimated = Number(m0.q7d) || 0;
-    if (estimated > correct) obs.push({ icon: 'AlertTriangle', text: 'Slightly overconfident on financial knowledge. Quests will help!' });
-    if (estimated < correct) obs.push({ icon: 'Star', text: 'You know more than you think. Trust your instincts more.' });
+    const estimated = m0.q7_estimated !== undefined ? m0.q7_estimated : (Number(m0.q7d) || 0);
+    if (estimated > actual) obs.push({ icon: 'AlertTriangle', text: 'Slightly overconfident on financial knowledge. Quests will help!' });
+    if (estimated < actual) obs.push({ icon: 'Star', text: 'You know more than you think. Trust your instincts more.' });
   }
   if (clarity) {
     const rate = (Number(clarity.step7) || 0) / (Number(clarity.step4) || 1);

@@ -15,6 +15,13 @@ const EXPENSE_ICONS: Record<string, LucideIcon> = {
   Home, Zap, Landmark, Car, Bus, Tv, Shield, ShoppingCart, Baby, MoreHorizontal,
 };
 
+// Correct answers for quiz calibration
+const QUIZ_CORRECT: Record<string, string> = {
+  q7a: 'More than €102',
+  q7b: 'Less than today',
+  q7c: 'False',
+};
+
 interface Props {
   moduleKey: string;
   onComplete: () => void;
@@ -25,6 +32,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [currentIdx, setCurrentIdx] = useState(0);
   const [showCompletion, setShowCompletion] = useState(false);
+  const [showCalibration, setShowCalibration] = useState(false);
   const [direction, setDirection] = useState<1 | -1>(1);
   const { updateConfig, addCategory } = useBudget();
   const { addGoal, setActiveTab } = useApp();
@@ -57,6 +65,15 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   }, []);
 
   const handleNext = () => {
+    // After Q7d (calibration estimate), show calibration result card
+    if (moduleKey === 'module0' && currentQ?.id === 'q7d' && !showCalibration) {
+      setShowCalibration(true);
+      return;
+    }
+    if (showCalibration) {
+      setShowCalibration(false);
+    }
+
     if (isLast) {
       handleComplete();
     } else {
@@ -66,6 +83,10 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   };
 
   const handleBack = () => {
+    if (showCalibration) {
+      setShowCalibration(false);
+      return;
+    }
     setDirection(-1);
     setCurrentIdx(Math.max(0, safeIdx - 1));
   };
@@ -74,7 +95,17 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
     const node = QUEST_NODES.find(n => n.key === moduleKey);
     if (!node) return;
 
-    if (node.lsAnswers) localStorage.setItem(node.lsAnswers, JSON.stringify(answers));
+    // For module0: compute calibration and store with answers
+    const finalAnswers = { ...answers };
+    if (moduleKey === 'module0') {
+      const actualCorrect = ['q7a', 'q7b', 'q7c'].filter(k => finalAnswers[k] === QUIZ_CORRECT[k]).length;
+      const estimatedCorrect = Number(finalAnswers.q7d) || 0;
+      finalAnswers.q7_actual = actualCorrect;
+      finalAnswers.q7_estimated = estimatedCorrect;
+      finalAnswers.q7_calibration = estimatedCorrect - actualCorrect;
+    }
+
+    if (node.lsAnswers) localStorage.setItem(node.lsAnswers, JSON.stringify(finalAnswers));
     if (node.lsDone) localStorage.setItem(node.lsDone, 'true');
 
     const earnedBadges: string[] = JSON.parse(localStorage.getItem('jfb_badges') || '[]');
@@ -84,14 +115,14 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
     }
 
     if (moduleKey === 'clarity') {
-      const score = calculateClarityScore(answers);
+      const score = calculateClarityScore(finalAnswers);
       localStorage.setItem('jfb_clarityScore', JSON.stringify(score));
 
-      const income = Number(answers.step4) || 0;
-      const savings = Number(answers.step7) || 0;
+      const income = Number(finalAnswers.step4) || 0;
+      const savings = Number(finalAnswers.step7) || 0;
       updateConfig({ monthlyIncome: income, monthlySavingsTarget: savings, setupComplete: true });
 
-      const exp = answers.step5 || {};
+      const exp = finalAnswers.step5 || {};
       const fixedMap = [
         { key: 'rent', name: 'Rent', icon: 'Home' }, { key: 'utilities', name: 'Utilities', icon: 'Zap' },
         { key: 'tax', name: 'Tax', icon: 'Landmark' }, { key: 'car', name: 'Car', icon: 'Car' },
@@ -123,7 +154,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         'Start investing': { name: 'Start Investing', icon: 'LineChart', target: 1000, mc: 50 },
         'Save for retirement': { name: 'Retirement', icon: 'Sunset', target: 50000, mc: 200 },
       };
-      (answers.step3 || []).forEach((g: string) => {
+      (finalAnswers.step3 || []).forEach((g: string) => {
         const d = goalMap[g];
         if (d) addGoal({ name: d.name, icon: d.icon, target: d.target, saved: 0, monthlyContribution: d.mc, targetDate: '', monthIndex: -1 });
       });
@@ -140,6 +171,39 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   const node = QUEST_NODES.find(n => n.key === moduleKey)!;
   const NodeIcon = node.Icon;
   const badge = BADGES.find(b => b.key === node.badgeKey);
+
+  // ── Calibration result (after Q7d) ──
+  if (showCalibration) {
+    const actualCorrect = ['q7a', 'q7b', 'q7c'].filter(k => answers[k] === QUIZ_CORRECT[k]).length;
+    const estimated = Number(answers.q7d) || 0;
+    const diff = estimated - actualCorrect;
+    let message: string, messageColor: string;
+    if (diff > 0) { message = "Slightly overconfident — that's normal and fixable!"; messageColor = 'rgba(245,158,11,0.5)'; }
+    else if (diff < 0) { message = 'You know more than you think!'; messageColor = 'rgba(34,197,94,0.5)'; }
+    else { message = 'Well calibrated! You know what you know.'; messageColor = 'rgba(34,197,94,0.5)'; }
+
+    return (
+      <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }}
+        className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-8"
+        style={{ background: 'linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}
+          className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+          style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)' }}>
+          <p className="text-base font-bold text-white text-center">
+            You got {actualCorrect} out of 3 correct
+          </p>
+          <p className="text-[13px] text-white/40 text-center">You estimated {estimated}</p>
+          <p className="text-[13px] text-center" style={{ color: messageColor }}>{message}</p>
+        </motion.div>
+        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+          onClick={handleNext}
+          className="mt-6 px-8 h-10 rounded-full text-sm font-semibold text-white flex items-center gap-2"
+          style={{ background: 'rgba(255,255,255,0.12)' }}>
+          Continue <ChevronRight className="w-4 h-4" />
+        </motion.button>
+      </motion.div>
+    );
+  }
 
   // ── Completion Screen ──
   if (showCompletion) {
@@ -185,7 +249,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         )}
         <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
           onClick={handleContinue}
-          className="w-full max-w-xs h-12 rounded-[14px] gradient-primary text-white font-semibold flex items-center justify-center gap-2"
+          className="w-full max-w-xs h-11 rounded-[14px] gradient-primary text-white font-semibold text-[15px] flex items-center justify-center gap-2"
           style={{ boxShadow: '0 4px 16px rgba(139,92,246,0.3)' }}>
           Continue <ChevronRight className="w-4 h-4" />
         </motion.button>
@@ -246,7 +310,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         <button
           onClick={handleNext}
           disabled={!canProceed}
-          className="w-full h-12 rounded-[14px] text-white font-semibold flex items-center justify-center gap-2 transition-all"
+          className="w-full h-11 rounded-[14px] text-[15px] text-white font-semibold flex items-center justify-center gap-2 transition-all"
           style={{
             background: canProceed ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.06)',
             color: canProceed ? 'white' : 'rgba(255,255,255,0.2)',
@@ -295,12 +359,10 @@ function QuestionInput({ q, value, onChange }: { q: ProfileQ; value: any; onChan
       const min = q.min ?? 1, max = q.max ?? 10, step = q.step ?? 1;
       const v = value ?? min;
       const pct = ((v - min) / (max - min)) * 100;
-      const steps = (max - min) / step;
       return (
         <div className="max-w-[400px] mx-auto pt-6">
-          {/* Value above slider - positioned to follow thumb */}
-          <div className="relative mb-4 h-8">
-            <div className="absolute text-[28px] font-bold text-white -translate-x-1/2"
+          <div className="relative mb-3 h-6">
+            <div className="absolute text-xl font-bold text-white -translate-x-1/2"
               style={{ left: `${pct}%`, transition: 'left 100ms ease' }}>
               {v}
             </div>
@@ -328,10 +390,10 @@ function QuestionInput({ q, value, onChange }: { q: ProfileQ; value: any; onChan
             const selected = value === label;
             return (
               <button key={i} onClick={() => onChange(label)}
-                className="w-full h-11 rounded-xl px-4 flex items-center text-left text-sm transition-all"
+                className="w-full h-11 rounded-xl px-4 flex items-center text-left text-[14px] transition-all"
                 style={{
                   background: selected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.06)',
-                  border: `1.5px solid ${selected ? 'rgba(139,92,246,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                  border: `1.5px solid ${selected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.08)'}`,
                   color: selected ? 'white' : 'rgba(255,255,255,0.6)',
                 }}>
                 <span className="flex-1">{label}</span>
@@ -351,13 +413,12 @@ function QuestionInput({ q, value, onChange }: { q: ProfileQ; value: any; onChan
             const isSelected = selected.includes(label);
             return (
               <button key={i} onClick={() => onChange(isSelected ? selected.filter(x => x !== label) : [...selected, label])}
-                className="w-full h-11 rounded-xl px-4 flex items-center text-left text-sm transition-all"
+                className="w-full h-11 rounded-xl px-4 flex items-center text-left text-[14px] transition-all"
                 style={{
                   background: isSelected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.06)',
-                  border: `1.5px solid ${isSelected ? 'rgba(139,92,246,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                  border: `1.5px solid ${isSelected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.08)'}`,
                   color: isSelected ? 'white' : 'rgba(255,255,255,0.6)',
                 }}>
-                {/* Checkbox indicator */}
                 <div className="w-5 h-5 rounded-md mr-3 flex items-center justify-center shrink-0"
                   style={{
                     background: isSelected ? '#8B5CF6' : 'transparent',
@@ -374,19 +435,19 @@ function QuestionInput({ q, value, onChange }: { q: ProfileQ; value: any; onChan
     }
 
     case 'quiz': {
-      const answered = value !== undefined;
+      // No answer reveal — just normal selected styling like single select
       return (
         <div className="space-y-2 max-w-[460px] mx-auto">
           {(q.options || []).map((opt, i) => {
             const o = typeof opt === 'string' ? { label: opt } : opt;
             const selected = value === o.label;
             return (
-              <button key={i} onClick={() => !answered && onChange(o.label)} disabled={answered}
-                className="w-full h-11 rounded-xl px-4 flex items-center text-left text-sm transition-all"
+              <button key={i} onClick={() => onChange(o.label)}
+                className="w-full h-11 rounded-xl px-4 flex items-center text-left text-[14px] transition-all"
                 style={{
                   background: selected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.06)',
-                  border: `1.5px solid ${selected ? 'rgba(139,92,246,0.35)' : 'rgba(255,255,255,0.08)'}`,
-                  color: 'white',
+                  border: `1.5px solid ${selected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.08)'}`,
+                  color: selected ? 'white' : 'rgba(255,255,255,0.6)',
                 }}>
                 <span className="flex-1">{o.label}</span>
                 {selected && <Check className="w-[18px] h-[18px]" style={{ color: '#8B5CF6' }} />}
