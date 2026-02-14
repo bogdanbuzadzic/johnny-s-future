@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Settings, MessageCircle, Pencil, ChevronUp, TrendingUp, Sparkles, ArrowRight } from 'lucide-react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { useApp } from '@/context/AppContext';
 import { useToast } from '@/hooks/use-toast';
+import { tipsByPersona } from '@/lib/personaMessaging';
+import { getPersona } from '@/lib/profileData';
 import johnnyImage from '@/assets/johnny.png';
 
 export function HomeScreen() {
@@ -86,7 +88,13 @@ export function HomeScreen() {
         </motion.div>
         
         <h1 className="text-xl font-bold text-white mt-4">Johnny</h1>
-        <p className="text-sm text-white/60 mt-1">Your Financial Co-pilot</p>
+        {(() => {
+          const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
+          const p = getPersona(m0);
+          const tips = tipsByPersona[p?.n || 'default'] || tipsByPersona['default'];
+          const tip = tips[new Date().getDate() % tips.length];
+          return <p className="text-sm text-white/60 mt-1">{tip}</p>;
+        })()}
       </div>
 
       {/* Bottom Action Area */}

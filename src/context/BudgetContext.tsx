@@ -127,12 +127,12 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   const dayOfMonth = getDate(now);
   const daysRemaining = daysInMonth - dayOfMonth + 1;
 
-  const totalIncome = config.monthlyIncome;
+  const totalIncome = Number(config.monthlyIncome) || 0;
   const totalFixed = useMemo(() => 
-    categories.filter(c => c.type === 'fixed').reduce((sum, c) => sum + c.monthlyBudget, 0),
+    categories.filter(c => c.type === 'fixed').reduce((sum, c) => sum + (Number(c.monthlyBudget) || 0), 0),
     [categories]
   );
-  const savingsTarget = config.monthlySavingsTarget;
+  const savingsTarget = Number(config.monthlySavingsTarget) || 0;
   const flexBudget = totalIncome - totalFixed - savingsTarget;
 
   const expenseCategories = useMemo(() => 

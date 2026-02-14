@@ -160,49 +160,14 @@ function applyScenarios(baseData: DataPoint[], scenarios: Scenario[]): DataPoint
   return simData.map(d => ({ ...d, value: Math.round(d.value) }));
 }
 
-// Initial goals
-const initialGoals: Goal[] = [
-  {
-    id: '1',
-    name: 'Emergency Fund',
-    icon: 'ShieldCheck',
-    target: 3000,
-    saved: 1200,
-    monthlyContribution: 225,
-    targetDate: 'Aug 2026',
-    monthIndex: 6,
-  },
-  {
-    id: '2',
-    name: 'New Laptop',
-    icon: 'Laptop',
-    target: 1000,
-    saved: 0,
-    monthlyContribution: 170,
-    targetDate: 'Aug 2026',
-    monthIndex: 6,
-  },
-  {
-    id: '3',
-    name: 'Vacation to Greece',
-    icon: 'Plane',
-    target: 1500,
-    saved: 400,
-    monthlyContribution: 110,
-    targetDate: 'Dec 2026',
-    monthIndex: 10,
-  },
-  {
-    id: '4',
-    name: 'Car Fund',
-    icon: 'Car',
-    target: 10000,
-    saved: 0,
-    monthlyContribution: 0,
-    targetDate: 'Not started',
-    monthIndex: -1,
-  },
-];
+// Load goals from localStorage (no hardcoded defaults)
+function loadGoals(): Goal[] {
+  try {
+    const stored = localStorage.getItem('jfb_goals');
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return [];
+}
 
 export const iconMap: Record<string, LucideIcon> = {
   ShieldCheck,
@@ -229,7 +194,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     baselineData,
     simulatedData: null,
     activeScenarios: [],
-    goals: initialGoals,
+    goals: loadGoals(),
     scrubberIndex: 0,
     selectedGoalId: null,
     highlightedGoalId: null,
@@ -287,25 +252,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const addGoal = (goal: Omit<Goal, 'id'>) => {
-    setState(s => ({
-      ...s,
-      goals: [...s.goals, { ...goal, id: Date.now().toString() }],
-    }));
+    setState(s => {
+      const newGoals = [...s.goals, { ...goal, id: Date.now().toString() }];
+      localStorage.setItem('jfb_goals', JSON.stringify(newGoals));
+      return { ...s, goals: newGoals };
+    });
   };
 
   const updateGoal = (id: string, updates: Partial<Goal>) => {
-    setState(s => ({
-      ...s,
-      goals: s.goals.map(g => g.id === id ? { ...g, ...updates } : g),
-    }));
+    setState(s => {
+      const newGoals = s.goals.map(g => g.id === id ? { ...g, ...updates } : g);
+      localStorage.setItem('jfb_goals', JSON.stringify(newGoals));
+      return { ...s, goals: newGoals };
+    });
   };
 
   const deleteGoal = (id: string) => {
-    setState(s => ({
-      ...s,
-      goals: s.goals.filter(g => g.id !== id),
-      selectedGoalId: s.selectedGoalId === id ? null : s.selectedGoalId,
-    }));
+    setState(s => {
+      const newGoals = s.goals.filter(g => g.id !== id);
+      localStorage.setItem('jfb_goals', JSON.stringify(newGoals));
+      return {
+        ...s,
+        goals: newGoals,
+        selectedGoalId: s.selectedGoalId === id ? null : s.selectedGoalId,
+      };
+    });
   };
 
   const setSelectedGoalId = (id: string | null) => {

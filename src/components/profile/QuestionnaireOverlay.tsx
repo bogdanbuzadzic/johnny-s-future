@@ -6,7 +6,8 @@ import {
   Eye, AlertTriangle, Star, PiggyBank, Clock, Target, TrendingUp
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { getModuleQuestions, calculateClarityScore, BADGES, QUEST_NODES } from '@/lib/profileData';
+import { getModuleQuestions, calculateClarityScore, BADGES, QUEST_NODES, getPersona } from '@/lib/profileData';
+import { getCelebration } from '@/lib/personaMessaging';
 import type { ProfileQ } from '@/lib/profileData';
 import { useBudget } from '@/context/BudgetContext';
 import { useApp } from '@/context/AppContext';
@@ -157,7 +158,11 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
           <NodeIcon className="w-12 h-12 text-white" strokeWidth={1.5} />
         </motion.div>
         <motion.h2 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-          className="text-2xl font-bold text-white mb-2">Quest Complete!</motion.h2>
+          className="text-2xl font-bold text-white mb-2">{(() => {
+            const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
+            const p = getPersona(m0);
+            return getCelebration(node.name, p?.n || null);
+          })()}</motion.h2>
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
           className="text-sm text-white/50 mb-8">{node.name}</motion.p>
         {badge && (

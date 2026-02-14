@@ -7,12 +7,15 @@ import {
   Gift, BookOpen, Smartphone, Shirt, Wrench, Heart, Home, Zap, Landmark,
   Car, Tv, Shield, Baby, TrendingUp, LineChart, Sunset,
   ShieldCheck, Plane, Laptop, GraduationCap, Gamepad2,
+  RefreshCw, User,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { format, parseISO, isToday as isTodayFn, isYesterday as isYesterdayFn, startOfMonth, endOfMonth, isWithinInterval, subDays } from 'date-fns';
 import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { useApp, Goal } from '@/context/AppContext';
 import { AddTransactionSheet } from '@/components/budget/AddTransactionSheet';
+import { tipsByPersona, getImpactText, getAffordText } from '@/lib/personaMessaging';
+import { getPersona } from '@/lib/profileData';
 import johnnyImage from '@/assets/johnny.png';
 
 // ── Icon Maps ──
@@ -69,8 +72,20 @@ function MyMoneyContent() {
   } = useBudget();
   const { goals, addGoal, updateGoal, setActiveTab } = useApp();
 
-  const totalIncome = config.monthlyIncome || 0;
-  const savingsTarget = config.monthlySavingsTarget || 0;
+  // ── Empty state check ──
+  const clarityDone = localStorage.getItem('jfb_clarity_done') === 'true';
+
+  // ── Persona ──
+  const persona = useMemo(() => {
+    try {
+      const m0 = JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null');
+      return getPersona(m0);
+    } catch { return null; }
+  }, []);
+  const personaName = persona?.n || null;
+
+  const totalIncome = Number(config.monthlyIncome) || 0;
+  const savingsTarget = Number(config.monthlySavingsTarget) || 0;
   const totalSpendingBudget = useMemo(() => expenseCategories.reduce((s, c) => s + (Number(c.monthlyBudget) || 0), 0), [expenseCategories]);
   const totalGoalContributions = useMemo(() => goals.reduce((s, g) => s + (Number(g.monthlyContribution) || 0), 0), [goals]);
   const freeAmount = totalIncome - totalFixed - savingsTarget - totalSpendingBudget - totalGoalContributions;
@@ -94,6 +109,8 @@ function MyMoneyContent() {
   const [showFab, setShowFab] = useState(false);
   const [prefillAmount, setPrefillAmount] = useState<number | undefined>();
   const [prefillCatId, setPrefillCatId] = useState<string | undefined>();
+  const [manageSubscriptions, setManageSubscriptions] = useState(false);
+  const [cancellingSubName, setCancellingSubName] = useState<string | null>(null);
 
   // Can I Afford
   const [affordInput, setAffordInput] = useState('');
@@ -120,11 +137,22 @@ function MyMoneyContent() {
     const afterDaily = daysRemaining > 0 ? afterFlex / daysRemaining : 0;
     const cat = expenseCategories.find(c => c.id === affordCatId);
     const catName = cat?.name || '';
-    if (afterFlex <= 0) return { text: `€${Math.abs(Math.round(afterFlex))} over budget`, color: '#FF9F0A', catName };
-    if (afterFlex > flexBudget * 0.3) return { text: 'Yes, comfortably', color: '#34C759', catName };
-    if (afterFlex > flexBudget * 0.1) return { text: 'Yes, but tighter', color: '#FFFFFF', catName };
-    return { text: `Tight. €${Math.round(afterDaily)}/day for ${daysRemaining} days`, color: '#FF9F0A', catName };
-  }, [affordNum, flexRemaining, daysRemaining, flexBudget, affordCatId, expenseCategories]);
+    const shortage = Math.abs(Math.round(afterFlex));
+    if (afterFlex <= 0) {
+      const text = getAffordText('over', personaName, Math.round(afterDaily), daysRemaining, shortage);
+      return { text, color: '#FF9F0A', catName };
+    }
+    if (afterFlex > flexBudget * 0.3) {
+      const text = getAffordText('comfortable', personaName, Math.round(afterDaily), daysRemaining, 0);
+      return { text, color: '#34C759', catName };
+    }
+    if (afterFlex > flexBudget * 0.1) {
+      const text = getAffordText('tight', personaName, Math.round(afterDaily), daysRemaining, 0);
+      return { text, color: '#FFFFFF', catName };
+    }
+    const text = getAffordText('tight', personaName, Math.round(afterDaily), daysRemaining, 0);
+    return { text, color: '#FF9F0A', catName };
+  }, [affordNum, flexRemaining, daysRemaining, flexBudget, affordCatId, expenseCategories, personaName]);
 
   // Sorted fixed cats with assigned colors
   const sortedFixed = useMemo(() =>
@@ -389,6 +417,85 @@ function MyMoneyContent() {
               );
             })}
 
+            {/* Subscription card in spending sub-view */}
+            {subView === 'spending' && (() => {
+              const recurringTxs = transactions.filter(t => t.isRecurring === true);
+              const subscriptionMap: Record<string, { name: string; amount: number; categoryId: string }> = {};
+              recurringTxs.forEach(t => {
+                const key = (t.description || 'Unknown').trim();
+                if (!subscriptionMap[key]) subscriptionMap[key] = { name: key, amount: Number(t.amount) || 0, categoryId: t.categoryId };
+              });
+              const subscriptions = Object.values(subscriptionMap);
+              const monthlySubTotal = subscriptions.reduce((s, sub) => s + sub.amount, 0);
+              const annualSubTotal = monthlySubTotal * 12;
+              const hourlyRate = totalIncome > 0 ? totalIncome / 160 : 0;
+              const hoursOfWork = hourlyRate > 0 ? Math.round(annualSubTotal / hourlyRate) : 0;
+
+              if (subscriptions.length === 0) return null;
+              return (
+                <div className="col-span-full rounded-xl p-3 mb-1" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw size={16} className="text-white/40" />
+                      <span className="text-sm font-bold text-white">Subscriptions</span>
+                    </div>
+                    <span className="text-base font-bold text-white">€{Math.round(monthlySubTotal)}/mo</span>
+                  </div>
+                  <div className="flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide">
+                    {subscriptions.map((sub, i) => {
+                      const cat = expenseCategories.find(c => c.id === sub.categoryId);
+                      const tintColor = cat ? getTint(cat.icon) : '#fff';
+                      return (
+                        <span key={i} className="shrink-0 flex items-center gap-1.5 px-2.5 rounded-full text-[11px] text-white/50"
+                          style={{ height: 28, background: 'rgba(255,255,255,0.08)' }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: tintColor }} />
+                          {sub.name} €{Math.round(sub.amount)}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <span className="text-[11px] text-white/25">Annual: €{annualSubTotal} · {hoursOfWork} hours of work/year</span>
+                    <button onClick={() => setManageSubscriptions(!manageSubscriptions)} className="text-[11px]" style={{ color: 'rgba(139,92,246,0.6)' }}>
+                      {manageSubscriptions ? 'Close' : 'Manage →'}
+                    </button>
+                  </div>
+                  {manageSubscriptions && (
+                    <div className="mt-2 border-t border-white/5 pt-2 space-y-1">
+                      {subscriptions.map((sub, i) => {
+                        const isCancelling = cancellingSubName === sub.name;
+                        const cat = expenseCategories.find(c => c.id === sub.categoryId);
+                        const tintColor = cat ? getTint(cat.icon) : '#fff';
+                        const newDaily = daysRemaining > 0 ? Math.round((flexRemaining + sub.amount) / daysRemaining) : 0;
+                        return (
+                          <div key={i}>
+                            <div className="flex items-center h-11">
+                              <span className="w-2 h-2 rounded-full mr-2" style={{ background: tintColor }} />
+                              <span className={`flex-1 text-[13px] text-white ${isCancelling ? 'line-through opacity-50' : ''}`}>{sub.name}</span>
+                              <span className="text-[12px] text-white/40 mr-3">€{sub.amount}/mo · €{sub.amount * 12}/yr</span>
+                              <button onClick={() => setCancellingSubName(isCancelling ? null : sub.name)} className="text-[11px]" style={{ color: 'rgba(139,92,246,0.5)' }}>
+                                {isCancelling ? 'Undo' : 'Cancel?'}
+                              </button>
+                            </div>
+                            {isCancelling && (
+                              <div className="ml-4 mb-2 text-[12px] space-y-1">
+                                <p style={{ color: 'rgba(52,199,89,0.5)' }}>Cancelling {sub.name}: saves €{sub.amount * 12}/yr. Daily budget: €{Math.round(dailyAllowance)} → €{newDaily}/day</p>
+                                {goals.length > 0 && <p style={{ color: 'rgba(52,199,89,0.4)' }}>{goals[0].name}: {Math.round(sub.amount / (goals[0].monthlyContribution || 1) * 4)} weeks sooner</p>}
+                                <div className="flex gap-2 mt-1">
+                                  <button onClick={() => { /* remove isRecurring from matching transactions */ setCancellingSubName(null); }} className="px-3 py-1 rounded-full text-[11px] text-white" style={{ background: 'rgba(52,199,89,0.2)' }}>Confirm cancel</button>
+                                  <button onClick={() => setCancellingSubName(null)} className="px-3 py-1 rounded-full text-[11px] text-white/30" style={{ background: 'rgba(255,255,255,0.08)' }}>Just checking</button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {subView === 'spending' && expenseCategories.map(cat => {
               const CatIcon = getIcon(cat.icon);
               const tint = getTint(cat.icon);
@@ -441,15 +548,19 @@ function MyMoneyContent() {
                           <span className="text-[10px] text-white/15">€0</span>
                           <span className="text-[10px] text-white/15">€{Math.round(budget + flexRemaining)}</span>
                         </div>
-                        {/* Impact */}
                         <div className="mt-2 text-[13px]">
                           {Math.round(sliderVal) === Math.round(budget) ? (
                             <span className="text-white/25">Drag to adjust</span>
-                          ) : sliderVal < budget ? (
-                            <span className="text-white/60">Reducing by €{Math.round(budget - sliderVal)}. Daily: €{Math.round(dailyAllowance)} → <span style={{ color: hexToRgba('#34C759', 0.7) }}>€{Math.round((flexRemaining + budget - sliderVal) / daysRemaining)}/day</span></span>
-                          ) : (
-                            <span className="text-white/60">Adding €{Math.round(sliderVal - budget)}. Daily: €{Math.round(dailyAllowance)} → <span style={{ color: hexToRgba('#FF9F0A', 0.7) }}>€{Math.round((flexRemaining + budget - sliderVal) / daysRemaining)}/day</span></span>
-                          )}
+                          ) : (() => {
+                            const diff = Math.round(sliderVal) - Math.round(budget);
+                            const newDaily = Math.round((flexRemaining + budget - sliderVal) / daysRemaining);
+                            const nearestGoal = goals[0]?.name;
+                            const goalText = nearestGoal ? `→ ${nearestGoal}` : '';
+                            const text = getImpactText(diff, newDaily, goalText, personaName);
+                            return (
+                              <span className="text-white/60">{text}</span>
+                            );
+                          })()}
                         </div>
                         {Math.round(sliderVal) !== Math.round(budget) && (
                           <div className="flex justify-center gap-3 mt-3">
@@ -584,6 +695,24 @@ function MyMoneyContent() {
       </motion.div>
     );
   };
+
+  // ── Empty state when Clarity not done ──
+  if (!clarityDone) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center px-8" style={{ background: 'linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
+        <motion.img src={johnnyImage} alt="Johnny" className="w-16 h-16 object-contain mb-4"
+          animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
+        <h2 className="text-xl font-bold text-white mb-2 text-center">Set up your finances</h2>
+        <p className="text-sm text-white/30 text-center max-w-[260px] mb-6">Complete the Financial Clarity quest on your Profile to unlock your budget</p>
+        <button onClick={() => setActiveTab(2)}
+          className="flex items-center gap-2 px-6 rounded-2xl text-sm text-white/50 font-medium"
+          style={{ height: 48, width: 200, justifyContent: 'center', background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)', borderRadius: 16 }}>
+          <User size={18} />
+          Go to Profile
+        </button>
+      </div>
+    );
+  }
 
   // ── Main Render ──
   return (

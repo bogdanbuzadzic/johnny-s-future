@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Star, Lock, ChevronRight, Settings, Check, X, Plus, Trophy, Gift, Sparkles,
-  UserCircle, Bell, Palette, Download, Shield, Info, Flame, Hourglass, Users, BookOpen, Eye, Zap, PiggyBank, AlertTriangle, Target, TrendingUp, Clock
+  UserCircle, Bell, Palette, Download, Shield, Info, Flame, Hourglass, Users, BookOpen, Eye, Zap, PiggyBank, AlertTriangle, Target, TrendingUp, Clock, Heart
 } from 'lucide-react';
+import { getPersonaObservation } from '@/lib/personaMessaging';
 import { useApp } from '@/context/AppContext';
 import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { useToast } from '@/hooks/use-toast';
@@ -569,26 +570,33 @@ function ProfileScreenContent() {
             <h3 className="text-sm font-bold text-white">Johnny's Notes</h3>
             <BookOpen className="w-3.5 h-3.5 text-white/25" />
           </div>
-          {observations.length > 0 ? observations.map((obs, i) => {
-            const ObsIcon = OBS_ICONS[obs.icon] || Star;
-            const obsColor = OBS_COLORS[obs.icon] || '#fff';
+          {(() => {
+            // Prepend persona observation
+            const personaObs = persona ? getPersonaObservation(persona.n) : null;
+            const allObs = personaObs ? [personaObs, ...observations] : observations;
+            if (allObs.length > 0) {
+              return allObs.map((obs: any, i: number) => {
+                const ObsIcon = OBS_ICONS[obs.icon] || Star;
+                const obsColor = OBS_COLORS[obs.icon] || obs.color || '#fff';
+                return (
+                  <div key={i} className="flex items-start gap-3 mb-2 last:mb-0">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: `${obsColor}33` }}>
+                      <ObsIcon className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: obsColor, opacity: 0.6 }} />
+                    </div>
+                    <p className="text-[13px] text-white/50 leading-relaxed">{obs.text}</p>
+                  </div>
+                );
+              });
+            }
             return (
-              <div key={i} className="flex items-start gap-3 mb-2 last:mb-0">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: `${obsColor}33` }}>
-                  <ObsIcon className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: obsColor, opacity: 0.6 }} />
-                </div>
-                <p className="text-[13px] text-white/50 leading-relaxed">{obs.text}</p>
+              <div className="flex flex-col items-center gap-2 py-3">
+                <img src={johnnyImg} alt="Johnny" className="w-12 h-12" />
+                <p className="text-sm text-white/30">I'm still getting to know you!</p>
+                <p className="text-xs text-white/20">Complete your first quest and I'll share what I learn.</p>
               </div>
             );
-          }) : (
-            <div className="flex flex-col items-center gap-2 py-3">
-              <img src={johnnyImg} alt="Johnny" className="w-12 h-12" />
-              <p className="text-sm text-white/30">I'm still getting to know you!</p>
-              <p className="text-xs text-white/20">Complete your first quest and I'll share what I learn.</p>
-            </div>
-          )}
+          })()}
         </div>
-
         {/* ═══ 7. SETTINGS BUTTON ═══ */}
         <button onClick={() => setSettingsOpen(true)}
           className="w-full h-12 rounded-2xl flex items-center gap-3 px-4"
