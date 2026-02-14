@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Star, Lock, ChevronRight, Settings, Check, X, Plus, Trophy, Gift, Sparkles,
-  UserCircle, Bell, Palette, Download, Shield, Info, Flame, Hourglass, Users, BookOpen, Eye, Zap, PiggyBank, AlertTriangle, Target, TrendingUp, Clock, Heart
+  UserCircle, Bell, Palette, Download, Shield, Info, Flame, Hourglass, Users, BookOpen, Eye, Zap, PiggyBank, AlertTriangle, Target, TrendingUp, Clock, Heart, Trash2
 } from 'lucide-react';
 import { getPersonaObservation } from '@/lib/personaMessaging';
 import { useApp } from '@/context/AppContext';
@@ -93,6 +93,13 @@ function ProfileScreenContent() {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const handleResetAll = useCallback(() => {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('jfb_') || k === 'jfb-budget-data');
+    keys.forEach(k => localStorage.removeItem(k));
+    window.location.reload();
+  }, []);
 
   // ── localStorage reads ──
   const readDone = useCallback(() => {
@@ -649,6 +656,33 @@ function ProfileScreenContent() {
                 <button onClick={handleSaveName} className="h-10 px-4 rounded-xl gradient-primary text-white text-sm font-semibold">Save</button>
               </div>
             )}
+
+            {/* Reset button */}
+            <div className="pt-4 border-t border-white/[0.06] mt-2">
+              {!confirmReset ? (
+                <button onClick={() => setConfirmReset(true)}
+                  className="w-full h-[52px] rounded-2xl flex items-center gap-3 px-4"
+                  style={{ background: 'rgba(239,68,68,0.10)' }}>
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                    <Trash2 className="w-4 h-4 text-red-400/70" strokeWidth={1.5} />
+                  </div>
+                  <span className="flex-1 text-left text-sm text-red-400/70">Reset &amp; Start Over</span>
+                  <ChevronRight className="w-4 h-4 text-red-400/30" />
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-red-400 text-center">This will permanently delete all your data.</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmReset(false)}
+                      className="flex-1 h-10 rounded-xl text-sm text-white/50"
+                      style={{ background: 'rgba(255,255,255,0.08)' }}>Cancel</button>
+                    <button onClick={handleResetAll}
+                      className="flex-1 h-10 rounded-xl text-sm font-semibold text-white"
+                      style={{ background: 'rgba(239,68,68,0.5)' }}>Delete Everything</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </SheetContent>
       </Sheet>
