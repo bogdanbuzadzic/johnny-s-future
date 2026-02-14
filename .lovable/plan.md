@@ -1,169 +1,186 @@
 
 
-# Profile Screen Fix - Prompt 2 of 2: Bottom Section Redesign
+# MVP Alignment - Complete Fix (3 Prompts)
 
-## Overview
-Fix the bottom half of the Profile screen (lines 373-563 of ProfileScreen.tsx) to add color, contrast, and life to the Financial DNA card, Level Progress, Trophy Case, Johnny's Observations, and Settings button.
-
-## File Changed
-**`src/components/screens/ProfileScreen.tsx`** (only file modified)
+This is a large, multi-feature implementation covering data flow fixes, new features, and persona-adaptive messaging across the entire app.
 
 ---
 
-## Changes
+## Prompt 1: No Preset Data + Calculations Fix + Terrain Connection
 
-### 1. Financial DNA Card (lines 373-464)
+### 1A. Empty State for My Money (when Clarity not done)
 
-**Card background**: Change `rgba(255,255,255,0.12)` to `rgba(255,255,255,0.18)`
+**File: `src/components/screens/MyMoneyScreen.tsx`**
 
-**Pentagon chart grid lines** (line 396): Change `rgba(255,255,255,0.05)` to `rgba(255,255,255,0.10)`
+- At the top of `MyMoneyContent`, check `localStorage.getItem('jfb_clarity_done') === 'true'`
+- If NOT done, render a full-screen empty state instead of the normal dashboard:
+  - Johnny tamagotchi (64px, idle bob animation)
+  - "Set up your finances" heading (20px bold white)
+  - Description text (14px white/30)
+  - "Go to Profile" frosted button that calls `setActiveTab(2)`
+  - Hide FAB, Can I Afford, mode toggle, zoom, macro container, impact summary
+- If done, render the normal dashboard (no changes to existing layout)
 
-**Axis lines** (line 401): Change `rgba(255,255,255,0.08)` to `rgba(255,255,255,0.15)`
+### 1B. Calculations Engine Fix
 
-**Radar fill gradient** (lines 385-387): Change both `stopOpacity="0.15"` to `stopOpacity="0.30"`
+**File: `src/context/BudgetContext.tsx`**
 
-**Radar stroke gradient** (lines 389-391): Change both `stopOpacity="0.4"` to `stopOpacity="0.6"`, strokeWidth from `"2"` to `"2.5"`
+The existing BudgetContext already has the correct structure (localStorage persistence, useMemo calculations, addTransaction with number coercion). Key issues to verify/fix:
 
-**Axis labels**: Add a color map for the 5 dimensions and render colored Lucide icons at each axis endpoint instead of plain text:
-```text
-Risk (Flame): #F97316
-Time (Hourglass): #14B8A6
-Confidence (Shield): #6366F1
-Social (Users): #EC4899
-Script (BookOpen): #EAB308
-```
-- Each axis label text stays as-is but uses the dimension's color at 70% opacity
-- Score numbers for completed axes render in the matching axis color
-- Locked axes show "?" in `white/20` with a small Lock icon (8px, `white/15`)
+- Storage key is `jfb-budget-data` (single blob). The prompt references separate keys (`jfb_transactions`, etc.) but the existing context uses a combined key. We keep the existing approach since the Clarity questionnaire already writes to it via `updateConfig` and `addCategory`.
+- Ensure `totalIncome` uses `Number()` coercion: change line 130 from `config.monthlyIncome` to `Number(config.monthlyIncome) || 0`
+- Ensure `savingsTarget` uses `Number()`: change line 135 from `config.monthlySavingsTarget` to `Number(config.monthlySavingsTarget) || 0`
+- Ensure `totalFixed` uses `Number()`: already uses `c.monthlyBudget` directly, add `Number()` wrapper
+- Add `Goal` type and goals state to BudgetContext (currently goals live in AppContext with hardcoded initial data)
 
-**Stat pills** (lines 436-449): Replace monochrome purple background with per-dimension colored tints:
-- Each pill gets its axis color at 25% opacity as background
-- Completed: icon + score in white
-- Locked: icon + "?" in `white/30`
+**File: `src/context/AppContext.tsx`**
 
-**Persona section** (lines 452-463):
-- Change divider from `border-white/5` to `border-white/8`
-- "Your Persona" label: 11px `white/25`
-- Name: 18px bold white (already correct)
-- Description: 12px `white/40` (already correct)
-- Style line: 11px `white/25`
-- Empty state text: increase from 12px to 14px, `white/20` to `white/30`, text: "Complete quests to reveal your DNA"
+- Remove the hardcoded `initialGoals` array (lines 164-205). Replace with empty array `[]`
+- Goals created by Clarity questionnaire via `addGoal` will populate this
 
-### 2. Level Progress (lines 466-476)
+**File: `src/components/screens/MyMoneyScreen.tsx`**
 
-- Bar height: change from `h-2` (8px) to `h-2.5` (10px)
-- Bar background: change `bg-white/[0.08]` to `bg-white/[0.12]`
-- Fill: ensure it uses `background: linear-gradient(90deg, #8B5CF6, #EC4899)` explicitly (currently uses `gradient-primary` class)
-- Current level text: already `font-bold text-white` -- keep
-- Next level text: change from `text-white/25` to `text-white/30`
-- Hint text: change from 11px `white/25` to 12px `white/25`
+- The screen already reads from `useBudget()` and computes `categorySpentMap` correctly
+- Verify `categorySpentMap` uses the same month-filtering logic as BudgetContext
+- Remove any fallback hardcoded values (none found in current code, but verify)
 
-### 3. Trophy Case (lines 478-530)
+**File: `src/components/budget/AddTransactionSheet.tsx`**
 
-**Card background**: Change to `rgba(255,255,255,0.15)` with a subtle warm tint by adding a second background layer
+- Already uses `addTransaction` from `useBudget()` with `amount` as parsed float and `categoryId` as `selectedCategoryId` (the UUID). This is correct.
 
-**Header**: Add Trophy icon (16px, `#FFD700`) next to "Trophy Case" text. Change to 16px bold.
+### 1C. Terrain Reads Fresh Data
 
-**Featured badge slots** (lines 486-507):
-- Earned badge slot:
-  - Background: `badge.tint` at 30% (change from `+ '25'` to `+ '4D'` hex)
-  - Border: 2px solid tint at 40%
-  - Icon: 28px, `white/90`
-  - Size: 64px square, 14px radius
-  - Keep shimmer animation
-  - Name below: 10px in tint color at 70%
+**File: `src/components/sheets/TodayDrawer.tsx`**
 
-- Empty slot (replace Plus icon + "Empty"):
-  - Background: `rgba(255,255,255,0.06)`
-  - Border: 2px dashed `rgba(255,255,255,0.12)`
-  - Center: Sparkles icon (20px, `white/15`) with subtle pulse animation
-  - Label: "Earn a badge!" 9px `white/15`
+- Already reads fresh from localStorage every time drawer opens (lines 197-202: `useMemo` with `[open]` dependency calling `readBudgetFromStorage()`)
+- This is already correctly implemented. No changes needed.
 
-**All Badges row** (lines 510-529):
-- Divider: `border-white/6`
-- Counter text: "[X]/12 collected" in `white/20`
-- Each unlocked badge (44px):
-  - Background: `badge.tint` at 25%
-  - Border: 1.5px solid tint at 30%
-  - Icon: 20px, `white/80`
-  - Name below: 8px in tint at 60%
-- Each locked badge:
-  - Background: `rgba(255,255,255,0.04)`
-  - Border: 1px solid `rgba(255,255,255,0.06)`
-  - Icon: 18px, `white/8`
-  - Lock overlay: 10px, `white/12`
-  - Label: "???" 8px `white/8`
+**File: `src/components/terrain/TerrainPath.tsx`**
 
-### 4. Johnny's Observations (lines 532-551)
+- Verify it receives fresh data from SimulationProvider props (it does via `useSimulation()`)
+- No changes needed here.
 
-**Card background**: Change to `rgba(255,255,255,0.15)`
+### 1D. Remove Hardcoded Default Data
 
-**Header**: Add Notebook-style icon (use BookOpen at 14px, `white/25`) next to title
+**File: `src/components/sheets/TodayDrawer.tsx`**
 
-**Observation icon colors**: Add a color map for each icon type:
-```text
-Eye: #3B82F6 (blue)
-Zap: #F97316 (orange)
-PiggyBank: #34C759 (green)
-Clock: #14B8A6 (teal)
-Star: #EAB308 (yellow)
-AlertTriangle: #F97316 (orange)
-TrendingUp: #34C759 (green)
-Target: #EC4899 (pink)
-```
-- Each observation row's icon circle gets its color at 20% opacity as background
-- Icon rendered in the matching color at 60%
-
-**Empty state** (line 549): Replace single text line with:
-- Johnny image (48px) centered
-- "I'm still getting to know you!" 14px `white/30`
-- "Complete your first quest and I'll share what I learn." 12px `white/20`
-
-### 5. Settings Button (lines 553-560)
-
-**Background**: Change from `rgba(255,255,255,0.08)` to `rgba(255,255,255,0.10)`
-
-**Icon circle**: Wrap Settings icon in a 28px circle with `rgba(255,255,255,0.08)` background (neutral, not purple-tinted)
-
-**Settings sheet rows** (lines 582-594): Change icon circle backgrounds from `rgba(139,92,246,0.15)` to `rgba(255,255,255,0.08)` and icon color from `text-purple-400` to `text-white/50` -- keeping settings utilitarian and neutral
-
-### 6. Add DIMENSION_COLORS constant
-
-Add near the top of the file (after NODE_COLORS):
-```text
-DIMENSION_COLORS = {
-  module1: '#F97316',   // Risk - orange
-  module2: '#14B8A6',   // Time - teal
-  module3: '#6366F1',   // Confidence - indigo
-  module4: '#EC4899',   // Social - pink
-  module5: '#EAB308',   // Script - yellow
-}
-```
-
-### 7. Add OBS_COLORS constant
-
-Add near OBS_ICONS:
-```text
-OBS_COLORS = {
-  Eye: '#3B82F6',
-  Zap: '#F97316',
-  PiggyBank: '#34C759',
-  Clock: '#14B8A6',
-  Star: '#EAB308',
-  AlertTriangle: '#F97316',
-  TrendingUp: '#34C759',
-  Target: '#EC4899',
-}
-```
-
-### 8. Import Sparkles icon
-
-Add `Sparkles` to the lucide-react import (line 4).
+- Lines 68 and 206: fallback values `flexRemaining: 738, dailyAllowance: 44, daysRemaining: 7, monthlyIncome: 2400` are shown when `setupComplete` is false. Change these to zeros: `flexRemaining: 0, dailyAllowance: 0, daysRemaining: 0, monthlyIncome: 0, averageDailySpend: 0`
 
 ---
 
-## No changes to
-- `src/lib/profileData.ts`
-- `src/components/profile/QuestionnaireOverlay.tsx`
-- Top half of ProfileScreen (avatar, quest path) -- already fixed in Prompt 1
+## Prompt 2: Subscription Tracking + Cash Flow Forecasting
+
+### 2A. Subscription Tracking in Spending Sub-Tetris
+
+**File: `src/components/screens/MyMoneyScreen.tsx`**
+
+- Inside `renderSubTetris()`, when `subView === 'spending'`, add a subscription summary card ABOVE the spending category blocks
+- Detect recurring transactions: `transactions.filter(t => t.isRecurring === true)`
+- Group by description to get unique subscriptions
+- Calculate monthly total, annual total, hours-of-work equivalent
+- Render:
+  - Frosted card with header: RefreshCw icon + "Subscriptions" + monthly total
+  - Horizontal scroll of subscription pills with category tint dots
+  - "Annual: [X] -- [Y] hours of work/year" summary
+  - "Manage" toggle that expands to show full list with "Cancel?" per item
+  - Cancel simulation: strikethrough, savings preview, goal impact, Confirm/Just checking buttons
+  - On confirm: remove `isRecurring` flag from matching transactions
+
+### 2B. Cash Flow Forecasting (Extended Terrain)
+
+**File: `src/components/terrain/TerrainPath.tsx`**
+
+- Add a time range toggle above the terrain: "1M" | "3M" | "6M" | "1Y" as frosted pills
+- State: `const [range, setRange] = useState<'1M'|'3M'|'6M'|'1Y'>('1M')`
+- Extended calculation loop for up to 365 days:
+  - Monthly salary on the 1st (after first month)
+  - Recurring bill deductions on due dates
+  - Average daily spend deduction
+  - Balance tracking with floor at -2000
+- Rendering adjustments per range: px/day, obstacle filtering, date axis labels
+- Goal flags at projected achievement dates
+- Keep existing 1M behavior as default
+
+**File: `src/components/sheets/TodayDrawer.tsx`**
+
+- Pass additional data to TerrainPath/SimulationProvider for extended forecasting (recurring transactions, goals)
+
+---
+
+## Prompt 3: Persona-Adaptive Messaging
+
+### 3A. Persona Tips Data
+
+**File: `src/lib/personaMessaging.ts`** (NEW FILE)
+
+- Export `tipsByPersona` object with arrays per persona type + "default"
+- Export `getImpactText(diff, newDaily, goalText, persona)` function
+- Export `getAffordText(result, persona, daily, days, shortage)` function
+- Export `getCelebration(moduleName, persona)` function
+- Export `getPersonaObservation(persona)` function returning icon/color/text
+
+### 3B. Johnny's Tips on Home Screen
+
+**File: `src/components/screens/HomeScreen.tsx`**
+
+- Read persona from localStorage: `getPersona(JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'))`
+- Use `tipsByPersona[persona?.n || 'default']` for the tip text
+- Replace static "Your Financial Co-pilot" subtitle with rotating persona-specific tips
+- Rotate tips by day index: `tips[new Date().getDate() % tips.length]`
+
+### 3C. Johnny's Tips on My Money
+
+**File: `src/components/screens/MyMoneyScreen.tsx`**
+
+- Add a JohnnyTip component below the impact summary (or above macro container)
+- Read persona, select tips from `tipsByPersona`
+- For dynamic tips that reference data (e.g., "[X]% used"), interpolate calc values
+
+### 3D. Slider Impact Text
+
+**File: `src/components/screens/MyMoneyScreen.tsx`**
+
+- In the spending block expanded view (lines 445-452), replace hardcoded impact text with `getImpactText()`
+- Pass current persona, diff, newDaily, and goal text
+
+### 3E. Can I Afford Answer Text
+
+**File: `src/components/screens/MyMoneyScreen.tsx`**
+
+- In `affordAnswer` useMemo (lines 117-127), use `getAffordText()` with persona
+- Map existing result categories (comfortable/tight/over) to persona-specific text
+
+### 3F. Johnny's Observations on Profile
+
+**File: `src/components/screens/ProfileScreen.tsx`**
+
+- In the observations section, prepend a persona-specific observation using `getPersonaObservation(persona?.n)`
+- Uses the icon/color/text mapping from the prompt
+
+### 3G. Quest Celebration Text
+
+**File: `src/components/profile/QuestionnaireOverlay.tsx`**
+
+- In the completion screen (line 160), replace "Quest Complete!" with `getCelebration(node.name, persona?.n)`
+- Read persona from localStorage
+
+---
+
+## Technical Notes
+
+- **Storage keys**: The app uses `jfb-budget-data` as a single blob for budget config/categories/transactions. Goals are in AppContext state (not persisted). The Clarity questionnaire writes to both via `updateConfig`/`addCategory`/`addGoal`.
+- **Persona detection**: `getPersona()` in `profileData.ts` derives persona from Module 0 answers (`jfb_module0_answers`). No separate `jfb_persona` key exists; we read Module 0 answers and call `getPersona()`.
+- **Goal persistence gap**: Goals in AppContext use hardcoded `initialGoals` and reset on reload. Prompt 1 removes these defaults. Goals from Clarity will also be lost on reload since AppContext doesn't persist. Consider adding localStorage persistence for goals in AppContext.
+- **File count**: ~7 files modified, 1 new file created.
+
+## Implementation Order
+
+1. Remove hardcoded goals from AppContext (add localStorage persistence for goals)
+2. Fix Number() coercion in BudgetContext
+3. Add empty state to MyMoneyScreen
+4. Remove fallback values from TodayDrawer
+5. Create personaMessaging.ts
+6. Add subscription tracking to MyMoneyScreen sub-tetris
+7. Add terrain range toggle to TerrainPath
+8. Wire persona messaging across HomeScreen, MyMoneyScreen, ProfileScreen, QuestionnaireOverlay
 
