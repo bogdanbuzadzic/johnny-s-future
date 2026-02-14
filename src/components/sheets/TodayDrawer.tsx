@@ -65,7 +65,7 @@ function TodayDrawerContent({ onClose, budgetData }: TodayDrawerProps & { budget
   // Compute display values from budget data
   const computed = useMemo(() => {
     if (!budgetData || !budgetData.config.setupComplete) {
-      return { flexRemaining: 738, dailyAllowance: 44, percentSpent: 65, percentMonth: 77, paceStatus: 'on-track' as const, daysRemaining: 7, monthlyIncome: 2400 };
+      return { flexRemaining: 0, dailyAllowance: 0, percentSpent: 0, percentMonth: 0, paceStatus: 'on-track' as const, daysRemaining: 0, monthlyIncome: 0 };
     }
 
     const now = new Date();
@@ -203,7 +203,7 @@ export function TodayDrawer({ open, onClose }: TodayDrawerProps) {
 
   const computed = useMemo(() => {
     if (!budgetData || !budgetData.config.setupComplete) {
-      return { flexRemaining: 738, dailyAllowance: 44, daysRemaining: 7, monthlyIncome: 2400, averageDailySpend: 37 };
+      return { flexRemaining: 0, dailyAllowance: 0, daysRemaining: 0, monthlyIncome: 0, averageDailySpend: 0 };
     }
 
     const now = new Date();
