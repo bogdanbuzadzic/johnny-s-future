@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Star, Lock, ChevronRight, Settings, Check, X, Plus, Trophy, Gift,
+  Star, Lock, ChevronRight, Settings, Check, X, Plus, Trophy, Gift, Sparkles,
   UserCircle, Bell, Palette, Download, Shield, Info, Flame, Hourglass, Users, BookOpen, Eye, Zap, PiggyBank, AlertTriangle, Target, TrendingUp, Clock
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
@@ -19,6 +19,14 @@ import johnnyImg from '@/assets/johnny.png';
 
 // ── Observation icon map ──
 const OBS_ICONS: Record<string, any> = { Eye, Zap, PiggyBank, Clock, AlertTriangle, Star, TrendingUp, Target };
+const OBS_COLORS: Record<string, string> = {
+  Eye: '#3B82F6', Zap: '#F97316', PiggyBank: '#34C759', Clock: '#14B8A6',
+  Star: '#EAB308', AlertTriangle: '#F97316', TrendingUp: '#34C759', Target: '#EC4899',
+};
+
+const DIMENSION_COLORS: Record<string, string> = {
+  module1: '#F97316', module2: '#14B8A6', module3: '#6366F1', module4: '#EC4899', module5: '#EAB308',
+};
 
 // ── Count-up hook ──
 function useCountUp(target: number, duration = 800) {
@@ -371,7 +379,7 @@ function ProfileScreenContent() {
         </div>
 
         {/* ═══ 3. FINANCIAL DNA CARD ═══ */}
-        <div className="rounded-[20px] p-5" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
+        <div className="rounded-[20px] p-5" style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)' }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-bold text-white">Financial DNA</h3>
             <Info className="w-4 h-4 text-white/25" />
@@ -382,23 +390,23 @@ function ProfileScreenContent() {
             <svg width="200" height="200" viewBox="0 0 200 200">
               <defs>
                 <linearGradient id="radar-fill" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.15" />
-                  <stop offset="100%" stopColor="#FF6B9D" stopOpacity="0.15" />
+                  <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.30" />
+                  <stop offset="100%" stopColor="#FF6B9D" stopOpacity="0.30" />
                 </linearGradient>
                 <linearGradient id="radar-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#FF6B9D" stopOpacity="0.4" />
+                  <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="#FF6B9D" stopOpacity="0.6" />
                 </linearGradient>
               </defs>
               {/* Grid lines */}
               {[0.25, 0.5, 0.75, 1].map(pct => {
                 const pts = Array.from({ length: 5 }, (_, i) => radarPoint(100, 100, 75 * pct, i));
-                return <polygon key={pct} points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />;
+                return <polygon key={pct} points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1" />;
               })}
               {/* Axis lines */}
               {Array.from({ length: 5 }, (_, i) => {
                 const p = radarPoint(100, 100, 75, i);
-                return <line key={i} x1={100} y1={100} x2={p.x} y2={p.y} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />;
+                return <line key={i} x1={100} y1={100} x2={p.x} y2={p.y} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />;
               })}
               {/* Data polygon */}
               {(() => {
@@ -415,17 +423,23 @@ function ProfileScreenContent() {
                   <motion.polygon
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5, duration: 0.8 }}
                     points={pts.map(p => `${p.x},${p.y}`).join(' ')}
-                    fill="url(#radar-fill)" stroke="url(#radar-stroke)" strokeWidth="2" />
+                    fill="url(#radar-fill)" stroke="url(#radar-stroke)" strokeWidth="2.5" />
                 );
               })()}
-              {/* Axis labels */}
+              {/* Axis labels with colored icons */}
               {DIMENSION_LABELS.map((d, i) => {
                 const p = radarPoint(100, 100, 92, i);
                 const done = doneFlags[d.key];
+                const dimColor = DIMENSION_COLORS[d.key] || '#fff';
+                const score = done && dimensionAnswers[d.key] ? getDimensionScore(d.key, dimensionAnswers[d.key]) : null;
                 return (
                   <g key={d.key}>
-                    <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,0.3)" fontSize="9">{d.label}</text>
-                    {!done && <text x={p.x} y={p.y + 12} textAnchor="middle" fill="rgba(255,255,255,0.15)" fontSize="8">?</text>}
+                    <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill={done ? dimColor : 'rgba(255,255,255,0.3)'} fontSize="9" opacity={done ? 0.7 : 1}>{d.label}</text>
+                    {done && score !== null ? (
+                      <text x={p.x} y={p.y + 12} textAnchor="middle" fill={dimColor} fontSize="9" fontWeight="bold">{score}</text>
+                    ) : (
+                      <text x={p.x} y={p.y + 12} textAnchor="middle" fill="rgba(255,255,255,0.20)" fontSize="8">?</text>
+                    )}
                   </g>
                 );
               })}
@@ -436,13 +450,14 @@ function ProfileScreenContent() {
           <div className="flex gap-2 justify-center flex-wrap">
             {DIMENSION_LABELS.map((d, i) => {
               const done = doneFlags[d.key];
-              const Icon = d.Icon;
+              const DIcon = d.Icon;
+              const dimColor = DIMENSION_COLORS[d.key] || '#fff';
               const score = done && dimensionAnswers[d.key] ? getDimensionScore(d.key, dimensionAnswers[d.key]) : null;
               return (
                 <motion.div key={d.key} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 + i * 0.1 }}
                   className="flex items-center gap-1 px-2 h-7 rounded-full text-xs"
-                  style={{ background: done ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.05)', color: done ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.3)' }}>
-                  <Icon className="w-3 h-3" strokeWidth={1.5} />
+                  style={{ background: done ? `${dimColor}40` : 'rgba(255,255,255,0.05)', color: done ? 'white' : 'rgba(255,255,255,0.3)' }}>
+                  <DIcon className="w-3 h-3" strokeWidth={1.5} />
                   <span>{done ? score : '?'}</span>
                 </motion.div>
               );
@@ -451,15 +466,15 @@ function ProfileScreenContent() {
 
           {/* Persona */}
           {persona && (
-            <div className="mt-4 pt-4 border-t border-white/5">
-              <p className="text-xs text-white/30 mb-1">Your Persona</p>
+            <div className="mt-4 pt-4 border-t border-white/[0.08]">
+              <p className="text-[11px] text-white/25 mb-1">Your Persona</p>
               <p className="text-lg font-bold text-white">{persona.n}</p>
               <p className="text-xs text-white/40 mt-1">{persona.d}</p>
-              <p className="text-[10px] text-white/25 mt-1">Style: {persona.s}</p>
+              <p className="text-[11px] text-white/25 mt-1">Style: {persona.s}</p>
             </div>
           )}
           {!persona && (
-            <p className="text-xs text-white/15 text-center mt-3">Complete quests to discover your persona</p>
+            <p className="text-sm text-white/30 text-center mt-3">Complete quests to reveal your DNA</p>
           )}
         </div>
 
@@ -467,18 +482,19 @@ function ProfileScreenContent() {
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="font-bold text-white">{levelTitle}</span>
-            <span className="text-white/25">{tier.next || 'Max Level'}</span>
+            <span className="text-white/30">{tier.next || 'Max Level'}</span>
           </div>
-          <div className="w-full h-2 rounded bg-white/[0.08] overflow-hidden">
-            <motion.div className="h-full rounded gradient-primary" initial={{ width: 0 }} animate={{ width: `${tierProgress}%` }} transition={{ delay: 0.3, duration: 0.6 }} />
+          <div className="w-full h-2.5 rounded bg-white/[0.12] overflow-hidden">
+            <motion.div className="h-full rounded" style={{ background: 'linear-gradient(90deg, #8B5CF6, #EC4899)' }} initial={{ width: 0 }} animate={{ width: `${tierProgress}%` }} transition={{ delay: 0.3, duration: 0.6 }} />
           </div>
-          {nextQuestName && <p className="text-[11px] text-white/25">Next: Complete {nextQuestName} to level up</p>}
+          {nextQuestName && <p className="text-xs text-white/25">Next: Complete {nextQuestName} to level up</p>}
         </div>
 
         {/* ═══ 5. BADGE SHOWCASE ═══ */}
-        <div className="rounded-[20px] p-4" style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-white">Trophy Case</h3>
+        <div className="rounded-[20px] p-4" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Trophy className="w-4 h-4" style={{ color: '#FFD700' }} />
+            <h3 className="text-base font-bold text-white">Trophy Case</h3>
           </div>
 
           {/* Featured badges */}
@@ -488,29 +504,31 @@ function ProfileScreenContent() {
               if (badge) {
                 return (
                   <button key={badge.key} onClick={() => handleBadgeTap(badge)} className="flex flex-col items-center gap-1.5">
-                    <div className="w-[56px] h-[56px] rounded-[14px] flex items-center justify-center relative overflow-hidden" style={{ background: badge.tint + '25' }}>
-                      <badge.Icon className="w-7 h-7" style={{ color: badge.tint }} strokeWidth={1.5} />
-                      <div className="absolute inset-0" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.12) 50%, transparent 70%)', animation: 'shimmer 4s infinite' }} />
+                    <div className="w-16 h-16 rounded-[14px] flex items-center justify-center relative overflow-hidden"
+                      style={{ background: badge.tint + '4D', border: `2px solid ${badge.tint}66` }}>
+                      <badge.Icon className="w-7 h-7 text-white/90" strokeWidth={1.5} />
+                      <div className="absolute inset-0" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.10) 50%, transparent 70%)', animation: 'shimmer 4s infinite' }} />
                     </div>
-                    <span className="text-[10px] text-white/60 w-16 text-center truncate">{badge.name}</span>
+                    <span className="text-[10px] w-16 text-center truncate" style={{ color: badge.tint, opacity: 0.7 }}>{badge.name}</span>
                   </button>
                 );
               }
               return (
                 <div key={i} className="flex flex-col items-center gap-1.5">
-                  <div className="w-[56px] h-[56px] rounded-[14px] border-2 border-dashed border-white/10 flex items-center justify-center">
-                    <Plus className="w-5 h-5 text-white/10" />
+                  <div className="w-16 h-16 rounded-[14px] flex items-center justify-center"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '2px dashed rgba(255,255,255,0.12)' }}>
+                    <Sparkles className="w-5 h-5 text-white/15" style={{ animation: 'sparkle-pulse 3s ease-in-out infinite' }} />
                   </div>
-                  <span className="text-[10px] text-white/15">Empty</span>
+                  <span className="text-[9px] text-white/15">Earn a badge!</span>
                 </div>
               );
             })}
           </div>
 
-          <div className="border-t border-white/5 pt-3">
+          <div className="border-t border-white/[0.06] pt-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-white/30">All Badges</span>
-              <span className="text-xs text-white/30">{totalEarned}/{BADGES.length}</span>
+              <span className="text-xs text-white/20">{totalEarned}/{BADGES.length} collected</span>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {BADGES.map((b, i) => {
@@ -518,10 +536,18 @@ function ProfileScreenContent() {
                 return (
                   <motion.button key={b.key} onClick={() => handleBadgeTap(b)}
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 + i * 0.04 }}
-                    className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center relative"
-                    style={{ background: unlocked ? b.tint + '20' : 'rgba(255,255,255,0.03)' }}>
-                    <b.Icon className="w-4 h-4" strokeWidth={1.5} style={{ color: unlocked ? b.tint : 'rgba(255,255,255,0.08)' }} />
-                    {!unlocked && <Lock className="w-2 h-2 text-white/10 absolute bottom-0.5 right-0.5" />}
+                    className="shrink-0 flex flex-col items-center gap-0.5">
+                    <div className="w-11 h-11 rounded-full flex items-center justify-center relative"
+                      style={{
+                        background: unlocked ? b.tint + '40' : 'rgba(255,255,255,0.04)',
+                        border: unlocked ? `1.5px solid ${b.tint}4D` : '1px solid rgba(255,255,255,0.06)',
+                      }}>
+                      <b.Icon className="w-5 h-5" strokeWidth={1.5} style={{ color: unlocked ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.08)' }} />
+                      {!unlocked && <Lock className="w-2.5 h-2.5 absolute bottom-0.5 right-0.5" style={{ color: 'rgba(255,255,255,0.12)' }} />}
+                    </div>
+                    <span className="text-[8px] w-11 text-center truncate" style={{ color: unlocked ? b.tint : 'rgba(255,255,255,0.08)', opacity: unlocked ? 0.6 : 1 }}>
+                      {unlocked ? b.name : '???'}
+                    </span>
                   </motion.button>
                 );
               })}
@@ -530,33 +556,41 @@ function ProfileScreenContent() {
         </div>
 
         {/* ═══ 6. JOHNNY'S OBSERVATIONS ═══ */}
-        <div className="rounded-[20px] p-4" style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
+        <div className="rounded-[20px] p-4" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
           <div className="flex items-center gap-2 mb-3">
             <img src={johnnyImg} alt="Johnny" className="w-8 h-8" />
             <h3 className="text-sm font-bold text-white">Johnny's Notes</h3>
+            <BookOpen className="w-3.5 h-3.5 text-white/25" />
           </div>
           {observations.length > 0 ? observations.map((obs, i) => {
-            const Icon = OBS_ICONS[obs.icon] || Star;
+            const ObsIcon = OBS_ICONS[obs.icon] || Star;
+            const obsColor = OBS_COLORS[obs.icon] || '#fff';
             return (
               <div key={i} className="flex items-start gap-3 mb-2 last:mb-0">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                  <Icon className="w-3.5 h-3.5 text-white/50" strokeWidth={1.5} />
+                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: `${obsColor}33` }}>
+                  <ObsIcon className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: obsColor, opacity: 0.6 }} />
                 </div>
                 <p className="text-[13px] text-white/50 leading-relaxed">{obs.text}</p>
               </div>
             );
           }) : (
-            <p className="text-xs text-white/20">Complete quests for Johnny to learn about you!</p>
+            <div className="flex flex-col items-center gap-2 py-3">
+              <img src={johnnyImg} alt="Johnny" className="w-12 h-12" />
+              <p className="text-sm text-white/30">I'm still getting to know you!</p>
+              <p className="text-xs text-white/20">Complete your first quest and I'll share what I learn.</p>
+            </div>
           )}
         </div>
 
         {/* ═══ 7. SETTINGS BUTTON ═══ */}
         <button onClick={() => setSettingsOpen(true)}
           className="w-full h-12 rounded-2xl flex items-center gap-3 px-4"
-          style={{ background: 'rgba(255,255,255,0.08)' }}>
-          <Settings className="w-5 h-5 text-white/40" strokeWidth={1.5} />
-          <span className="flex-1 text-left text-sm text-white/50">Settings</span>
-          <ChevronRight className="w-4 h-4 text-white/20" />
+          style={{ background: 'rgba(255,255,255,0.10)' }}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)' }}>
+            <Settings className="w-4 h-4 text-white/40" strokeWidth={1.5} />
+          </div>
+          <span className="flex-1 text-left text-sm text-white/40">Settings</span>
+          <ChevronRight className="w-3.5 h-3.5 text-white/15" />
         </button>
 
         {/* ═══ 8. SPACER ═══ */}
@@ -585,8 +619,8 @@ function ProfileScreenContent() {
                 <button key={i} onClick={row.action}
                   className="w-full h-[52px] rounded-2xl flex items-center gap-3 px-4"
                   style={{ background: 'rgba(255,255,255,0.08)' }}>
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.15)' }}>
-                    <Icon className="w-4 h-4 text-purple-400" strokeWidth={1.5} />
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <Icon className="w-4 h-4 text-white/50" strokeWidth={1.5} />
                   </div>
                   <span className="flex-1 text-left text-sm text-white">{row.label}</span>
                   <ChevronRight className="w-4 h-4 text-white/20" />
@@ -639,6 +673,7 @@ function ProfileScreenContent() {
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
         @keyframes sparkle-orbit { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes star-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        @keyframes sparkle-pulse { 0%, 100% { opacity: 0.1; } 50% { opacity: 0.2; } }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
