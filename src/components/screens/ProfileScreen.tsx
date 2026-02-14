@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Star, Lock, ChevronRight, Settings, Check, X, Plus, Trophy,
+  Star, Lock, ChevronRight, Settings, Check, X, Plus, Trophy, Gift,
   UserCircle, Bell, Palette, Download, Shield, Info, Flame, Hourglass, Users, BookOpen, Eye, Zap, PiggyBank, AlertTriangle, Target, TrendingUp, Clock
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
@@ -52,7 +52,20 @@ const DIMENSION_LABELS = [
   { key: 'module5', label: 'Script', Icon: BookOpen },
 ];
 
-const ROW_H = 96;
+const ROW_H = 56;
+
+// Node color map for completed states
+const NODE_COLORS: Record<string, { bg: string; shadow: string }> = {
+  module0: { bg: '#8B5CF6', shadow: '#6D28D9' },
+  clarity: { bg: '#3B82F6', shadow: '#1D4ED8' },
+  module1: { bg: '#F97316', shadow: '#C2410C' },
+  module2: { bg: '#14B8A6', shadow: '#0D9488' },
+  module3: { bg: '#6366F1', shadow: '#4338CA' },
+  module4: { bg: '#EC4899', shadow: '#BE185D' },
+  module5: { bg: '#EAB308', shadow: '#A16207' },
+  knowledge: { bg: '#E5E7EB', shadow: '#D1D5DB' },
+  execution: { bg: '#E5E7EB', shadow: '#D1D5DB' },
+};
 
 // ══════════════════════════════════════════════
 // Main Content (inside BudgetProvider)
@@ -226,82 +239,130 @@ function ProfileScreenContent() {
         </div>
 
         {/* ═══ 2. QUEST PATH ═══ */}
-        <div className="relative" style={{ height: QUEST_NODES.length * ROW_H }}>
-          {/* Center vertical line */}
-          <div className="absolute left-1/2 top-0 bottom-0 w-[3px] -translate-x-1/2" style={{ background: 'rgba(255,255,255,0.08)' }} />
+        {/* Progress bar */}
+        <div className="rounded-xl px-4 py-2.5" style={{ background: 'rgba(255,255,255,0.1)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-white/50">Quests</span>
+            <span className="text-sm font-bold text-white/50">{QUEST_NODES.filter((n, i) => getNodeStatus(n, i) === 'completed').length}/7</span>
+          </div>
+          <div className="w-full h-1.5 rounded bg-white/[0.08] overflow-hidden">
+            <div className="h-full rounded" style={{
+              width: `${(QUEST_NODES.filter((n, i) => getNodeStatus(n, i) === 'completed').length / 7) * 100}%`,
+              background: 'linear-gradient(90deg, #8B5CF6, #EC4899)',
+              transition: 'width 0.6s ease-out',
+            }} />
+          </div>
+        </div>
+
+        <div className="relative" style={{ height: QUEST_NODES.length * ROW_H + 2 * 48 }}>
+          {/* Center vertical line - locked */}
+          <div className="absolute left-1/2 top-0 bottom-0 w-1 -translate-x-1/2" style={{ borderLeft: '4px dashed rgba(255,255,255,0.08)' }} />
           {/* Completed segment overlay */}
           {lastCompletedIdx >= 0 && (
-            <div className="absolute left-1/2 top-0 w-[3px] -translate-x-1/2" style={{ height: (lastCompletedIdx + 1) * ROW_H, background: 'rgba(255,255,255,0.2)' }} />
-          )}
-
-          {/* Johnny on path */}
-          {lastCompletedIdx >= 0 && (
-            <img src={johnnyImg} alt="Johnny" className="absolute left-1/2 -translate-x-1/2 w-6 h-6 z-10"
-              style={{ top: (lastCompletedIdx + 0.5) * ROW_H - 12 }} />
+            <div className="absolute left-1/2 top-0 w-1 -translate-x-1/2" style={{ height: (lastCompletedIdx + 1) * ROW_H + 28, background: 'rgba(255,255,255,0.25)', width: '4px' }} />
           )}
 
           {QUEST_NODES.map((node, i) => {
-            const isLeft = i % 2 === 0;
             const status = getNodeStatus(node, i);
             const Icon = node.Icon;
-            const leftPos = isLeft ? '28%' : '72%';
+            const xOffset = Math.sin(i * 0.65) * 12;
+            const colors = NODE_COLORS[node.key] || { bg: '#D1D5DB', shadow: '#9CA3AF' };
+
+            // Dividers
+            const showBonusDivider = i === 2; // Before Risk Pulse
+            const showComingSoonDivider = i === 7; // Before Knowledge Tower
+
+            const nodeSize = status === 'current' ? 88 : status === 'completed' ? 76 : status === 'coming-soon' ? 64 : 72;
+            const iconSize = status === 'current' ? 32 : status === 'completed' ? 30 : status === 'coming-soon' ? 22 : 26;
 
             return (
-              <motion.div key={node.key} className="absolute w-full" style={{ top: i * ROW_H }}
+              <motion.div key={node.key} className="absolute w-full" style={{ top: i * ROW_H + (i >= 2 ? 48 : 0) + (i >= 7 ? 48 : 0) }}
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.08, duration: 0.4 }}>
 
-                {/* Horizontal connector */}
-                <div className="absolute top-1/2 h-[3px] -translate-y-1/2"
-                  style={{
-                    left: isLeft ? leftPos : '50%',
-                    width: '22%',
-                    borderTop: status === 'completed' ? '3px solid rgba(255,255,255,0.15)' : '3px dashed rgba(255,255,255,0.08)',
-                    animation: status === 'current' ? 'line-pulse 3s ease-in-out infinite' : undefined,
-                  }} />
+                {/* Bonus Quests divider */}
+                {showBonusDivider && (
+                  <div className="absolute w-full flex justify-center" style={{ top: -40 }}>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full" style={{ background: 'rgba(254,243,199,0.6)', border: '1.5px solid #FCD34D' }}>
+                      <Gift className="w-3.5 h-3.5" style={{ color: '#EAB308' }} />
+                      <span className="text-[10px] font-bold" style={{ color: '#92400E' }}>BONUS QUESTS</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Coming Soon divider */}
+                {showComingSoonDivider && (
+                  <div className="absolute w-full flex justify-center" style={{ top: -40 }}>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full" style={{ background: 'rgba(229,231,235,0.4)' }}>
+                      <Lock className="w-3.5 h-3.5" style={{ color: '#9CA3AF' }} />
+                      <span className="text-[10px] font-bold" style={{ color: '#6B7280' }}>COMING SOON</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Node circle */}
                 <button onClick={() => handleNodeTap(node, status)}
                   className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center"
-                  style={{ left: leftPos }}>
-
-                  {/* Pulse ring for current */}
-                  {status === 'current' && (
-                    <div className="absolute w-[74px] h-[74px] rounded-full border-2 border-white/15" style={{ animation: 'node-pulse 2s ease-in-out infinite' }} />
-                  )}
+                  style={{ left: `calc(50% + ${xOffset}%)`, animation: status === 'current' ? 'node-bounce 1.5s ease-in-out infinite' : undefined }}>
 
                   {/* Circle */}
-                  <div className="relative w-16 h-16 rounded-full flex items-center justify-center overflow-hidden"
+                  <div className="relative rounded-full flex items-center justify-center"
                     style={{
-                      background: status === 'completed' ? 'linear-gradient(135deg, #8B5CF6, #FF6B9D)'
-                        : status === 'current' ? 'rgba(255,255,255,0.15)'
-                        : status === 'coming-soon' ? 'rgba(255,255,255,0.03)'
-                        : 'rgba(255,255,255,0.05)',
-                      border: status === 'current' ? '3px solid transparent' : status === 'coming-soon' ? '2px solid rgba(255,255,255,0.05)' : '2px solid rgba(255,255,255,0.08)',
-                      boxShadow: status === 'completed' ? '0 0 16px rgba(139,92,246,0.3)' : 'none',
+                      width: nodeSize, height: nodeSize,
+                      background: status === 'completed' ? colors.bg
+                        : status === 'current' ? '#A855F7'
+                        : status === 'coming-soon' ? '#E5E7EB'
+                        : '#D1D5DB',
+                      boxShadow: status === 'completed' ? `0 6px 0 ${colors.shadow}`
+                        : status === 'current' ? '0 8px 0 #7C3AED'
+                        : status === 'coming-soon' ? '0 4px 0 #D1D5DB'
+                        : '0 5px 0 #9CA3AF',
+                      border: status === 'current' ? '4px solid #FFD700'
+                        : status === 'coming-soon' ? '2px dashed #D1D5DB'
+                        : 'none',
+                      ...(status === 'current' ? { animation: 'gold-pulse 1.5s ease-in-out infinite' } : {}),
                     }}>
-                    {status === 'current' && (
-                      <div className="absolute inset-0 rounded-full" style={{ background: 'conic-gradient(#8B5CF6, #FF6B9D, #8B5CF6)', animation: 'rotating-border 3s linear infinite', mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)', maskComposite: 'xor', WebkitMaskComposite: 'xor', padding: '3px', borderRadius: '9999px' }} />
-                    )}
-                    <Icon className="w-[26px] h-[26px] relative z-10" strokeWidth={1.5}
-                      style={{ color: status === 'completed' ? 'white' : status === 'current' ? 'rgba(255,255,255,0.8)' : status === 'coming-soon' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.12)' }} />
-                    {status === 'locked' && <Lock className="w-3 h-3 text-white/15 absolute top-1.5 right-1.5 z-10" />}
+                    <Icon className="relative z-10" strokeWidth={2.5}
+                      style={{
+                        width: iconSize, height: iconSize,
+                        color: status === 'completed' ? 'white'
+                          : status === 'current' ? 'white'
+                          : status === 'coming-soon' ? '#D1D5DB'
+                          : '#9CA3AF',
+                      }} />
+                    {status === 'locked' && <Lock className="w-4 h-4 absolute z-20" style={{ color: '#6B7280' }} />}
                   </div>
 
                   {/* Completed check */}
                   {status === 'completed' && (
-                    <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#34C759] flex items-center justify-center z-20">
-                      <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-[22px] h-[22px] rounded-full flex items-center justify-center z-20" style={{ background: '#16A34A' }}>
+                      <Check className="w-[11px] h-[11px] text-white" strokeWidth={3} />
                     </div>
                   )}
 
                   {/* Label */}
-                  <div className="mt-2 text-center" style={{ width: 100 }}>
-                    <p className="text-[13px] leading-tight" style={{
-                      color: status === 'completed' ? 'white' : status === 'current' ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.2)',
+                  <div className="mt-2 text-center" style={{ width: 110 }}>
+                    <p style={{
+                      fontSize: status === 'coming-soon' ? 12 : status === 'locked' ? 13 : 14,
+                      fontWeight: (status === 'completed' || status === 'current') ? 700 : 400,
+                      color: status === 'completed' ? 'white'
+                        : status === 'current' ? 'white'
+                        : status === 'locked' ? 'rgba(255,255,255,0.3)'
+                        : 'rgba(255,255,255,0.15)',
                     }}>{node.name}</p>
-                    <p className="text-[10px] text-white/30">{node.subtitle}</p>
-                    {status === 'current' && <p className="text-[11px] font-bold text-purple-400 mt-0.5">START</p>}
+                    {status === 'locked' && <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>Locked</p>}
+                    {status === 'coming-soon' && <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.1)' }}>Coming soon</p>}
+                    {status === 'current' && (
+                      <div className="mt-1 mx-auto flex items-center justify-center rounded-full" style={{
+                        width: 90, height: 30,
+                        background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
+                      }}>
+                        <span className="text-[13px] font-bold text-white">START</span>
+                      </div>
+                    )}
+                    {(status === 'completed' || status === 'current') && (
+                      <p className="text-[10px] text-white/30 mt-0.5">{node.subtitle}</p>
+                    )}
                   </div>
                 </button>
               </motion.div>
@@ -572,17 +633,14 @@ function ProfileScreenContent() {
 
       <style>{`
         @keyframes avatar-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        @keyframes node-bounce { 0%, 100% { transform: translateY(0) translateX(-50%); } 50% { transform: translateY(-6px) translateX(-50%); } }
+        @keyframes gold-pulse { 0%, 100% { border-color: rgba(255,215,0,0.6); } 50% { border-color: rgba(255,215,0,1); } }
         @keyframes node-pulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.12); opacity: 1; } }
-        @keyframes rotating-border { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
         @keyframes sparkle-orbit { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes line-pulse { 0%, 100% { opacity: 0.05; } 50% { opacity: 0.15; } }
         @keyframes star-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        .profile-slider { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 4px; outline: none; }
-        .profile-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%; background: white; border: 3px solid #8B5CF6; cursor: pointer; }
-        .profile-slider::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: white; border: 3px solid #8B5CF6; cursor: pointer; }
       `}</style>
     </div>
   );
