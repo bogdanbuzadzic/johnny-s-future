@@ -194,8 +194,8 @@
 }
 .questionnaire-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: white;
   border: 3px solid #8B5CF6;
@@ -203,8 +203,8 @@
   cursor: pointer;
 }
 .questionnaire-slider::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: white;
   border: 3px solid #8B5CF6;

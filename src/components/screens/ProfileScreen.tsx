@@ -274,16 +274,7 @@ function ProfileScreenContent() {
 
               {/* Avatar center (z-index: 2) */}
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ zIndex: 2 }}>
-                <div className="relative w-[120px] h-[120px] flex items-center justify-center">
-                  <svg width="120" height="120" className="absolute inset-0" style={{ filter: 'drop-shadow(0 0 10px rgba(139,92,246,0.35))' }}>
-                    <circle cx="60" cy="60" r={52} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="5" />
-                    <circle cx="60" cy="60" r={52} fill="none" stroke="url(#ring-grad)" strokeWidth="5" strokeLinecap="round"
-                      strokeDasharray={2 * Math.PI * 52} strokeDashoffset={2 * Math.PI * 52 * (1 - completeness / 100)}
-                      transform="rotate(-90 60 60)"
-                      style={{ transition: 'stroke-dashoffset 1s ease-out' }} />
-                  </svg>
-                  <img src={avatarImg} alt="Avatar" className="w-[100px] h-[100px] rounded-full object-cover" style={{ animation: 'avatar-bob 2s ease-in-out infinite' }} />
-                </div>
+                <img src={avatarImg} alt="Avatar" className="w-[100px] h-[100px] object-contain" style={{ animation: 'avatar-bob 2s ease-in-out infinite' }} />
                 <span className="text-lg font-bold text-white mt-1">{userName}</span>
                 <span className="text-xs text-white/40">◆ {levelTitle} ◆</span>
               </div>
