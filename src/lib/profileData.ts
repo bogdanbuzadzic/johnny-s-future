@@ -35,7 +35,7 @@ export type ProfileQ = {
 
 // ── Quest Nodes ──
 export const QUEST_NODES: QuestNode[] = [
-  { key: 'module0', name: 'Know Yourself', Icon: UserCircle, subtitle: '8 questions · 3 min', lsDone: 'jfb_module0_done', lsAnswers: 'jfb_module0_answers', status: 'required', prereqs: [], badgeKey: 'first-step' },
+  { key: 'module0', name: 'Know Yourself', Icon: UserCircle, subtitle: '6 questions · 3 min', lsDone: 'jfb_module0_done', lsAnswers: 'jfb_module0_answers', status: 'required', prereqs: [], badgeKey: 'first-step' },
   { key: 'clarity', name: 'Financial Clarity', Icon: BarChart3, subtitle: '11 steps · 7 min', lsDone: 'jfb_clarity_done', lsAnswers: 'jfb_clarity_answers', status: 'required', prereqs: ['module0'], badgeKey: 'know-thyself' },
   { key: 'module1', name: 'Risk Pulse', Icon: Flame, subtitle: '6 questions · 3 min', lsDone: 'jfb_module1_done', lsAnswers: 'jfb_module1_answers', status: 'optional', prereqs: ['clarity'], badgeKey: 'risk-taker' },
   { key: 'module2', name: 'Time Lens', Icon: Hourglass, subtitle: '6 questions · 3 min', lsDone: 'jfb_module2_done', lsAnswers: 'jfb_module2_answers', status: 'optional', prereqs: ['clarity'], badgeKey: 'time-keeper' },
@@ -64,8 +64,6 @@ export const BADGES: Badge[] = [
 
 // ── Module 0: Know Yourself ──
 const MODULE_0: ProfileQ[] = [
-  { id: 'q1', text: "What's your first name?", type: 'text' },
-  { id: 'q2', text: "How old are you?", type: 'number' },
   { id: 'q3', text: "How would you describe your financial situation right now?", type: 'slider', min: 1, max: 10, step: 1, minLabel: 'Struggling', maxLabel: 'Thriving' },
   { id: 'q4', text: "What's your biggest money frustration?", type: 'single', options: [
     "I don't know where my money goes", "I can't seem to save consistently",
