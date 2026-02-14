@@ -1,103 +1,78 @@
 
 
-# Profile Screen — RPG Character Sheet
+# Profile Screen Fix: Quest Path + Avatar (Prompt 1 of 2)
 
-## Overview
-Replace the placeholder Profile screen (tab 3) with a full RPG-style character profile featuring an animated pixel art avatar, a module map skill tree, financial health score breakdown, achievement badges, and settings.
+## Problem Summary
+The current Profile screen has washed-out, monochrome quest nodes that all look like disabled buttons. There's no color differentiation between states, no 3D depth, and the layout feels flat and lifeless compared to the Duolingo-inspired design goal.
 
-## What Gets Built
+## Changes Required
 
-### 1. New File: `src/components/screens/ProfileScreen.tsx`
-A single scrollable screen containing all 6 sections described below.
+### File: `src/components/screens/ProfileScreen.tsx`
 
-### 2. Avatar Image
-Copy the uploaded pixel art image to `src/assets/avatar.png` and import it as an ES6 module.
+**1. Remove duplicate Johnny avatar from quest path**
+- Delete the `johnnyImg` element that renders on the vertical center line (lines 238-241)
+- The only avatar on screen will be the one in the header area (the tamagotchi with the level ring)
 
-### 3. App.tsx Update
-Replace `PlaceholderScreen` import/usage with `ProfileScreen`.
+**2. Reduce row spacing from 96px to 56px**
+- Change `ROW_H` constant from `96` to `56`
+- This compresses the quest path from ~864px to ~504px vertical space
 
----
+**3. Reduce S-curve amplitude**
+- Change node positioning from `28%`/`72%` (44% swing) to a gentle sine-based offset
+- New formula: `calc(50% + ${Math.sin(i * 0.65) * 12}%)` giving ~12% amplitude
 
-## Screen Sections
+**4. Redesign node circles with SOLID colors and 3D shadows**
 
-### Section 1: Avatar Hero
-- 100x100px avatar image with idle bob animation (translateY -4px to 0, 2s infinite)
-- 130px SVG level ring behind avatar: white/10 track, purple-to-pink gradient fill proportional to health score
-- Drop shadow glow on the ring
-- User name from localStorage (`jfb_userName`, default "Bogdan")
-- Level title derived from score tier (Beginner / Explorer / Builder / Architect / Master)
-- Frosted glass score pill with star icon and count-up animation (0 to score over 800ms)
+Each node state gets a completely different visual treatment:
 
-### Section 2: Module Map (2x3 Grid)
-Six module cards in a constellation layout with dotted connecting lines:
+- **COMPLETED nodes**: Each gets its own unique solid background color (purple, blue, orange, teal, indigo, pink, yellow) with a darker `box-shadow: 0 6px 0` for 3D depth. White bold icon at 30px. 76px diameter. Green check badge (22px) at bottom-right.
 
-| Know Yourself (Brain) | Budget Arena (LayoutGrid) | Dream Builder (Target) |
-| Future Vision (Sparkles) | Knowledge Tower (BookOpen) | Execution Hub (Building2) |
+- **CURRENT node**: Solid `#A855F7` background, 88px diameter (bigger than others), `box-shadow: 0 8px 0 #7C3AED`, gold `#FFD700` 4px border with pulsing opacity, the entire node bounces (translateY animation). "START" gradient pill below.
 
-- Each card: 100x120px, frosted glass, icon + name + 3px progress bar + status text
-- Progress calculated from real data (BudgetContext + AppContext)
-- Last two modules locked (60% opacity, Lock icon overlay)
-- Completed modules get accent-colored glow borders; active modules have pulsing connecting lines
-- Tapping unlocked modules navigates to My Money tab or shows "coming soon" sheet
+- **LOCKED nodes**: Solid `#D1D5DB` gray background, `box-shadow: 0 5px 0 #9CA3AF`, 72px, gray icon, centered Lock overlay. No transparency.
 
-### Section 3: Score Breakdown Card
-Frosted glass card with 4 pillar rows:
-- **Awareness** (Brain): assessment completion (0 or 25)
-- **Budget Health** (LayoutGrid): setup + pace + tracking (0-25)
-- **Goal Progress** (Target): average goal completion * 25
-- **Future Planning** (Sparkles): savings target + what-if usage + savings rate
+- **COMING SOON nodes**: Solid `#E5E7EB` light gray, `box-shadow: 0 4px 0 #D1D5DB`, 64px, dashed border, very faint icon.
 
-Each row shows icon, name, animated horizontal bar, and X/25 score.
+**5. Fix connecting path line**
+- Increase width from 3px to 4px
+- Completed sections: `rgba(255,255,255,0.25)` (brighter)
+- Locked sections: dashed `rgba(255,255,255,0.08)`
 
-### Section 4: Achievement Badges (Horizontal Scroll)
-8 achievement circles (48px each):
-- First Step, Tracker (10+ transactions), Dreamer (1+ goal), Saver, Explorer, On Track, Goal Getter, Time Traveler
-- Unlocked = bright icon; Locked = dimmed with Lock overlay
-- Tap shows toast with name/description or unlock hint
+**6. Improve label contrast**
+- Completed: 14px bold white (not white/60)
+- Current: 14px bold white + START pill
+- Locked: 13px white/30 + "Locked" 10px white/20
+- Coming soon: 12px white/15 + "Coming soon" 9px white/10
 
-### Section 5: Settings List
-6 rows with icon + label + ChevronRight:
-- Budget Settings (opens EditBudgetSheet)
-- Reminders, Appearance, Export Data (toast "Coming soon")
-- Privacy (toast about local storage)
-- About (small info sheet)
+**7. Add reward dividers**
+- Between node index 1 (Clarity) and 2 (Risk Pulse): "BONUS QUESTS" pill with warm yellow background (`#FEF3C7` at 60%), gold border, Gift icon, dark gold text
+- Between node index 6 (Money Story) and 7 (Knowledge Tower): "COMING SOON" divider with gray background, Lock icon
 
-### Section 6: Bottom Spacer
-64px spacer to clear the tab bar.
+**8. Fix progress bar at top**
+- Add a "Quests X/7" frosted bar above the quest path
+- Background: `rgba(255,255,255,0.1)`, rounded 12px
+- Inner bar: 6px tall, gradient purple-to-pink fill, white/8 background
 
----
+**9. Update animations in style block**
+- Add `node-bounce` keyframe: `translateY(-6px)` to `translateY(0)`, 1.5s
+- Add `gold-pulse` keyframe: opacity 0.6 to 1.0, 1.5s
+- Keep existing avatar-bob, sparkle-orbit, star-pulse, shimmer animations
 
-## Technical Details
-
-### Score Calculation
+### Node Color Map (for completed states)
 ```text
-calculateHealthScore() returns { awareness, budgetHealth, goalProgress, futurePlanning, total }
-- Each pillar: 0-25 points
-- Total: 0-100, feeds level ring + score badge + level title
+module0 (Know Yourself):   bg #8B5CF6, shadow #6D28D9
+clarity (Financial Clarity): bg #3B82F6, shadow #1D4ED8
+module1 (Risk Pulse):      bg #F97316, shadow #C2410C
+module2 (Time Lens):       bg #14B8A6, shadow #0D9488
+module3 (Confidence):      bg #6366F1, shadow #4338CA
+module4 (Social Mirror):   bg #EC4899, shadow #BE185D
+module5 (Money Story):     bg #EAB308, shadow #A16207
+knowledge (Knowledge):     bg #E5E7EB, shadow #D1D5DB
+execution (Execution):     bg #E5E7EB, shadow #D1D5DB
 ```
 
-### localStorage Keys (new)
-- `jfb_userName` (string)
-- `jfb_hasCompletedAssessment` (boolean)
-- `jfb_hasUsedWhatIf` (boolean)
-- `jfb_hasUsed5YearZoom` (boolean)
-- `jfb_hasCompletedMonth` (boolean)
-
-### Animations
-- Avatar bob: CSS keyframes, 2s ease-in-out infinite
-- Level ring: SVG stroke-dashoffset from full to target, 1000ms ease-out
-- Score count-up: requestAnimationFrame loop, 800ms
-- Progress bars: staggered fill with 100ms delay per item, 600ms duration
-- Achievement badges: staggered fade-in, 50ms delay each
-- Constellation lines: stroke-dashoffset draw animation, 800ms
-
-### Data Sources
-- `useBudget()` for config, categories, transactions, paceStatus, flexSpent
-- `useApp()` for goals, setActiveTab
-- localStorage for assessment/what-if/zoom/month flags
-
-### Files Changed
-1. **New**: `src/assets/avatar.png` (copy from upload)
-2. **New**: `src/components/screens/ProfileScreen.tsx` (entire screen)
-3. **Edit**: `src/App.tsx` (swap PlaceholderScreen for ProfileScreen)
+### No changes to:
+- `src/lib/profileData.ts` (data layer stays the same)
+- `src/components/profile/QuestionnaireOverlay.tsx` (questionnaire stays the same)
+- Bottom half of ProfileScreen (DNA card, badges, observations, settings) -- that's Prompt 2
 
