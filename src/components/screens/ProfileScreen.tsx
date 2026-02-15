@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Star, Lock, ChevronRight, Settings, Check, X, Plus, Trophy, Gift, Sparkles,
-  UserCircle, Bell, Palette, Download, Shield, Info, Flame, Hourglass, Users, BookOpen, Eye, Zap, PiggyBank, AlertTriangle, Target, TrendingUp, Clock, Heart, Trash2
+  UserCircle, Bell, Palette, Download, Shield, Info, Flame, Hourglass, Users, BookOpen, BookHeart, Eye, Zap, PiggyBank, AlertTriangle, Target, TrendingUp, Clock, Heart, Trash2, Building2, BarChart3
 } from 'lucide-react';
 import { getPersonaObservation } from '@/lib/personaMessaging';
 import { useApp } from '@/context/AppContext';
@@ -13,7 +13,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { QuestionnaireOverlay } from '@/components/profile/QuestionnaireOverlay';
 import {
   QUEST_NODES, BADGES, getLevelTitle, getLevelTier, calculateCompleteness,
-  getPersona, getJohnnyObservations, getDimensionScore, getModuleQuestions
+  getPersona, getJohnnyObservations, getDimensionScore, getModuleQuestions,
+  getRiskLabel, getTimeLabel, getConfidenceLabel, getSocialLabel, getDominantScript, getPersonaAbbrev, calculateClarityScore,
 } from '@/lib/profileData';
 import avatarImg from '@/assets/avatar.png';
 import johnnyImg from '@/assets/johnny.png';
@@ -23,10 +24,6 @@ const OBS_ICONS: Record<string, any> = { Eye, Zap, PiggyBank, Clock, AlertTriang
 const OBS_COLORS: Record<string, string> = {
   Eye: '#3B82F6', Zap: '#F97316', PiggyBank: '#34C759', Clock: '#14B8A6',
   Star: '#EAB308', AlertTriangle: '#F97316', TrendingUp: '#34C759', Target: '#EC4899',
-};
-
-const DIMENSION_COLORS: Record<string, string> = {
-  module1: '#F97316', module2: '#14B8A6', module3: '#6366F1', module4: '#EC4899', module5: '#EAB308',
 };
 
 // ── Count-up hook ──
@@ -47,28 +44,14 @@ function useCountUp(target: number, duration = 800) {
   return value;
 }
 
-// ── Radar chart helper ──
-function radarPoint(cx: number, cy: number, r: number, idx: number) {
-  const angle = -Math.PI / 2 + (2 * Math.PI / 5) * idx;
-  return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
-}
-
-const DIMENSION_LABELS = [
-  { key: 'module1', label: 'Risk', Icon: Flame },
-  { key: 'module2', label: 'Time', Icon: Hourglass },
-  { key: 'module3', label: 'Confidence', Icon: Shield },
-  { key: 'module4', label: 'Social', Icon: Users },
-  { key: 'module5', label: 'Script', Icon: BookOpen },
-];
-
 // Orbital layout constants
 const ORBIT_RADIUS = 140;
 const START_ANGLE = -90;
 
-// Node color map for completed states
+// Node color map
 const NODE_COLORS: Record<string, { bg: string; shadow: string }> = {
-  module0: { bg: '#8B5CF6', shadow: '#6D28D9' },
   clarity: { bg: '#3B82F6', shadow: '#1D4ED8' },
+  module0: { bg: '#8B5CF6', shadow: '#6D28D9' },
   module1: { bg: '#F97316', shadow: '#C2410C' },
   module2: { bg: '#14B8A6', shadow: '#0D9488' },
   module3: { bg: '#6366F1', shadow: '#4338CA' },
@@ -77,6 +60,86 @@ const NODE_COLORS: Record<string, { bg: string; shadow: string }> = {
   knowledge: { bg: '#E5E7EB', shadow: '#D1D5DB' },
   execution: { bg: '#E5E7EB', shadow: '#D1D5DB' },
 };
+
+// Node icon map for badge overlays on completed nodes
+const NODE_ICON_MAP: Record<string, any> = {
+  clarity: BarChart3, module0: UserCircle, module1: Flame, module2: Hourglass,
+  module3: Shield, module4: Users, module5: BookHeart, knowledge: BookOpen, execution: Building2,
+};
+
+// ══════════════════════════════════════════════
+// Result node content renderer
+// ══════════════════════════════════════════════
+function getResultContent(nodeKey: string, refreshKey: number): { main: React.ReactNode; sub: string } | null {
+  if (nodeKey === 'clarity') {
+    try {
+      const cs = JSON.parse(localStorage.getItem('jfb_clarityScore') || 'null');
+      if (!cs) return null;
+      return {
+        main: <><span style={{ fontSize: 24, fontWeight: 700 }}>{cs.total}</span><span style={{ fontSize: 11, opacity: 0.5 }}>/ 100</span></>,
+        sub: '',
+      };
+    } catch { return null; }
+  }
+  if (nodeKey === 'module0') {
+    try {
+      const a = JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null');
+      const p = getPersona(a);
+      if (!p) return null;
+      return {
+        main: <span style={{ fontSize: 14, fontWeight: 700 }}>{getPersonaAbbrev(p.n)}</span>,
+        sub: p.n,
+      };
+    } catch { return null; }
+  }
+  // Modules 1-5: score + label
+  const scoreModules: Record<string, { suffix: string; labelFn: (s: number) => string }> = {
+    module1: { suffix: 'risk', labelFn: getRiskLabel },
+    module2: { suffix: 'time', labelFn: getTimeLabel },
+    module3: { suffix: 'conf.', labelFn: getConfidenceLabel },
+    module4: { suffix: 'social', labelFn: getSocialLabel },
+  };
+  if (scoreModules[nodeKey]) {
+    try {
+      const a = JSON.parse(localStorage.getItem(`jfb_${nodeKey}_answers`) || 'null');
+      const score = getDimensionScore(nodeKey, a);
+      const { suffix, labelFn } = scoreModules[nodeKey];
+      return {
+        main: <><span style={{ fontSize: 24, fontWeight: 700 }}>{score}</span><span style={{ fontSize: 11, opacity: 0.5 }}> {suffix}</span></>,
+        sub: labelFn(score),
+      };
+    } catch { return null; }
+  }
+  if (nodeKey === 'module5') {
+    try {
+      const a = JSON.parse(localStorage.getItem('jfb_module5_answers') || 'null');
+      const script = getDominantScript(a);
+      const emotion = a?.m6 || '';
+      return {
+        main: <span style={{ fontSize: 14, fontWeight: 700 }}>{script}</span>,
+        sub: emotion,
+      };
+    } catch { return null; }
+  }
+  return null;
+}
+
+// Clarity mini bar
+function ClarityMiniBar() {
+  try {
+    const cs = JSON.parse(localStorage.getItem('jfb_clarityScore') || 'null');
+    if (!cs) return null;
+    const total = cs.spending + cs.saving + cs.planning;
+    if (total === 0) return null;
+    return (
+      <div className="flex gap-0.5 mt-1" style={{ width: 48, height: 4 }}>
+        <div style={{ flex: cs.spending, background: '#F97316', borderRadius: 2 }} />
+        <div style={{ flex: cs.saving, background: '#34C759', borderRadius: 2 }} />
+        <div style={{ flex: cs.planning, background: '#8B5CF6', borderRadius: 2 }} />
+      </div>
+    );
+  } catch { return null; }
+}
 
 // ══════════════════════════════════════════════
 // Main Content (inside BudgetProvider)
@@ -130,20 +193,6 @@ function ProfileScreenContent() {
   const persona = useMemo(() => doneFlags.module0 && doneFlags.clarity ? getPersona(m0Answers) : null, [doneFlags, m0Answers]);
   const observations = useMemo(() => getJohnnyObservations(m0Answers, clarityAnswers), [m0Answers, clarityAnswers]);
 
-  // Module answers for DNA chart
-  const dimensionAnswers = useMemo(() => {
-    const result: Record<string, Record<string, any> | null> = {};
-    DIMENSION_LABELS.forEach(d => {
-      try { result[d.key] = JSON.parse(localStorage.getItem(`jfb_${d.key === 'module1' ? 'module1' : d.key}_answers`) || 'null'); } catch { result[d.key] = null; }
-      // Fix: use correct localStorage key
-      const node = QUEST_NODES.find(n => n.key === d.key);
-      if (node?.lsAnswers) {
-        try { result[d.key] = JSON.parse(localStorage.getItem(node.lsAnswers) || 'null'); } catch { result[d.key] = null; }
-      }
-    });
-    return result;
-  }, [refreshKey]);
-
   // ── Badge unlocks ──
   const earnedBadges: string[] = useMemo(() => {
     try { return JSON.parse(localStorage.getItem('jfb_badges') || '[]'); } catch { return []; }
@@ -152,8 +201,7 @@ function ProfileScreenContent() {
   const allBadgeUnlocks = useMemo(() => {
     const u: Record<string, boolean> = {};
     BADGES.forEach(b => { u[b.key] = earnedBadges.includes(b.key); });
-    // Also check runtime conditions
-    if (config.setupComplete) u['first-step'] = true;
+    if (config.setupComplete) u['know-thyself'] = true;
     if (transactions.length >= 10) u['tracker'] = true;
     if (goals.some(g => g.saved >= g.target && g.target > 0)) u['goal-getter'] = true;
     if (hasUsedWhatIf) u['explorer'] = true;
@@ -162,12 +210,11 @@ function ProfileScreenContent() {
     return u;
   }, [earnedBadges, config, transactions.length, goals, hasUsedWhatIf, hasCompletedMonth, hasUsed5YearZoom]);
 
-  // ── Featured badges (first 3 earned) ──
   const featuredBadges = useMemo(() => BADGES.filter(b => allBadgeUnlocks[b.key]).slice(0, 3), [allBadgeUnlocks]);
   const totalEarned = BADGES.filter(b => allBadgeUnlocks[b.key]).length;
 
   // ── Node status ──
-  const getNodeStatus = useCallback((node: typeof QUEST_NODES[0], idx: number) => {
+  const getNodeStatus = useCallback((node: typeof QUEST_NODES[0]) => {
     if (node.status === 'coming-soon') return 'coming-soon' as const;
     if (doneFlags[node.key]) return 'completed' as const;
     const prereqsMet = node.prereqs.every(p => doneFlags[p]);
@@ -175,18 +222,21 @@ function ProfileScreenContent() {
     return 'locked' as const;
   }, [doneFlags]);
 
-  // Johnny position: between last completed and first current
-  const lastCompletedIdx = useMemo(() => {
-    let last = -1;
-    QUEST_NODES.forEach((n, i) => { if (doneFlags[n.key]) last = i; });
-    return last;
-  }, [doneFlags]);
+  const nextQuestName = useMemo(() => {
+    const next = QUEST_NODES.find(n => getNodeStatus(n) === 'current');
+    return next?.name || '';
+  }, [getNodeStatus]);
 
   const handleNodeTap = useCallback((node: typeof QUEST_NODES[0], status: string) => {
     if (status === 'coming-soon') { toast({ title: `${node.name} coming soon!` }); return; }
     if (status === 'locked') {
       const prereqName = QUEST_NODES.find(n => n.key === node.prereqs[0])?.name || 'previous quest';
       toast({ title: `Complete ${prereqName} first` });
+      return;
+    }
+    if (status === 'completed') {
+      // Tap completed node to view results (toast for now)
+      toast({ title: `${node.name} ✓`, description: 'Already completed!' });
       return;
     }
     setActiveQuest(node.key);
@@ -209,17 +259,6 @@ function ProfileScreenContent() {
     setRefreshKey(k => k + 1);
   };
 
-  // ── SVG ring ──
-  const ringR = 48;
-  const ringC = 2 * Math.PI * ringR;
-  const ringOffset = ringC * (1 - completeness / 100);
-
-  // ── Next quest hint ──
-  const nextQuestName = useMemo(() => {
-    const next = QUEST_NODES.find((n, i) => getNodeStatus(n, i) === 'current');
-    return next?.name || '';
-  }, [getNodeStatus]);
-
   return (
     <div className="h-full overflow-auto pb-0">
       <div className="px-5 pt-10 pb-2 space-y-6">
@@ -229,29 +268,23 @@ function ProfileScreenContent() {
           const totalNodes = QUEST_NODES.length;
 
           return (
-            <div className="relative w-full" style={{ height: 400 }}>
-              {/* SVG arc connections behind everything */}
+            <div className="relative w-full" style={{ height: 420 }}>
+              {/* SVG arc connections */}
               <svg className="absolute inset-0 w-full h-full" viewBox="0 0 420 420" preserveAspectRatio="xMidYMid meet" style={{ zIndex: 0 }}>
-                <defs>
-                  <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#8B5CF6" /><stop offset="100%" stopColor="#FF6B9D" />
-                  </linearGradient>
-                </defs>
                 {QUEST_NODES.map((node, i) => {
                   if (i === totalNodes - 1) return null;
                   const angle1 = START_ANGLE + (i * (360 / totalNodes));
                   const angle2 = START_ANGLE + ((i + 1) * (360 / totalNodes));
                   const rad1 = (angle1 * Math.PI) / 180;
                   const rad2 = (angle2 * Math.PI) / 180;
-                  const cx = 210, cy = 210;
-                  const r = ORBIT_RADIUS;
+                  const cx = 210, cy = 210, r = ORBIT_RADIUS;
                   const x1 = cx + Math.cos(rad1) * r;
                   const y1 = cy + Math.sin(rad1) * r;
                   const x2 = cx + Math.cos(rad2) * r;
                   const y2 = cy + Math.sin(rad2) * r;
 
-                  const s1 = getNodeStatus(node, i);
-                  const s2 = getNodeStatus(QUEST_NODES[i + 1], i + 1);
+                  const s1 = getNodeStatus(node);
+                  const s2 = getNodeStatus(QUEST_NODES[i + 1]);
                   const bothCompleted = s1 === 'completed' && s2 === 'completed';
                   const hasCompleted = s1 === 'completed' || s2 === 'completed';
                   const hasCurrent = s1 === 'current' || s2 === 'current';
@@ -272,16 +305,16 @@ function ProfileScreenContent() {
                 })}
               </svg>
 
-              {/* Avatar center (z-index: 2) */}
+              {/* Avatar center */}
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ zIndex: 2 }}>
                 <img src={avatarImg} alt="Avatar" className="w-[100px] h-[100px] object-contain" style={{ animation: 'avatar-bob 2s ease-in-out infinite' }} />
                 <span className="text-lg font-bold text-white mt-1">{userName}</span>
                 <span className="text-xs text-white/40">◆ {levelTitle} ◆</span>
               </div>
 
-              {/* Orbital nodes (z-index: 1) */}
+              {/* Orbital nodes */}
               {QUEST_NODES.map((node, i) => {
-                const status = getNodeStatus(node, i);
+                const status = getNodeStatus(node);
                 const Icon = node.Icon;
                 const colors = NODE_COLORS[node.key] || { bg: '#D1D5DB', shadow: '#9CA3AF' };
                 const angle = START_ANGLE + (i * (360 / totalNodes));
@@ -289,9 +322,14 @@ function ProfileScreenContent() {
                 const x = Math.cos(radians) * ORBIT_RADIUS;
                 const y = Math.sin(radians) * ORBIT_RADIUS;
 
-                const nodeSize = status === 'current' ? 80 : status === 'completed' ? 72 : status === 'coming-soon' ? 60 : 68;
-                const iconSize = status === 'current' ? 30 : status === 'completed' ? 28 : status === 'coming-soon' ? 20 : 24;
+                const isCompleted = status === 'completed';
+                const nodeSize = status === 'current' ? 80 : isCompleted ? 72 : status === 'coming-soon' ? 60 : 68;
+                const iconSize = status === 'current' ? 30 : isCompleted ? 28 : status === 'coming-soon' ? 20 : 24;
                 const half = nodeSize / 2;
+
+                // Get result content for completed nodes
+                const resultContent = isCompleted ? getResultContent(node.key, refreshKey) : null;
+                const NodeBadgeIcon = NODE_ICON_MAP[node.key] || Icon;
 
                 return (
                   <motion.div key={node.key}
@@ -320,11 +358,11 @@ function ProfileScreenContent() {
                       <div className="relative rounded-full flex items-center justify-center"
                         style={{
                           width: nodeSize, height: nodeSize,
-                          background: status === 'completed' ? colors.bg
+                          background: isCompleted ? colors.bg
                             : status === 'current' ? '#A855F7'
                             : status === 'coming-soon' ? '#E5E7EB'
                             : '#D1D5DB',
-                          boxShadow: status === 'completed' ? `0 5px 0 ${colors.shadow}`
+                          boxShadow: isCompleted ? `0 5px 0 ${colors.shadow}`
                             : status === 'current' ? '0 6px 0 #7C3AED'
                             : status === 'coming-soon' ? '0 3px 0 #D1D5DB'
                             : '0 4px 0 #9CA3AF',
@@ -333,35 +371,60 @@ function ProfileScreenContent() {
                             : 'none',
                           ...(status === 'current' ? { animation: 'gold-pulse 1.5s ease-in-out infinite' } : {}),
                         }}>
-                        <Icon className="relative z-10" strokeWidth={2.5}
-                          style={{
-                            width: iconSize, height: iconSize,
-                            color: status === 'completed' ? 'white'
-                              : status === 'current' ? 'white'
-                              : status === 'coming-soon' ? '#D1D5DB'
-                              : '#9CA3AF',
-                          }} />
+
+                        {/* Content: result data for completed, icon for others */}
+                        {isCompleted && resultContent ? (
+                          <div className="flex flex-col items-center justify-center text-white leading-none">
+                            {resultContent.main}
+                          </div>
+                        ) : (
+                          <Icon className="relative z-10" strokeWidth={2.5}
+                            style={{
+                              width: iconSize, height: iconSize,
+                              color: isCompleted ? 'white'
+                                : status === 'current' ? 'white'
+                                : status === 'coming-soon' ? '#D1D5DB'
+                                : '#9CA3AF',
+                            }} />
+                        )}
+
                         {status === 'locked' && <Lock className="w-3.5 h-3.5 absolute z-20" style={{ color: '#6B7280' }} />}
+
+                        {/* Icon badge top-left for completed */}
+                        {isCompleted && (
+                          <div className="absolute w-6 h-6 rounded-full flex items-center justify-center z-20"
+                            style={{ background: colors.shadow, top: -4, left: -4, border: '2px solid rgba(255,255,255,0.2)' }}>
+                            <NodeBadgeIcon className="w-3 h-3 text-white" strokeWidth={2.5} />
+                          </div>
+                        )}
+
+                        {/* Green check badge bottom-right for completed */}
+                        {isCompleted && (
+                          <div className="absolute w-5 h-5 rounded-full flex items-center justify-center z-20" style={{ background: '#16A34A', bottom: -2, right: -2, border: '2px solid rgba(255,255,255,0.2)' }}>
+                            <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                          </div>
+                        )}
                       </div>
 
-                      {/* Completed check badge */}
-                      {status === 'completed' && (
-                        <div className="absolute w-5 h-5 rounded-full flex items-center justify-center z-20" style={{ background: '#16A34A', bottom: 18, right: -2 }}>
-                          <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
-                        </div>
-                      )}
-
-                      {/* Label */}
+                      {/* Label below node */}
                       <div className="mt-1 text-center" style={{ width: 80 }}>
                         <p style={{
-                          fontSize: status === 'coming-soon' ? 9 : status === 'locked' ? 10 : status === 'current' ? 12 : 11,
-                          fontWeight: (status === 'completed' || status === 'current') ? 700 : 400,
-                          color: status === 'completed' ? 'white'
+                          fontSize: isCompleted ? 11 : status === 'coming-soon' ? 9 : status === 'locked' ? 10 : 12,
+                          fontWeight: (isCompleted || status === 'current') ? 700 : 400,
+                          color: isCompleted ? 'white'
                             : status === 'current' ? 'white'
                             : status === 'locked' ? 'rgba(255,255,255,0.2)'
                             : 'rgba(255,255,255,0.12)',
                           lineHeight: '1.2',
                         }}>{node.name}</p>
+                        {/* Subtitle for completed result */}
+                        {isCompleted && resultContent?.sub && (
+                          <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>{resultContent.sub}</p>
+                        )}
+                        {/* Clarity mini bar */}
+                        {isCompleted && node.key === 'clarity' && (
+                          <div className="flex justify-center"><ClarityMiniBar /></div>
+                        )}
                         {status === 'current' && (
                           <p className="text-[9px] text-white/30 mt-0.5">{node.subtitle}</p>
                         )}
@@ -384,107 +447,7 @@ function ProfileScreenContent() {
           </div>
         </div>
 
-        {/* ═══ 3. FINANCIAL DNA CARD ═══ */}
-        <div className="rounded-[20px] p-5" style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)' }}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-bold text-white">Financial DNA</h3>
-            <Info className="w-4 h-4 text-white/25" />
-          </div>
-
-          {/* Radar Pentagon */}
-          <div className="flex justify-center mb-4">
-            <svg width="200" height="200" viewBox="0 0 200 200">
-              <defs>
-                <linearGradient id="radar-fill" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.30" />
-                  <stop offset="100%" stopColor="#FF6B9D" stopOpacity="0.30" />
-                </linearGradient>
-                <linearGradient id="radar-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.6" />
-                  <stop offset="100%" stopColor="#FF6B9D" stopOpacity="0.6" />
-                </linearGradient>
-              </defs>
-              {/* Grid lines */}
-              {[0.25, 0.5, 0.75, 1].map(pct => {
-                const pts = Array.from({ length: 5 }, (_, i) => radarPoint(100, 100, 75 * pct, i));
-                return <polygon key={pct} points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1" />;
-              })}
-              {/* Axis lines */}
-              {Array.from({ length: 5 }, (_, i) => {
-                const p = radarPoint(100, 100, 75, i);
-                return <line key={i} x1={100} y1={100} x2={p.x} y2={p.y} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />;
-              })}
-              {/* Data polygon */}
-              {(() => {
-                const scores = DIMENSION_LABELS.map(d => {
-                  const done = doneFlags[d.key];
-                  const ans = dimensionAnswers[d.key];
-                  return done && ans ? getDimensionScore(d.key, ans) : 50;
-                });
-                const pts = scores.map((s, i) => {
-                  const pct = doneFlags[DIMENSION_LABELS[i].key] ? s / 100 : 0.5;
-                  return radarPoint(100, 100, 75 * pct, i);
-                });
-                return (
-                  <motion.polygon
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5, duration: 0.8 }}
-                    points={pts.map(p => `${p.x},${p.y}`).join(' ')}
-                    fill="url(#radar-fill)" stroke="url(#radar-stroke)" strokeWidth="2.5" />
-                );
-              })()}
-              {/* Axis labels with colored icons */}
-              {DIMENSION_LABELS.map((d, i) => {
-                const p = radarPoint(100, 100, 92, i);
-                const done = doneFlags[d.key];
-                const dimColor = DIMENSION_COLORS[d.key] || '#fff';
-                const score = done && dimensionAnswers[d.key] ? getDimensionScore(d.key, dimensionAnswers[d.key]) : null;
-                return (
-                  <g key={d.key}>
-                    <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill={done ? dimColor : 'rgba(255,255,255,0.3)'} fontSize="9" opacity={done ? 0.7 : 1}>{d.label}</text>
-                    {done && score !== null ? (
-                      <text x={p.x} y={p.y + 12} textAnchor="middle" fill={dimColor} fontSize="9" fontWeight="bold">{score}</text>
-                    ) : (
-                      <text x={p.x} y={p.y + 12} textAnchor="middle" fill="rgba(255,255,255,0.20)" fontSize="8">?</text>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-
-          {/* Stat pills */}
-          <div className="flex gap-2 justify-center flex-wrap">
-            {DIMENSION_LABELS.map((d, i) => {
-              const done = doneFlags[d.key];
-              const DIcon = d.Icon;
-              const dimColor = DIMENSION_COLORS[d.key] || '#fff';
-              const score = done && dimensionAnswers[d.key] ? getDimensionScore(d.key, dimensionAnswers[d.key]) : null;
-              return (
-                <motion.div key={d.key} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 + i * 0.1 }}
-                  className="flex items-center gap-1 px-2 h-7 rounded-full text-xs"
-                  style={{ background: done ? `${dimColor}40` : 'rgba(255,255,255,0.05)', color: done ? 'white' : 'rgba(255,255,255,0.3)' }}>
-                  <DIcon className="w-3 h-3" strokeWidth={1.5} />
-                  <span>{done ? score : '?'}</span>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Persona */}
-          {persona && (
-            <div className="mt-4 pt-4 border-t border-white/[0.08]">
-              <p className="text-[11px] text-white/25 mb-1">Your Persona</p>
-              <p className="text-lg font-bold text-white">{persona.n}</p>
-              <p className="text-xs text-white/40 mt-1">{persona.d}</p>
-              <p className="text-[11px] text-white/25 mt-1">Style: {persona.s}</p>
-            </div>
-          )}
-          {!persona && (
-            <p className="text-sm text-white/30 text-center mt-3">Complete quests to reveal your DNA</p>
-          )}
-        </div>
-
-        {/* ═══ 4. LEVEL PROGRESS ═══ */}
+        {/* ═══ LEVEL PROGRESS ═══ */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="font-bold text-white">{levelTitle}</span>
@@ -496,7 +459,7 @@ function ProfileScreenContent() {
           {nextQuestName && <p className="text-xs text-white/25">Next: Complete {nextQuestName} to level up</p>}
         </div>
 
-        {/* ═══ 5. BADGE SHOWCASE ═══ */}
+        {/* ═══ BADGE SHOWCASE ═══ */}
         <div className="rounded-[20px] p-4" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
           <div className="flex items-center gap-2 mb-3">
             <Trophy className="w-4 h-4" style={{ color: '#FFD700' }} />
@@ -561,7 +524,7 @@ function ProfileScreenContent() {
           </div>
         </div>
 
-        {/* ═══ 6. JOHNNY'S OBSERVATIONS ═══ */}
+        {/* ═══ JOHNNY'S OBSERVATIONS ═══ */}
         <div className="rounded-[20px] p-4" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
           <div className="flex items-center gap-2 mb-3">
             <img src={johnnyImg} alt="Johnny" className="w-8 h-8" />
@@ -569,7 +532,6 @@ function ProfileScreenContent() {
             <BookOpen className="w-3.5 h-3.5 text-white/25" />
           </div>
           {(() => {
-            // Prepend persona observation
             const personaObs = persona ? getPersonaObservation(persona.n) : null;
             const allObs = personaObs ? [personaObs, ...observations] : observations;
             if (allObs.length > 0) {
@@ -595,7 +557,8 @@ function ProfileScreenContent() {
             );
           })()}
         </div>
-        {/* ═══ 7. SETTINGS BUTTON ═══ */}
+
+        {/* ═══ SETTINGS BUTTON ═══ */}
         <button onClick={() => setSettingsOpen(true)}
           className="w-full h-12 rounded-2xl flex items-center gap-3 px-4"
           style={{ background: 'rgba(255,255,255,0.10)' }}>
@@ -606,7 +569,7 @@ function ProfileScreenContent() {
           <ChevronRight className="w-3.5 h-3.5 text-white/15" />
         </button>
 
-        {/* ═══ 8. SPACER ═══ */}
+        {/* ═══ SPACER ═══ */}
         <div className="h-20" />
       </div>
 
@@ -627,13 +590,13 @@ function ProfileScreenContent() {
               { icon: Shield, label: 'Privacy', action: () => toast({ title: 'Your data is stored locally on this device only' }) },
               { icon: Info, label: 'About JFB', action: () => { setSettingsOpen(false); setAboutOpen(true); } },
             ].map((row, i) => {
-              const Icon = row.icon;
+              const RowIcon = row.icon;
               return (
                 <button key={i} onClick={row.action}
                   className="w-full h-[52px] rounded-2xl flex items-center gap-3 px-4"
                   style={{ background: 'rgba(255,255,255,0.08)' }}>
                   <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    <Icon className="w-4 h-4 text-white/50" strokeWidth={1.5} />
+                    <RowIcon className="w-4 h-4 text-white/50" strokeWidth={1.5} />
                   </div>
                   <span className="flex-1 text-left text-sm text-white">{row.label}</span>
                   <ChevronRight className="w-4 h-4 text-white/20" />

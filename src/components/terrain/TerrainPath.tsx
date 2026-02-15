@@ -44,24 +44,62 @@ const DATE_AXIS_HEIGHT = 32;
 const PADDING_TOP = 20;
 const PADDING_BOTTOM = 10;
 
-// --- Fallback Data ---
+// --- Date constants ---
 const today = new Date();
 const currentYear = today.getFullYear();
 const currentMonth = today.getMonth();
 
-const FALLBACK_BILLS: BillEvent[] = [
-  { name: 'Electricity', amount: 60, icon: Zap, date: new Date(currentYear, currentMonth, 3) },
-  { name: 'Insurance', amount: 30, icon: Shield, date: new Date(currentYear, currentMonth, 6) },
-  { name: 'Groceries', amount: 100, icon: ShoppingCart, date: new Date(currentYear, currentMonth, 8) },
-  { name: 'Rent', amount: 450, icon: Home, date: new Date(currentYear, currentMonth, 28) },
-  { name: 'Phone', amount: 25, icon: Smartphone, date: new Date(currentYear, currentMonth + 1, 1) },
-  { name: 'Spotify', amount: 10, icon: Music, date: new Date(currentYear, currentMonth + 1, 3) },
-  { name: 'Gym', amount: 50, icon: Dumbbell, date: new Date(currentYear, currentMonth + 1, 5) },
-];
+// --- Read budget data from localStorage ---
+const STORAGE_KEY = 'jfb-budget-data';
 
-const FALLBACK_INCOME: IncomeEvent[] = [
-  { name: 'Salary', amount: 2400, icon: Wallet, date: new Date(currentYear, currentMonth + 1, 1) },
-];
+function readBudgetForTerrain(): { bills: BillEvent[]; income: IncomeEvent[]; isProjection: boolean; hasRealData: boolean; projectionPoints?: { day: number; balance: number }[] } {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { bills: [], income: [], isProjection: false, hasRealData: false };
+    const parsed = JSON.parse(raw);
+    const config = parsed.config || {};
+    const categories = (parsed.categories || []) as any[];
+    const transactions = (parsed.transactions || []) as any[];
+
+    if (!config.setupComplete) return { bills: [], income: [], isProjection: false, hasRealData: false };
+
+    // Derive bills from fixed categories (spread across month)
+    const fixedCats = categories.filter((c: any) => c.type === 'fixed');
+    const bills: BillEvent[] = fixedCats.map((c: any, i: number) => ({
+      name: c.name,
+      amount: c.monthlyBudget,
+      icon: Home, // Generic icon
+      date: new Date(currentYear, currentMonth, Math.min(3 + i * 4, 28)),
+    }));
+
+    const income: IncomeEvent[] = [
+      { name: 'Salary', amount: config.monthlyIncome || 0, icon: Wallet, date: new Date(currentYear, currentMonth, 1) },
+    ];
+
+    // Check if real transactions exist
+    if (transactions.length > 0) {
+      return { bills, income, isProjection: false, hasRealData: true };
+    }
+
+    // No transactions: build projection from Clarity data
+    const totalFixed = fixedCats.reduce((s: number, c: any) => s + (c.monthlyBudget || 0), 0);
+    const savings = config.monthlySavingsTarget || 0;
+    const monthlyIncome = config.monthlyIncome || 0;
+    const flexBudget = monthlyIncome - totalFixed - savings;
+    const dailyFlex = flexBudget / 30;
+
+    const projectionPoints: { day: number; balance: number }[] = [];
+    let balance = flexBudget;
+    for (let day = 0; day < 30; day++) {
+      balance -= dailyFlex * 0.85;
+      projectionPoints.push({ day, balance: Math.max(balance, 0) });
+    }
+
+    return { bills, income, isProjection: true, hasRealData: false, projectionPoints };
+  } catch {
+    return { bills: [], income: [], isProjection: false, hasRealData: false };
+  }
+}
 
 // --- Marker size helper ---
 function getMarkerSize(amount: number) {
@@ -334,10 +372,16 @@ export function TerrainPath() {
     billAmount?: number;
   } | null>(null);
 
+  // Read budget data from localStorage for terrain
+  const budgetTerrain = useMemo(() => readBudgetForTerrain(), []);
+  const terrainBills = budgetTerrain.hasRealData || budgetTerrain.isProjection ? budgetTerrain.bills : [];
+  const terrainIncome = budgetTerrain.hasRealData || budgetTerrain.isProjection ? budgetTerrain.income : [];
+  const isProjection = budgetTerrain.isProjection;
+
   // Build terrain data
   const points = useMemo(() =>
-    buildTerrainData(monthlyIncome, averageDailySpend, FALLBACK_BILLS, FALLBACK_INCOME, terrainSimulations),
-    [monthlyIncome, averageDailySpend, terrainSimulations]
+    buildTerrainData(monthlyIncome, averageDailySpend, terrainBills, terrainIncome, terrainSimulations),
+    [monthlyIncome, averageDailySpend, terrainSimulations, terrainBills, terrainIncome]
   );
 
   const todayIndex = useMemo(() => points.findIndex(p => p.isToday), [points]);
@@ -572,10 +616,10 @@ export function TerrainPath() {
             />
 
             {/* 2. Terrain fill - past (dimmed) */}
-            <path d={terrainFillPath} fill="url(#terrainGradientDim)" clipPath="url(#pastClip)" />
+            <path d={terrainFillPath} fill={isProjection ? "rgba(255,255,255,0.08)" : "url(#terrainGradientDim)"} clipPath="url(#pastClip)" />
 
             {/* 2. Terrain fill - future */}
-            <path d={terrainFillPath} fill="url(#terrainGradient)" clipPath="url(#futureClip)" />
+            <path d={terrainFillPath} fill={isProjection ? "rgba(255,255,255,0.15)" : "url(#terrainGradient)"} clipPath="url(#futureClip)" />
 
             {/* 3. BUG 4 FIX: Green tint as slope wedge, not rectangle */}
             {points.map((p, i) => {
@@ -607,7 +651,15 @@ export function TerrainPath() {
               fill="none"
               stroke="rgba(255,255,255,0.5)"
               strokeWidth={2}
+              strokeDasharray={isProjection ? "8 4" : undefined}
             />
+
+            {/* Projection label */}
+            {isProjection && (
+              <text x={totalWidth / 2} y={TERRAIN_HEIGHT - 6} textAnchor="middle" fill="rgba(255,255,255,0.20)" fontSize={10}>
+                Projected from Clarity data. Start tracking to see real trends.
+              </text>
+            )}
 
             {/* 6. Vertical dotted connector lines for expenses */}
             {points.map((p, i) => {

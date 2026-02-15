@@ -1,6 +1,6 @@
 import {
-  UserCircle, BarChart3, Flame, Hourglass, Shield, Users, BookOpen,
-  Building2, Footprints, Brain, ClipboardCheck, PiggyBank,
+  UserCircle, BarChart3, Flame, Hourglass, Shield, Users, BookOpen, BookHeart,
+  Building2, Footprints, Brain, ClipboardCheck,
   Compass, TrendingUp, Trophy, Clock
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -33,7 +33,7 @@ export type ProfileQ = {
   showIf?: (a: Record<string, any>) => boolean;
 };
 
-// ── Quest Nodes ──
+// ── Quest Nodes (Clarity first, Know Yourself second) ──
 export const QUEST_NODES: QuestNode[] = [
   { key: 'clarity', name: 'Financial Clarity', Icon: BarChart3, subtitle: '11 steps · 7 min', lsDone: 'jfb_clarity_done', lsAnswers: 'jfb_clarity_answers', status: 'required', prereqs: [], badgeKey: 'know-thyself' },
   { key: 'module0', name: 'Know Yourself', Icon: UserCircle, subtitle: '6 questions · 3 min', lsDone: 'jfb_module0_done', lsAnswers: 'jfb_module0_answers', status: 'required', prereqs: ['clarity'], badgeKey: 'first-step' },
@@ -41,76 +41,76 @@ export const QUEST_NODES: QuestNode[] = [
   { key: 'module2', name: 'Time Lens', Icon: Hourglass, subtitle: '6 questions · 3 min', lsDone: 'jfb_module2_done', lsAnswers: 'jfb_module2_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'time-keeper' },
   { key: 'module3', name: 'Confidence', Icon: Shield, subtitle: '6 questions · 3 min', lsDone: 'jfb_module3_done', lsAnswers: 'jfb_module3_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'self-aware' },
   { key: 'module4', name: 'Social Mirror', Icon: Users, subtitle: '5 questions · 2 min', lsDone: 'jfb_module4_done', lsAnswers: 'jfb_module4_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'mirror' },
-  { key: 'module5', name: 'Money Story', Icon: BookOpen, subtitle: '6 questions · 3 min', lsDone: 'jfb_module5_done', lsAnswers: 'jfb_module5_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'deep-diver' },
+  { key: 'module5', name: 'Money Story', Icon: BookHeart, subtitle: '6 questions · 3 min', lsDone: 'jfb_module5_done', lsAnswers: 'jfb_module5_answers', status: 'optional', prereqs: ['clarity', 'module0'], badgeKey: 'deep-diver' },
   { key: 'knowledge', name: 'Knowledge Tower', Icon: BookOpen, subtitle: 'Coming soon', lsDone: '', lsAnswers: '', status: 'coming-soon', prereqs: [], badgeKey: '' },
   { key: 'execution', name: 'Execution Hub', Icon: Building2, subtitle: 'Coming soon', lsDone: '', lsAnswers: '', status: 'coming-soon', prereqs: [], badgeKey: '' },
 ];
 
 // ── Badges ──
 export const BADGES: Badge[] = [
+  { key: 'know-thyself', name: 'Know Thyself', desc: 'Completed Financial Clarity', hint: 'Complete the Financial Clarity quest', Icon: Brain, tint: '#3B82F6' },
   { key: 'first-step', name: 'First Step', desc: 'Completed Know Yourself', hint: 'Complete the Know Yourself quest', Icon: Footprints, tint: '#8B5CF6' },
-  { key: 'know-thyself', name: 'Know Thyself', desc: 'Completed Financial Clarity', hint: 'Complete the Financial Clarity quest', Icon: Brain, tint: '#5AC8FA' },
-  { key: 'risk-taker', name: 'Risk Taker', desc: 'Completed Risk Pulse', hint: 'Complete the Risk Pulse quest', Icon: Flame, tint: '#FF9F0A' },
+  { key: 'risk-taker', name: 'Risk Taker', desc: 'Completed Risk Pulse', hint: 'Complete the Risk Pulse quest', Icon: Flame, tint: '#F97316' },
   { key: 'time-keeper', name: 'Time Keeper', desc: 'Completed Time Lens', hint: 'Complete the Time Lens quest', Icon: Hourglass, tint: '#14B8A6' },
   { key: 'self-aware', name: 'Self Aware', desc: 'Completed Confidence Check', hint: 'Complete the Confidence quest', Icon: Shield, tint: '#6366F1' },
-  { key: 'mirror', name: 'Mirror Mirror', desc: 'Completed Social Mirror', hint: 'Complete the Social Mirror quest', Icon: Users, tint: '#FF6B9D' },
-  { key: 'deep-diver', name: 'Deep Diver', desc: 'Completed Money Story', hint: 'Complete the Money Story quest', Icon: BookOpen, tint: '#3B82F6' },
-  { key: 'tracker', name: 'Tracker', desc: '10+ transactions logged', hint: 'Log 10 or more transactions', Icon: ClipboardCheck, tint: '#FF9F0A' },
+  { key: 'mirror', name: 'Mirror Mirror', desc: 'Completed Social Mirror', hint: 'Complete the Social Mirror quest', Icon: Users, tint: '#EC4899' },
+  { key: 'deep-diver', name: 'Deep Diver', desc: 'Completed Money Story', hint: 'Complete the Money Story quest', Icon: BookHeart, tint: '#EAB308' },
+  { key: 'tracker', name: 'Tracker', desc: '10+ transactions logged', hint: 'Log 10 or more transactions', Icon: ClipboardCheck, tint: '#F97316' },
   { key: 'goal-getter', name: 'Goal Getter', desc: 'Fully funded a goal', hint: 'Save until a goal reaches 100%', Icon: Trophy, tint: '#FFD700' },
   { key: 'explorer', name: 'Explorer', desc: 'Used What If mode', hint: 'Try the What If simulation', Icon: Compass, tint: '#34C759' },
   { key: 'on-track', name: 'On Track', desc: 'Month finished on track', hint: 'Stay on budget for a full month', Icon: TrendingUp, tint: '#14B8A6' },
   { key: 'time-traveler', name: 'Time Traveler', desc: 'Used 5Y time zoom', hint: 'Try the 5 Year time view', Icon: Clock, tint: '#8B5CF6' },
 ];
 
-// ── Module 0: Know Yourself ──
+// ── Module 0: Know Yourself (6 questions, no name/age) ──
 const MODULE_0: ProfileQ[] = [
-  { id: 'q3', text: "How would you describe your financial situation right now?", type: 'slider', min: 1, max: 10, step: 1, minLabel: 'Struggling', maxLabel: 'Thriving' },
-  { id: 'q4', text: "What's your biggest money frustration?", type: 'single', options: [
+  { id: 'q1', text: "How would you describe your financial situation right now?", type: 'slider', min: 1, max: 10, step: 1, minLabel: 'Struggling', maxLabel: 'Thriving' },
+  { id: 'q2', text: "What's your biggest money frustration?", type: 'single', options: [
     "I don't know where my money goes", "I can't seem to save consistently",
     "I have debt I want to pay off", "I make impulsive purchases I regret",
     "I avoid thinking about money entirely", "I don't know if I'm making good decisions", "Something else"
   ]},
-  { id: 'q5', text: "How often did you check your bank balance this past month?", type: 'single', options: [
+  { id: 'q3', text: "How often did you check your bank balance this past month?", type: 'single', options: [
     "Daily or more", "A few times a week", "Once a week",
     "A few times a month", "Rarely -- I avoid looking", "Only when I absolutely have to"
   ]},
-  { id: 'q6', text: "How consistently have you saved in the past 6 months?", type: 'single', options: [
+  { id: 'q4', text: "How consistently have you saved in the past 6 months?", type: 'single', options: [
     "Every month without fail", "Most months", "Some months", "Rarely", "I haven't been able to save"
   ]},
-  { id: 'q7a', text: "Quick knowledge check!\n\n€100 at 2% interest for 5 years. After 5 years, you'd have...", type: 'quiz', options: [
+  { id: 'q5a', text: "Quick knowledge check!\n\n€100 at 2% interest for 5 years. After 5 years, you'd have...", type: 'quiz', options: [
     { label: 'More than €102', correct: true }, { label: 'Exactly €102' }, { label: 'Less than €102' }, { label: "Don't know" }
   ]},
-  { id: 'q7b', text: "If interest rate is 1% and inflation is 2%, after a year you can buy...", type: 'quiz', options: [
+  { id: 'q5b', text: "If interest rate is 1% and inflation is 2%, after a year you can buy...", type: 'quiz', options: [
     { label: 'More than today' }, { label: 'Same as today' }, { label: 'Less than today', correct: true }, { label: "Don't know" }
   ]},
-  { id: 'q7c', text: "A single company stock is generally safer than a mutual fund.", type: 'quiz', options: [
+  { id: 'q5c', text: "A single company stock is generally safer than a mutual fund.", type: 'quiz', options: [
     { label: 'True' }, { label: 'False', correct: true }, { label: "Don't know" }
   ]},
-  { id: 'q7d', text: "How many of the 3 questions do you think you got right?", type: 'single', options: ['0', '1', '2', '3'] },
-  { id: 'q8', text: "How connected do you feel to your future self in 20 years?", type: 'slider', min: 1, max: 7, step: 1, minLabel: 'Complete stranger', maxLabel: "That's still me" },
+  { id: 'q5d', text: "How many of the 3 questions do you think you got right?", type: 'single', options: ['0', '1', '2', '3'] },
+  { id: 'q6', text: "How connected do you feel to your future self in 20 years?", type: 'slider', min: 1, max: 7, step: 1, minLabel: 'Complete stranger', maxLabel: "That's still me" },
 ];
 
 // ── Clarity Report ──
 const CLARITY: ProfileQ[] = [
-  { id: 'step1', text: "Completing for yourself or household?", type: 'single', options: ['Just myself', 'My household'] },
-  { id: 'step2', text: "How often do you pay bills on time?", type: 'single', options: ['Always', 'Sometimes late', 'Often late'] },
+  { id: 'step1', text: "Are you completing this for yourself or your household?", type: 'single', options: ['Just myself', 'My household'] },
+  { id: 'step2', text: "How often do you pay your bills on time?", type: 'single', options: ['Always on time', 'Sometimes late', 'Often late'] },
   { id: 'step3', text: "What are your financial goals?", type: 'multi', options: [
-    'Better budgeting', 'Manage debt', 'Grow my money', 'Save for a purchase', 'Start investing', 'Save for retirement'
+    'Better budgeting', 'Manage debt', 'Grow my money', 'Save for a specific purchase', 'Start investing', 'Save for retirement'
   ]},
-  { id: 'step4', text: "Monthly income after tax?", type: 'number', prefix: '€' },
-  { id: 'step5', text: "Monthly expenses", type: 'expenses', fields: [
+  { id: 'step4', text: "What is your monthly income after tax?", type: 'number', prefix: '€' },
+  { id: 'step5', text: "Your monthly expenses", type: 'expenses', fields: [
     { key: 'rent', label: 'Rent/Mortgage', icon: 'Home', prefix: '€' },
     { key: 'utilities', label: 'Utilities', icon: 'Zap', prefix: '€' },
     { key: 'tax', label: 'Council/Property tax', icon: 'Landmark', prefix: '€' },
     { key: 'car', label: 'Car costs', icon: 'Car', prefix: '€' },
     { key: 'transport', label: 'Public transport', icon: 'Bus', prefix: '€' },
-    { key: 'subs', label: 'Subscriptions', icon: 'Tv', prefix: '€' },
+    { key: 'subs', label: 'Media & subscriptions', icon: 'Tv', prefix: '€' },
     { key: 'insurance', label: 'Insurance & medical', icon: 'Shield', prefix: '€' },
     { key: 'groceries', label: 'Groceries', icon: 'ShoppingCart', prefix: '€' },
     { key: 'childcare', label: 'Childcare', icon: 'Baby', prefix: '€' },
     { key: 'other', label: 'Other essentials', icon: 'MoreHorizontal', prefix: '€' },
   ]},
-  { id: 'step6a', text: "Any debt?", type: 'single', options: ['Yes', 'No'] },
+  { id: 'step6a', text: "Do you have any debt?", type: 'single', options: ['Yes', 'No'] },
   { id: 'step6b', text: "Credit card debt", type: 'compound', fields: [
     { key: 'cc_balance', label: 'Balance', prefix: '€' }, { key: 'cc_payment', label: 'Monthly payment', prefix: '€' },
   ], showIf: (a) => a.step6a === 'Yes' },
@@ -120,13 +120,13 @@ const CLARITY: ProfileQ[] = [
   { id: 'step6d', text: "Other debt", type: 'compound', fields: [
     { key: 'od_balance', label: 'Balance', prefix: '€' }, { key: 'od_payment', label: 'Monthly payment', prefix: '€' },
   ], showIf: (a) => a.step6a === 'Yes' },
-  { id: 'step7', text: "How much do you save monthly?", type: 'number', prefix: '€' },
-  { id: 'step8', text: "Available cash", type: 'compound', fields: [
-    { key: 'bank', label: 'Bank accounts', prefix: '€' }, { key: 'savings', label: 'Savings accounts', prefix: '€' },
+  { id: 'step7', text: "How much do you save each month?", type: 'number', prefix: '€' },
+  { id: 'step8', text: "How much cash do you have available?", type: 'compound', fields: [
+    { key: 'bank', label: 'Bank account(s)', prefix: '€' }, { key: 'savings', label: 'Savings account(s)', prefix: '€' },
   ]},
-  { id: 'step9', text: "Contributing to pension?", type: 'single', options: ['Yes', 'No'] },
-  { id: 'step10', text: "Total investment value (excl. pension)?", type: 'number', prefix: '€' },
-  { id: 'step11', text: "Insurance?", type: 'multi', options: ['Life', 'Critical illness', 'Income protection', 'Home', 'Other', 'None'] },
+  { id: 'step9', text: "Do you contribute to a pension?", type: 'single', options: ['Yes', 'No'] },
+  { id: 'step10', text: "Total value of investments (excluding pension)?", type: 'number', prefix: '€' },
+  { id: 'step11', text: "Which insurance do you have?", type: 'multi', options: ['Life insurance', 'Critical illness', 'Income protection', 'Home insurance', 'Other', 'None'] },
 ];
 
 // ── Module 1: Risk Pulse ──
@@ -229,8 +229,8 @@ export function getLevelTier(pct: number) {
 
 export function calculateCompleteness(done: Record<string, boolean>): number {
   let score = 0;
-  if (done['module0']) score += 30;
   if (done['clarity']) score += 30;
+  if (done['module0']) score += 30;
   if (done['module1']) score += 8;
   if (done['module2']) score += 8;
   if (done['module3']) score += 8;
@@ -242,10 +242,18 @@ export function calculateCompleteness(done: Record<string, boolean>): number {
 export function calculateClarityScore(a: Record<string, any>) {
   const income = Number(a.step4) || 1;
   const exp = a.step5 || {};
-  const totalExp = Object.values(exp).reduce((s: number, v: any) => s + (Number(v) || 0), 0) as number;
+  const freq = a.step5_freq || {};
+  // Sum expenses, applying 4.33x for weekly items
+  let totalExp = 0;
+  Object.entries(exp).forEach(([key, val]) => {
+    let v = Number(val) || 0;
+    if (freq[key] === 'weekly') v *= 4.33;
+    totalExp += v;
+  });
+
   const expRatio = totalExp / income;
   const expScore = expRatio <= 0.5 ? 20 : expRatio <= 0.6 ? 15 : expRatio <= 0.7 ? 10 : expRatio <= 0.8 ? 5 : 0;
-  const billScore = a.step2 === 'Always' ? 15 : a.step2 === 'Sometimes late' ? 8 : 0;
+  const billScore = a.step2 === 'Always on time' ? 15 : a.step2 === 'Sometimes late' ? 8 : 0;
   const debtPay = (Number(a.step6b?.cc_payment) || 0) + (Number(a.step6c?.pl_payment) || 0) + (Number(a.step6d?.od_payment) || 0);
   const debtRatio = debtPay / income;
   const debtScore = debtRatio <= 0.1 ? 5 : debtRatio <= 0.2 ? 3 : debtRatio <= 0.3 ? 1 : 0;
@@ -268,29 +276,29 @@ export function calculateClarityScore(a: Record<string, any>) {
 
 export function getPersona(m0: Record<string, any> | null) {
   if (!m0) return null;
-  if (m0.q4 === 'I avoid thinking about money entirely') return { n: 'Money Avoider', d: 'You avoid financial decisions. Small steps work best.', s: 'Gentle, celebrate wins' };
-  if (m0.q4 === 'I make impulsive purchases I regret') return { n: 'Impulsive Optimist', d: 'Optimistic but impulsive. Simulation is your friend.', s: 'Reality checks' };
-  if (m0.q4 === "I can't seem to save consistently") return { n: 'Present Hedonist', d: 'You enjoy the moment. Visual future tools help.', s: 'Immediate benefits' };
-  if (m0.q5 === 'Daily or more') return { n: 'Vigilant Saver', d: "Careful with money. Optimize, don't just save.", s: 'Validate caution' };
-  if (Number(m0.q3) >= 7) return { n: 'Confident Controller', d: 'In charge of finances. Data tools let you fine-tune.', s: 'Data-driven' };
+  if (m0.q2 === 'I avoid thinking about money entirely') return { n: 'Money Avoider', d: 'You avoid financial decisions. Small steps work best.', s: 'Gentle, celebrate wins' };
+  if (m0.q2 === 'I make impulsive purchases I regret') return { n: 'Impulsive Optimist', d: 'Optimistic but impulsive. Simulation is your friend.', s: 'Reality checks' };
+  if (m0.q2 === "I can't seem to save consistently") return { n: 'Present Hedonist', d: 'You enjoy the moment. Visual future tools help.', s: 'Immediate benefits' };
+  if (m0.q3 === 'Daily or more') return { n: 'Vigilant Saver', d: "Careful with money. Optimize, don't just save.", s: 'Validate caution' };
+  if (Number(m0.q1) >= 7) return { n: 'Confident Controller', d: 'In charge of finances. Data tools let you fine-tune.', s: 'Data-driven' };
   return { n: 'Steady Saver', d: 'Building solid habits. Keep going!', s: 'Balanced, incremental' };
 }
 
 export function getJohnnyObservations(m0: Record<string, any> | null, clarity: Record<string, any> | null): { icon: string; text: string }[] {
   const obs: { icon: string; text: string }[] = [];
   if (m0) {
-    if (m0.q5 === 'Rarely -- I avoid looking' || m0.q5 === 'Only when I absolutely have to')
+    if (m0.q3 === 'Rarely -- I avoid looking' || m0.q3 === 'Only when I absolutely have to')
       obs.push({ icon: 'Eye', text: "You avoid checking finances. Johnny's here to make it less scary." });
-    if (m0.q4 === 'I make impulsive purchases I regret')
+    if (m0.q2 === 'I make impulsive purchases I regret')
       obs.push({ icon: 'Zap', text: "Impulse spending is your challenge. Try the 'Can I Afford' tool." });
-    if (m0.q4 === "I can't seem to save consistently")
+    if (m0.q2 === "I can't seem to save consistently")
       obs.push({ icon: 'PiggyBank', text: 'Consistent saving is tough. Start with a tiny goal.' });
-    if (Number(m0.q8) <= 3) obs.push({ icon: 'Clock', text: 'Future self feels distant. The 5-Year zoom might change that.' });
-    if (Number(m0.q8) >= 6) obs.push({ icon: 'Clock', text: 'Strong future-self connection — that\'s a financial superpower.' });
-    const actual = m0.q7_actual !== undefined ? m0.q7_actual : [
-      m0.q7a === 'More than €102', m0.q7b === 'Less than today', m0.q7c === 'False',
+    if (Number(m0.q6) <= 3) obs.push({ icon: 'Clock', text: 'Future self feels distant. The 5-Year zoom might change that.' });
+    if (Number(m0.q6) >= 6) obs.push({ icon: 'Clock', text: 'Strong future-self connection — that\'s a financial superpower.' });
+    const actual = m0.q5_actual !== undefined ? m0.q5_actual : [
+      m0.q5a === 'More than €102', m0.q5b === 'Less than today', m0.q5c === 'False',
     ].filter(Boolean).length;
-    const estimated = m0.q7_estimated !== undefined ? m0.q7_estimated : (Number(m0.q7d) || 0);
+    const estimated = m0.q5_estimated !== undefined ? m0.q5_estimated : (Number(m0.q5d) || 0);
     if (estimated > actual) obs.push({ icon: 'AlertTriangle', text: 'Slightly overconfident on financial knowledge. Quests will help!' });
     if (estimated < actual) obs.push({ icon: 'Star', text: 'You know more than you think. Trust your instincts more.' });
   }
@@ -335,4 +343,61 @@ export function getDimensionScore(moduleKey: string, answers: Record<string, any
     }
   });
   return count > 0 ? Math.round(total / count) : 50;
+}
+
+// ── Result Label Helpers ──
+export function getRiskLabel(score: number): string {
+  if (score >= 70) return 'High';
+  if (score >= 40) return 'Moderate';
+  return 'Low';
+}
+
+export function getTimeLabel(score: number): string {
+  if (score >= 70) return 'Future-focused';
+  if (score >= 40) return 'Balanced';
+  return 'Present-focused';
+}
+
+export function getConfidenceLabel(score: number): string {
+  if (score >= 70) return 'Overconfident';
+  if (score >= 40) return 'Well calibrated';
+  return 'Underestimates';
+}
+
+export function getSocialLabel(score: number): string {
+  if (score >= 70) return 'Socially driven';
+  if (score >= 40) return 'Moderate';
+  return 'Independent';
+}
+
+export function getDominantScript(answers: Record<string, any> | null): string {
+  if (!answers) return '?';
+  const scripts = [
+    { key: 'm1', label: 'Avoid' },
+    { key: 'm2', label: 'Worship' },
+    { key: 'm3', label: 'Status' },
+    { key: 'm4', label: 'Vigil.' },
+  ];
+  let best = { label: '?', avg: 0 };
+  scripts.forEach(s => {
+    const v = answers[s.key];
+    if (v && typeof v === 'object') {
+      const vals = Object.values(v).map((x: any) => Number(x) || 0);
+      const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+      if (avg > best.avg) best = { label: s.label, avg };
+    }
+  });
+  return best.label;
+}
+
+export function getPersonaAbbrev(personaName: string): string {
+  const map: Record<string, string> = {
+    'Money Avoider': 'Avoider',
+    'Impulsive Optimist': 'Impulse',
+    'Present Hedonist': 'Present',
+    'Vigilant Saver': 'Vigilant',
+    'Confident Controller': 'Confident',
+    'Steady Saver': 'Steady',
+  };
+  return map[personaName] || personaName.split(' ')[0];
 }
