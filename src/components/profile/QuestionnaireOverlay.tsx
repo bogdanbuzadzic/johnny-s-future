@@ -10,6 +10,7 @@ import { getCelebration } from '@/lib/personaMessaging';
 import type { ProfileQ } from '@/lib/profileData';
 import { useBudget } from '@/context/BudgetContext';
 import { useApp } from '@/context/AppContext';
+import { BADGE_IMAGES } from '@/lib/badgeImages';
 
 const EXPENSE_ICONS: Record<string, LucideIcon> = {
   Home, Zap, Landmark, Car, Bus, Tv, Shield, ShoppingCart, Baby, MoreHorizontal,
@@ -263,62 +264,97 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
 
   // ── Completion Screen ──
   if (showCompletion) {
-    const particles = Array.from({ length: 45 }, (_, i) => ({
+    const particles = Array.from({ length: 55 }, (_, i) => ({
       x: 5 + Math.random() * 90, startY: -10 - Math.random() * 20,
       color: ['#8B5CF6', '#EC4899', '#FFD700', '#34C759', '#3B82F6'][i % 5],
-      delay: Math.random() * 1.2, size: [4, 6, 8][i % 3],
+      delay: Math.random() * 1.2, size: i % 4 === 0 ? 6 : i % 3 === 0 ? 5 : 4,
       drift: (Math.random() - 0.5) * 40,
-      rotation: Math.random() * 360,
+      rotation: Math.random() * 720,
       isRect: i % 3 === 0,
     }));
+    const badgeKey = node.badgeKey;
+    const badgeImg = BADGE_IMAGES[badgeKey];
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
         className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-8"
-        style={{ background: 'linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
-        {/* Confetti */}
+        style={{
+          background: 'radial-gradient(circle at 50% 40%, rgba(139,92,246,0.25) 0%, transparent 50%), linear-gradient(to bottom, #B4A6B8, #9B80B4)',
+        }}>
+        {/* Confetti - 55 particles */}
         {particles.map((p, i) => (
           <motion.div key={i} className="absolute pointer-events-none"
             style={{
-              width: p.isRect ? p.size * 1.5 : p.size, height: p.size,
+              width: p.isRect ? p.size * 2 : p.size, height: p.isRect ? p.size * 0.5 : p.size,
               borderRadius: p.isRect ? 1 : '50%', background: p.color, left: `${p.x}%`,
             }}
             initial={{ opacity: 0, y: `${p.startY}%`, x: 0, rotate: 0 }}
-            animate={{ opacity: [0, 1, 1, 0], y: [`${p.startY}%`, '110%'], x: [0, p.drift], rotate: [0, p.rotation] }}
-            transition={{ duration: 2.5, delay: p.delay, ease: 'easeIn' }} />
+            animate={{ opacity: [0, 1, 1, 0], y: [`${p.startY}%`, '120%'], x: [0, p.drift], rotate: [0, p.rotation] }}
+            transition={{ duration: 3, delay: p.delay, ease: 'easeIn' }} />
         ))}
-        {/* Glowing icon circle */}
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 12, delay: 0.2 }}
+
+        {/* Glowing module icon */}
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+          transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.1 }}
           className="w-[88px] h-[88px] rounded-full flex items-center justify-center mb-4"
           style={{
             background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
-            boxShadow: '0 0 30px rgba(139,92,246,0.5), 0 0 60px rgba(236,72,153,0.3)',
+            boxShadow: '0 0 40px rgba(139,92,246,0.4), 0 0 80px rgba(236,72,153,0.2)',
           }}>
-          <NodeIcon className="w-8 h-8 text-white" strokeWidth={2} />
+          <NodeIcon className="w-9 h-9 text-white" strokeWidth={2} />
         </motion.div>
+
         {/* Title */}
-        <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.3 }}
+        <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}
           className="text-[28px] font-bold text-white mb-1">{(() => {
             const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
             const p = getPersona(m0);
             return getCelebration(node.name, p?.n || null);
           })()}</motion.h2>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-          className="text-[14px] text-white/40 mb-6">{node.name}</motion.p>
-        {/* Badge */}
-        {badge && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.3 }}
-            className="flex flex-col items-center gap-2 mb-6">
-            <div className="w-20 h-[100px] rounded-2xl flex flex-col items-center justify-center relative overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
-              <badge.Icon className="w-9 h-9" style={{ color: badge.tint + 'CC' }} strokeWidth={1.5} />
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.10) 50%, transparent 70%)', animation: 'shimmer 3s infinite' }} />
-            </div>
-            <span className="text-[14px] font-bold text-white">{badge.name}</span>
-            <span className="text-[11px] text-white/30">Completed {node.name}</span>
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+          className="text-[15px] text-white/40 mb-6">{node.name}</motion.p>
+
+        {/* Pixel art badge on pedestal */}
+        {badgeImg && (
+          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+            transition={{ type: 'spring', damping: 10, stiffness: 180, delay: 0.5 }}
+            className="flex flex-col items-center gap-0 mb-6">
+            {/* Badge image with float */}
+            <motion.div
+              animate={{ y: [0, -4, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              className="relative"
+            >
+              <img src={badgeImg} alt={badge?.name || 'Badge'}
+                className="w-20 h-20 object-contain"
+                style={{ imageRendering: 'pixelated' }} />
+              {/* Golden shimmer pass */}
+              <motion.div className="absolute inset-0 overflow-hidden rounded-lg pointer-events-none"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8 }}>
+                <motion.div
+                  className="absolute inset-0"
+                  style={{
+                    background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 55%, transparent 70%)',
+                  }}
+                  initial={{ x: '-100%' }}
+                  animate={{ x: '200%' }}
+                  transition={{ duration: 3, delay: 1, ease: 'easeInOut' }}
+                />
+              </motion.div>
+            </motion.div>
+            {/* Frosted pedestal */}
+            <div className="w-[100px] h-3 rounded-md mt-1" style={{ background: 'rgba(255,255,255,0.10)' }} />
+            {/* Badge name */}
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
+              className="text-lg font-bold text-white mt-3">{badge?.name || 'Badge Earned'}</motion.p>
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
+              className="text-[13px] text-white/35">Completed {node.name}</motion.p>
           </motion.div>
         )}
+
         {/* Continue button */}
-        <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.3 }}
+        <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9, duration: 0.3 }}
           onClick={handleContinue}
           className="w-[200px] h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
           style={{
