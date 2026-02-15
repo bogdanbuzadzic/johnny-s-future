@@ -11,7 +11,7 @@ export function HomeScreen() {
   const { openTimeline, openTodayDrawer } = useApp();
   const { toast } = useToast();
   const [inputValue, setInputValue] = useState('');
-  
+
   const y = useMotionValue(0);
   const opacity = useTransform(y, [-100, 0, 100], [0.5, 1, 0.5]);
 
@@ -26,45 +26,45 @@ export function HomeScreen() {
   const handleAskJohnny = () => {
     toast({
       title: "Johnny AI coming soon!",
-      description: "I'll be able to answer your financial questions soon.",
+      description: "I'll be able to answer your financial questions soon."
     });
     setInputValue('');
   };
 
   return (
-    <motion.div 
+    <motion.div
       className="flex flex-col min-h-screen pb-20 px-5"
       style={{ y, opacity }}
       drag="y"
       dragConstraints={{ top: 0, bottom: 0 }}
       dragElastic={0.2}
-      onDragEnd={handleDragEnd}
-    >
+      onDragEnd={handleDragEnd}>
+
       {/* Top Bar */}
       <div className="flex items-center justify-between pt-12 pb-6">
         {/* Settings pill */}
-        <motion.button 
+        <motion.button
           className="jfb-pill"
-          whileTap={{ scale: 0.97 }}
-        >
+          whileTap={{ scale: 0.97 }}>
+
           <Settings size={18} strokeWidth={1.5} />
           <MessageCircle size={18} strokeWidth={1.5} />
         </motion.button>
         
         {/* Today pill */}
-        <motion.button 
+        <motion.button
           className="jfb-pill text-label"
           whileTap={{ scale: 0.97 }}
-          onClick={openTodayDrawer}
-        >
+          onClick={openTodayDrawer}>
+
           Today: €1,340 left
         </motion.button>
         
         {/* Edit pill */}
-        <motion.button 
+        <motion.button
           className="jfb-pill"
-          whileTap={{ scale: 0.97 }}
-        >
+          whileTap={{ scale: 0.97 }}>
+
           <Pencil size={18} strokeWidth={1.5} />
         </motion.button>
       </div>
@@ -74,17 +74,17 @@ export function HomeScreen() {
         {/* Johnny */}
         <motion.div
           animate={{ y: [0, -8, 0] }}
-          transition={{ 
-            duration: 3, 
-            repeat: Infinity, 
-            ease: "easeInOut" 
-          }}
-        >
-          <img 
-            src={johnnyImage} 
-            alt="Johnny the piggy bank" 
-            className="w-[120px] h-[120px] object-contain"
-          />
+          transition={{
+            duration: 3,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}>
+
+          <img
+            src={johnnyImage}
+            alt="Johnny the piggy bank"
+            className="w-[120px] h-[120px] object-contain" />
+
         </motion.div>
         
         <h1 className="text-xl font-bold text-white mt-4">Johnny</h1>
@@ -93,18 +93,18 @@ export function HomeScreen() {
 
       {/* Johnny's Notes Card */}
       <div className="px-4 mb-4">
-        <div className="flex items-center gap-3 rounded-2xl p-4"
-          style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <img src={johnnyImage} alt="Johnny" className="w-11 h-11 flex-shrink-0" style={{ imageRendering: 'pixelated' as any }} />
-          <p className="text-[14px] font-medium leading-snug" style={{ color: 'rgba(255,255,255,0.8)' }}>
-            {(() => {
-              const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
-              const p = getPersona(m0);
-              const tips = tipsByPersona[p?.n || 'default'] || tipsByPersona['default'];
-              return tips[new Date().getDate() % tips.length];
-            })()}
-          </p>
-        </div>
+        
+
+
+
+
+
+
+
+
+
+
+
       </div>
 
       {/* Bottom Action Area */}
@@ -113,8 +113,8 @@ export function HomeScreen() {
         <div className="flex justify-center">
           <motion.div
             animate={{ opacity: [0.3, 0.6, 0.3] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          >
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>
+
             <ChevronUp size={24} strokeWidth={1.5} className="text-white/30" />
           </motion.div>
         </div>
@@ -124,8 +124,8 @@ export function HomeScreen() {
           <motion.button
             className="glass rounded-full px-4 py-3 flex items-center gap-2 text-white text-sm font-medium"
             whileTap={{ scale: 0.97 }}
-            onClick={() => openTimeline(false)}
-          >
+            onClick={() => openTimeline(false)}>
+
             <TrendingUp size={18} strokeWidth={1.5} />
             Plan my future
           </motion.button>
@@ -133,8 +133,8 @@ export function HomeScreen() {
           <motion.button
             className="glass rounded-full px-4 py-3 flex items-center gap-2 text-white text-sm font-medium"
             whileTap={{ scale: 0.97 }}
-            onClick={() => openTimeline(true)}
-          >
+            onClick={() => openTimeline(true)}>
+
             <Sparkles size={18} strokeWidth={1.5} />
             What can I afford?
           </motion.button>
@@ -148,17 +148,17 @@ export function HomeScreen() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAskJohnny()}
-            className="flex-1 bg-transparent text-white placeholder:text-white/40 text-sm outline-none"
-          />
+            className="flex-1 bg-transparent text-white placeholder:text-white/40 text-sm outline-none" />
+
           <motion.button
             className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center ml-2"
             whileTap={{ scale: 0.95 }}
-            onClick={handleAskJohnny}
-          >
+            onClick={handleAskJohnny}>
+
             <ArrowRight size={16} strokeWidth={2} className="text-white" />
           </motion.button>
         </div>
       </div>
-    </motion.div>
-  );
+    </motion.div>);
+
 }
