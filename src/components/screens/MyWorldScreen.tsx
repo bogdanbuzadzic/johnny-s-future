@@ -33,6 +33,15 @@ import vacation4Img from '@/assets/world/vacation4.png';
 import education2Img from '@/assets/world/education2.png';
 import education3Img from '@/assets/world/education3.png';
 import education4Img from '@/assets/world/education4.png';
+import education1Img from '@/assets/world/education1.png';
+import laptop1Img from '@/assets/world/laptop1.png';
+import laptop2Img from '@/assets/world/laptop2.png';
+import laptop3Img from '@/assets/world/laptop3.png';
+import laptop4Img from '@/assets/world/laptop4.png';
+import house1Img from '@/assets/world/house1.png';
+import house2Img from '@/assets/world/house2.png';
+import house3Img from '@/assets/world/house3.png';
+import house4Img from '@/assets/world/house4.png';
 import generalGoal1 from '@/assets/world/general_goal_icon1.png';
 import generalGoal2 from '@/assets/world/general_goal_icon2.png';
 
@@ -43,7 +52,9 @@ const WEATHER_MAP: Record<string, string> = { weather1_sunny: weather1, weather2
 const GOAL_ASSETS: Record<string, string> = {
   car1: car1Img, car2: car2Img, car3: car3Img, car4: car4Img,
   vacation1: vacation1Img, vacation2: vacation2Img, vacation3: vacation3Img, vacation4: vacation4Img,
-  education2: education2Img, education3: education3Img, education4: education4Img,
+  education1: education1Img, education2: education2Img, education3: education3Img, education4: education4Img,
+  laptop1: laptop1Img, laptop2: laptop2Img, laptop3: laptop3Img, laptop4: laptop4Img,
+  house1: house1Img, house2: house2Img, house3: house3Img, house4: house4Img,
 };
 
 const POSITIONS = [
