@@ -642,6 +642,51 @@ function ProfileScreenContent() {
               </div>
             )}
 
+            {/* Demo Mode: Load Demo Goals */}
+            {localStorage.getItem('jfb_clarity_done') === 'true' && (
+              <div className="pt-3 border-t border-white/[0.06] mt-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] text-white/20">🎬 Demo Mode</span>
+                </div>
+                <button onClick={() => {
+                  const demoGoals = [
+                    { id: crypto.randomUUID(), name: 'Dream House', icon: 'Home', target: 40000, saved: 30000, monthlyContribution: 200, targetDate: '', monthIndex: -1 },
+                    { id: crypto.randomUUID(), name: 'New Car', icon: 'Car', target: 10000, saved: 5000, monthlyContribution: 150, targetDate: '', monthIndex: -1 },
+                  ];
+                  localStorage.setItem('jfb_goals', JSON.stringify(demoGoals));
+                  // Also seed mock transactions
+                  try {
+                    const bd = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
+                    const cats = bd.categories || [];
+                    const foodCat = cats.find((c: any) => c.name === 'Food');
+                    const entCat = cats.find((c: any) => c.name === 'Entertainment');
+                    const shopCat = cats.find((c: any) => c.name === 'Shopping');
+                    const persCat = cats.find((c: any) => c.name === 'Personal');
+                    const mockTxs = [
+                      { id: crypto.randomUUID(), amount: 45, type: 'expense', categoryId: foodCat?.id, description: 'Grocery Store', date: '2026-02-10', isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 12, type: 'expense', categoryId: foodCat?.id, description: 'Coffee Shop', date: '2026-02-11', isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 35, type: 'expense', categoryId: entCat?.id, description: 'Cinema', date: '2026-02-09', isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 89, type: 'expense', categoryId: shopCat?.id, description: 'H&M', date: '2026-02-08', isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 15, type: 'expense', categoryId: foodCat?.id, description: 'Uber Eats', date: '2026-02-12', isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 25, type: 'expense', categoryId: persCat?.id, description: 'Pharmacy', date: '2026-02-07', isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 60, type: 'expense', categoryId: foodCat?.id, description: 'Weekly Groceries', date: '2026-02-14', isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 10, type: 'expense', categoryId: entCat?.id, description: 'Spotify', date: '2026-02-01', isRecurring: true },
+                      { id: crypto.randomUUID(), amount: 50, type: 'expense', categoryId: shopCat?.id, description: 'Amazon', date: '2026-02-05', isRecurring: false },
+                    ].filter(t => t.categoryId);
+                    bd.transactions = [...(bd.transactions || []), ...mockTxs];
+                    localStorage.setItem('jfb-budget-data', JSON.stringify(bd));
+                  } catch {}
+                  localStorage.setItem('jfb_import_shown', 'true');
+                  toast({ title: '🎬 Demo data loaded!', description: 'Goals with progress + mock transactions added.' });
+                  window.location.reload();
+                }}
+                  className="w-full h-[44px] rounded-2xl flex items-center justify-center gap-2 text-[13px] font-medium"
+                  style={{ background: 'rgba(245,158,11,0.10)', border: '1.5px solid rgba(245,158,11,0.20)', color: 'rgba(255,255,255,0.4)' }}>
+                  🎬 Load Demo Goals
+                </button>
+              </div>
+            )}
+
             {/* Reset button */}
             <div className="pt-4 border-t border-white/[0.06] mt-2">
               {!confirmReset ? (
