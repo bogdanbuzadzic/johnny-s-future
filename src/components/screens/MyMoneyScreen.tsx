@@ -118,6 +118,9 @@ function MyMoneyContent() {
   const [prefillCatId, setPrefillCatId] = useState<string | undefined>();
   const [manageSubscriptions, setManageSubscriptions] = useState(false);
   const [cancellingSubName, setCancellingSubName] = useState<string | null>(null);
+  const [importShown, setImportShown] = useState(() => localStorage.getItem('jfb_import_shown') === 'true');
+  const [importing, setImporting] = useState(false);
+  const [whatIfFirstActivation, setWhatIfFirstActivation] = useState(true);
 
   // Can I Afford
   const [affordInput, setAffordInput] = useState('');
@@ -194,6 +197,47 @@ function MyMoneyContent() {
     setIsWhatIf(false);
   };
   const handleWhatIfDone = () => { setSimulations([]); setIsWhatIf(false); };
+
+  // Mock bank import
+  const handleMockImport = useCallback(() => {
+    setImporting(true);
+    setTimeout(() => {
+      const foodCat = expenseCategories.find(c => c.name === 'Food');
+      const entCat = expenseCategories.find(c => c.name === 'Entertainment');
+      const shopCat = expenseCategories.find(c => c.name === 'Shopping');
+      const persCat = expenseCategories.find(c => c.name === 'Personal');
+      const mockTxs = [
+        { amount: 45, categoryId: foodCat?.id, description: 'Grocery Store', date: '2026-02-10' },
+        { amount: 12, categoryId: foodCat?.id, description: 'Coffee Shop', date: '2026-02-11' },
+        { amount: 35, categoryId: entCat?.id, description: 'Cinema', date: '2026-02-09' },
+        { amount: 89, categoryId: shopCat?.id, description: 'H&M', date: '2026-02-08' },
+        { amount: 15, categoryId: foodCat?.id, description: 'Uber Eats', date: '2026-02-12' },
+        { amount: 25, categoryId: persCat?.id, description: 'Pharmacy', date: '2026-02-07' },
+        { amount: 60, categoryId: foodCat?.id, description: 'Weekly Groceries', date: '2026-02-14' },
+        { amount: 10, categoryId: entCat?.id, description: 'Spotify', date: '2026-02-01', isRecurring: true },
+        { amount: 50, categoryId: shopCat?.id, description: 'Amazon', date: '2026-02-05' },
+      ];
+      mockTxs.forEach(tx => {
+        if (tx.categoryId) {
+          addTransaction({ amount: tx.amount, type: 'expense', categoryId: tx.categoryId, description: tx.description, date: tx.date, isRecurring: (tx as any).isRecurring || false });
+        }
+      });
+      localStorage.setItem('jfb_import_shown', 'true');
+      setImportShown(true);
+      setImporting(false);
+    }, 2000);
+  }, [expenseCategories, addTransaction]);
+
+  // What If quick scenarios
+  const handleQuickScenario = useCallback((scenario: string) => {
+    if (scenario === 'rent') {
+      const rent = fixedCategories.find(c => c.name === 'Rent');
+      if (rent) setSimulations([{ id: 'rent-sim', field: 'fixed', value: rent.monthlyBudget - 100, original: rent.monthlyBudget }]);
+    } else if (scenario === 'save') {
+      setSimulations([{ id: 'save-sim', field: 'savings', value: savingsTarget + 100, original: savingsTarget }]);
+    }
+    setWhatIfFirstActivation(false);
+  }, [fixedCategories, savingsTarget]);
 
   // Expand item in sub-tetris
   const handleExpandItem = (id: string, budget: number) => {
@@ -505,6 +549,34 @@ function MyMoneyContent() {
                 </div>
               );
             })()}
+
+            {/* Mock bank import card */}
+            {subView === 'spending' && !importShown && transactions.filter(t => t.type === 'expense').length === 0 && !importing && (
+              <div className="col-span-full rounded-xl p-4 mb-1" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <BookOpen size={24} className="text-white/40" />
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-[15px] font-bold text-white block">Import your bank statement</span>
+                    <span className="text-[13px] text-white/40">Upload a PDF or connect your bank to see where your money actually goes.</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleMockImport} className="px-4 py-2 rounded-full text-[13px] text-white font-medium" style={{ border: '1.5px solid rgba(139,92,246,0.4)', background: 'rgba(139,92,246,0.1)' }}>Import PDF</button>
+                  <button onClick={handleMockImport} className="px-4 py-2 rounded-full text-[13px] text-white font-medium" style={{ border: '1.5px solid rgba(139,92,246,0.4)', background: 'rgba(139,92,246,0.1)' }}>Connect Bank</button>
+                  <button onClick={() => { localStorage.setItem('jfb_import_shown', 'true'); setImportShown(true); }} className="text-[13px] text-white/25 ml-2">Skip</button>
+                </div>
+              </div>
+            )}
+
+            {/* Import loading overlay */}
+            {importing && (
+              <div className="col-span-full rounded-xl p-8 flex flex-col items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)' }}>
+                <motion.div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white/60" animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} />
+                <span className="text-[13px] text-white/40 mt-3">Importing transactions...</span>
+              </div>
+            )}
 
             {subView === 'spending' && expenseCategories.map(cat => {
               const CatIcon = getIcon(cat.icon);
@@ -843,12 +915,32 @@ function MyMoneyContent() {
       <AnimatePresence>
         {isWhatIf && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-            className="px-4 mb-3 flex items-center justify-between">
-            <span className="text-[12px] text-white/40">Changes: {whatIfChangeCount}</span>
-            <div className="flex items-center gap-2">
-              <button onClick={handleWhatIfReset} className="px-3 py-1 rounded-full text-[12px] text-white/50" style={{ background: 'rgba(255,255,255,0.10)' }}>Reset</button>
-              <button onClick={handleWhatIfSave} className="px-3 py-1 rounded-full text-[12px] text-white font-medium" style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>Save all</button>
-              <button onClick={handleWhatIfDone} className="text-[12px] text-white/40">Done</button>
+            className="px-4 mb-3">
+            {/* Quick scenario suggestions on first activation */}
+            {whatIfFirstActivation && simulations.length === 0 && (
+              <div className="mb-3 rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                <span className="text-[12px] text-white/30">Try a scenario:</span>
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  <button onClick={() => handleQuickScenario('rent')}
+                    className="px-3 py-1.5 rounded-full text-[12px] text-white/60"
+                    style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                    🏠 What if rent was €100 less?
+                  </button>
+                  <button onClick={() => handleQuickScenario('save')}
+                    className="px-3 py-1.5 rounded-full text-[12px] text-white/60"
+                    style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                    💰 What if I saved €100 more?
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] text-white/40">Changes: {whatIfChangeCount}</span>
+              <div className="flex items-center gap-2">
+                <button onClick={handleWhatIfReset} className="px-3 py-1 rounded-full text-[12px] text-white/50" style={{ background: 'rgba(255,255,255,0.10)' }}>Reset</button>
+                <button onClick={handleWhatIfSave} className="px-3 py-1 rounded-full text-[12px] text-white font-medium" style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>Save all</button>
+                <button onClick={handleWhatIfDone} className="text-[12px] text-white/40">Done</button>
+              </div>
             </div>
           </motion.div>
         )}

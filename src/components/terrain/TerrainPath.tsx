@@ -556,7 +556,7 @@ export function TerrainPath() {
 
   return (
     <div className="relative mx-5 rounded-2xl overflow-hidden" style={{
-      background: 'linear-gradient(to bottom, rgba(100, 70, 120, 0.6), rgba(80, 50, 100, 0.8))',
+      background: 'linear-gradient(180deg, rgba(60, 30, 80, 0.9) 0%, rgba(80, 40, 100, 0.85) 50%, rgba(50, 25, 70, 0.9) 100%)',
     }}>
       {/* Playground border */}
       {playgroundMode && (

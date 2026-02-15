@@ -253,50 +253,68 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
 
   // ── Completion Screen ──
   if (showCompletion) {
-    const particles = Array.from({ length: 25 }, (_, i) => ({
-      x: 10 + Math.random() * 80, y: 10 + Math.random() * 80,
-      color: ['#8B5CF6', '#FF6B9D', '#FFD700'][i % 3],
-      delay: Math.random() * 0.5, size: 3 + Math.random() * 3,
+    const particles = Array.from({ length: 45 }, (_, i) => ({
+      x: 5 + Math.random() * 90, startY: -10 - Math.random() * 20,
+      color: ['#8B5CF6', '#EC4899', '#FFD700', '#34C759', '#3B82F6'][i % 5],
+      delay: Math.random() * 1.2, size: [4, 6, 8][i % 3],
+      drift: (Math.random() - 0.5) * 40,
+      rotation: Math.random() * 360,
+      isRect: i % 3 === 0,
     }));
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
         className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-8"
         style={{ background: 'linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
+        {/* Confetti */}
         {particles.map((p, i) => (
-          <motion.div key={i} className="absolute rounded-full" style={{ width: p.size, height: p.size, background: p.color, left: `${p.x}%` }}
-            initial={{ opacity: 0, y: '80%' }}
-            animate={{ opacity: [0, 1, 1, 0], y: [`${p.y + 20}%`, `${p.y}%`, `${p.y - 15}%`] }}
-            transition={{ duration: 1.5, delay: p.delay }} />
+          <motion.div key={i} className="absolute pointer-events-none"
+            style={{
+              width: p.isRect ? p.size * 1.5 : p.size, height: p.size,
+              borderRadius: p.isRect ? 1 : '50%', background: p.color, left: `${p.x}%`,
+            }}
+            initial={{ opacity: 0, y: `${p.startY}%`, x: 0, rotate: 0 }}
+            animate={{ opacity: [0, 1, 1, 0], y: [`${p.startY}%`, '110%'], x: [0, p.drift], rotate: [0, p.rotation] }}
+            transition={{ duration: 2.5, delay: p.delay, ease: 'easeIn' }} />
         ))}
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.3 }}
-          className="w-20 h-20 rounded-full gradient-primary flex items-center justify-center mb-6"
-          style={{ boxShadow: '0 0 24px rgba(139,92,246,0.4)' }}>
-          <NodeIcon className="w-12 h-12 text-white" strokeWidth={1.5} />
+        {/* Glowing icon circle */}
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 12, delay: 0.2 }}
+          className="w-[88px] h-[88px] rounded-full flex items-center justify-center mb-4"
+          style={{
+            background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
+            boxShadow: '0 0 30px rgba(139,92,246,0.5), 0 0 60px rgba(236,72,153,0.3)',
+          }}>
+          <NodeIcon className="w-8 h-8 text-white" strokeWidth={2} />
         </motion.div>
-        <motion.h2 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-          className="text-2xl font-bold text-white mb-2">{(() => {
+        {/* Title */}
+        <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.3 }}
+          className="text-[28px] font-bold text-white mb-1">{(() => {
             const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
             const p = getPersona(m0);
             return getCelebration(node.name, p?.n || null);
           })()}</motion.h2>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-          className="text-sm text-white/40 mb-8">{node.name}</motion.p>
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+          className="text-[14px] text-white/40 mb-6">{node.name}</motion.p>
+        {/* Badge */}
         {badge && (
-          <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.8 }}
-            className="flex flex-col items-center gap-2 mb-8">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center relative overflow-hidden"
-              style={{ background: badge.tint + '25' }}>
-              <badge.Icon className="w-7 h-7" style={{ color: badge.tint }} strokeWidth={1.5} />
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%)', animation: 'shimmer 3s infinite' }} />
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.3 }}
+            className="flex flex-col items-center gap-2 mb-6">
+            <div className="w-20 h-[100px] rounded-2xl flex flex-col items-center justify-center relative overflow-hidden"
+              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
+              <badge.Icon className="w-9 h-9" style={{ color: badge.tint + 'CC' }} strokeWidth={1.5} />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.10) 50%, transparent 70%)', animation: 'shimmer 3s infinite' }} />
             </div>
-            <span className="text-sm font-bold text-white">{badge.name}</span>
-            <span className="text-xs text-white/30">{badge.desc}</span>
+            <span className="text-[14px] font-bold text-white">{badge.name}</span>
+            <span className="text-[11px] text-white/30">Completed {node.name}</span>
           </motion.div>
         )}
-        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+        {/* Continue button */}
+        <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.3 }}
           onClick={handleContinue}
-          className="w-full max-w-xs h-11 rounded-[14px] gradient-primary text-white font-semibold text-[15px] flex items-center justify-center gap-2"
-          style={{ boxShadow: '0 4px 16px rgba(139,92,246,0.3)' }}>
+          className="w-[200px] h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
+          style={{
+            background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
+            boxShadow: '0 4px 16px rgba(139,92,246,0.3)',
+          }}>
           Continue <ChevronRight className="w-4 h-4" />
         </motion.button>
       </motion.div>
@@ -326,7 +344,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
 
       {/* Question counter */}
       <div className="text-center pt-4 pb-4">
-        <span className="text-[11px] text-white/30 uppercase tracking-[2px] font-medium">
+        <span className="text-[11px] text-white/40 uppercase tracking-[2px] font-medium">
           Question {safeIdx + 1} of {visibleQuestions.length}
         </span>
       </div>
@@ -343,7 +361,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="space-y-8"
           >
-            <p className="text-[22px] font-bold text-white text-center leading-[1.4] max-w-[500px] mx-auto whitespace-pre-line">
+            <p className="text-[22px] font-bold text-white/90 text-center leading-[1.4] max-w-[500px] mx-auto whitespace-pre-line">
               {currentQ?.text}
             </p>
             {currentQ && <QuestionInput q={currentQ} value={value} onChange={(v) => setAnswer(currentQ.id, v)} expenseFreq={expenseFreq} onFreqChange={setExpenseFreq} />}
@@ -359,14 +377,14 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
           className="w-full h-11 rounded-[14px] text-[15px] text-white font-semibold flex items-center justify-center gap-2 transition-all"
           style={{
             background: canProceed ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.06)',
-            color: canProceed ? 'white' : 'rgba(255,255,255,0.2)',
+            color: canProceed ? 'white' : 'rgba(255,255,255,0.3)',
             boxShadow: canProceed ? '0 4px 16px rgba(139,92,246,0.3)' : 'none',
             cursor: canProceed ? 'pointer' : 'default',
           }}>
           {isLast ? <><span>Complete</span> <Sparkles className="w-4 h-4" /></> : <>Next <ChevronRight className="w-4 h-4" /></>}
         </button>
         {safeIdx > 0 && (
-          <button onClick={handleBack} className="w-full text-center text-[13px] text-white/25">Back</button>
+          <button onClick={handleBack} className="w-full text-center text-[13px] text-white/35">Back</button>
         )}
       </div>
     </motion.div>
@@ -421,7 +439,7 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
                 background: `linear-gradient(to right, #8B5CF6 0%, #EC4899 ${pct}%, rgba(255,255,255,0.08) ${pct}%)`,
               }} />
           </div>
-          <div className="flex justify-between text-xs text-white/25 uppercase tracking-[1px] mt-3 px-1">
+          <div className="flex justify-between mt-3 px-1" style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
             <span>{q.minLabel}</span><span>{q.maxLabel}</span>
           </div>
         </div>
@@ -440,7 +458,7 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
                 style={{
                   background: selected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.06)',
                   border: `1.5px solid ${selected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.08)'}`,
-                  color: selected ? 'white' : 'rgba(255,255,255,0.6)',
+                  color: selected ? 'white' : 'rgba(255,255,255,0.7)',
                 }}>
                 <span className="flex-1">{label}</span>
                 {selected && <Check className="w-[18px] h-[18px]" style={{ color: '#8B5CF6' }} />}
@@ -463,7 +481,7 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
                 style={{
                   background: isSelected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.06)',
                   border: `1.5px solid ${isSelected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.08)'}`,
-                  color: isSelected ? 'white' : 'rgba(255,255,255,0.6)',
+                  color: isSelected ? 'white' : 'rgba(255,255,255,0.7)',
                 }}>
                 <div className="w-5 h-5 rounded-md mr-3 flex items-center justify-center shrink-0"
                   style={{
@@ -493,7 +511,7 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
                 style={{
                   background: selected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.06)',
                   border: `1.5px solid ${selected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.08)'}`,
-                  color: selected ? 'white' : 'rgba(255,255,255,0.6)',
+                  color: selected ? 'white' : 'rgba(255,255,255,0.7)',
                 }}>
                 <span className="flex-1">{o.label}</span>
                 {selected && <Check className="w-[18px] h-[18px]" style={{ color: '#8B5CF6' }} />}
@@ -542,7 +560,7 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
                   </button>
                 ))}
               </div>
-              <div className="flex justify-between text-[10px] text-white/20 px-1">
+              <div className="flex justify-between px-1" style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
                 <span>Disagree</span><span>Agree</span>
               </div>
             </div>
