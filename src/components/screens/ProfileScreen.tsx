@@ -334,8 +334,8 @@ function ProfileScreenContent() {
 
                 const isCompleted = status === 'completed';
                 const isAvailable = status === 'available';
-                const nodeSize = status === 'current' ? 80 : isCompleted ? 72 : isAvailable ? 72 : status === 'coming-soon' ? 60 : 72;
-                const iconSize = status === 'current' ? 30 : isCompleted ? 28 : isAvailable ? 26 : status === 'coming-soon' ? 20 : 24;
+                const nodeSize = status === 'current' ? 80 : status === 'coming-soon' ? 60 : 72;
+                const iconSize = status === 'current' ? 28 : isCompleted ? 28 : status === 'coming-soon' ? 20 : 26;
                 const half = nodeSize / 2;
 
                 // Get result content for completed nodes
@@ -370,18 +370,14 @@ function ProfileScreenContent() {
                         style={{
                           width: nodeSize, height: nodeSize,
                           background: isCompleted ? colors.bg
-                            : status === 'current' ? colors.bg
-                            : isAvailable ? colors.bg
-                            : status === 'coming-soon' ? '#E5E7EB'
-                            : colors.bg,
-                          opacity: (!isCompleted && status !== 'current' && status !== 'coming-soon') ? 0.85 : undefined,
+                            : status === 'coming-soon' ? '#E8EAED'
+                            : '#C9CCD1',
                           boxShadow: isCompleted ? `0 5px 0 ${colors.shadow}`
-                            : status === 'current' ? `0 6px 0 ${colors.shadow}`
-                            : isAvailable ? `0 5px 0 ${colors.shadow}`
-                            : status === 'coming-soon' ? '0 3px 0 #D1D5DB'
-                            : `0 4px 0 ${colors.shadow}`,
+                            : status === 'current' ? '0 6px 0 #A0A4AA'
+                            : status === 'coming-soon' ? '0 3px 0 #D1D4D8'
+                            : '0 5px 0 #A0A4AA',
                           border: status === 'current' ? '3px solid #FFD700'
-                            : status === 'coming-soon' ? '2px dashed #D1D5DB'
+                            : status === 'coming-soon' ? '2px dashed #D1D4D8'
                             : 'none',
                           ...(status === 'current' ? { animation: 'gold-pulse 1.5s ease-in-out infinite' } : {}),
                         }}>
@@ -395,11 +391,7 @@ function ProfileScreenContent() {
                           <Icon className="relative z-10" strokeWidth={2.5}
                             style={{
                               width: iconSize, height: iconSize,
-                              color: isCompleted ? 'white'
-                                : status === 'current' ? 'white'
-                                : isAvailable ? 'rgba(255,255,255,0.80)'
-                                : status === 'coming-soon' ? 'rgba(255,255,255,0.15)'
-                                : 'rgba(255,255,255,0.80)',
+                              color: status === 'coming-soon' ? 'rgba(255,255,255,0.20)' : 'white',
                             }} />
                         )}
 
@@ -427,11 +419,10 @@ function ProfileScreenContent() {
                           fontSize: isCompleted ? 11 : status === 'coming-soon' ? 9 : 12,
                           fontWeight: 600,
                           color: isCompleted ? 'white'
-                            : status === 'current' ? 'white'
-                            : isAvailable ? 'rgba(255,255,255,0.75)'
-                            : 'rgba(255,255,255,0.12)',
+                            : status === 'coming-soon' ? 'rgba(255,255,255,0.15)'
+                            : 'rgba(255,255,255,0.70)',
                           lineHeight: '1.2',
-                          textShadow: status !== 'coming-soon' ? '0 1px 4px rgba(0,0,0,0.3)' : undefined,
+                          textShadow: status !== 'coming-soon' ? '0 1px 3px rgba(0,0,0,0.25)' : undefined,
                         }}>{node.name}</p>
                         {isCompleted && resultContent?.sub && (
                           <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 1, textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>{resultContent.sub}</p>
@@ -439,13 +430,10 @@ function ProfileScreenContent() {
                         {isCompleted && node.key === 'clarity' && (
                           <div className="flex justify-center"><ClarityMiniBar /></div>
                         )}
-                        {status === 'current' && (
-                          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 2, textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>{node.subtitle}</p>
-                        )}
-                        {isAvailable && (
+                        {!isCompleted && status !== 'coming-soon' && (
                           <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>{node.subtitle}</p>
                         )}
-                        {status === 'coming-soon' && <p style={{ fontSize: 8, color: 'rgba(255,255,255,0.08)' }}>Soon</p>}
+                        {status === 'coming-soon' && <p style={{ fontSize: 8, color: 'rgba(255,255,255,0.10)' }}>Coming soon</p>}
                       </div>
                     </button>
                   </motion.div>
