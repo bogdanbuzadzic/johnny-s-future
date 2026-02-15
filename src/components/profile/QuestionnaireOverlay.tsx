@@ -163,10 +163,12 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       const remainingFlex = flex - foodBudget;
 
       addCategory({ name: 'Food', icon: 'UtensilsCrossed', monthlyBudget: foodBudget, type: 'expense' });
-      addCategory({ name: 'Entertainment', icon: 'Film', monthlyBudget: Math.round(remainingFlex * 0.20), type: 'expense' });
-      addCategory({ name: 'Shopping', icon: 'ShoppingBag', monthlyBudget: Math.round(remainingFlex * 0.25), type: 'expense' });
-      addCategory({ name: 'Personal', icon: 'Heart', monthlyBudget: Math.round(remainingFlex * 0.25), type: 'expense' });
-      addCategory({ name: 'Other', icon: 'MoreHorizontal', monthlyBudget: Math.round(remainingFlex * 0.30), type: 'expense' });
+      // Only allocate 80% of remaining flex to leave ~20% free/unallocated
+      const allocatable = Math.max(0, remainingFlex * 0.80);
+      addCategory({ name: 'Entertainment', icon: 'Film', monthlyBudget: Math.round(allocatable * 0.20), type: 'expense' });
+      addCategory({ name: 'Shopping', icon: 'ShoppingBag', monthlyBudget: Math.round(allocatable * 0.25), type: 'expense' });
+      addCategory({ name: 'Personal', icon: 'Heart', monthlyBudget: Math.round(allocatable * 0.25), type: 'expense' });
+      addCategory({ name: 'Other', icon: 'MoreHorizontal', monthlyBudget: Math.round(allocatable * 0.30), type: 'expense' });
 
       // Create goals from Step 3 selections
       const goalMap: Record<string, { name: string; icon: string; target: number; mc: number }> = {

@@ -39,6 +39,12 @@ const iconTintMap: Record<string, string> = {
 
 const fixedColors = ['#B0B0B0', '#8E8E93', '#6E6E73', '#545458', '#3A3A3C'];
 const goalColors = ['#34C759', '#5AC8FA', '#6366F1', '#8B5CF6', '#14B8A6'];
+const goalIconColors: Record<string, string> = {
+  ShieldCheck: '#34C759', Plane: '#38BDF8', Car: '#2DD4BF',
+  Home: '#818CF8', Laptop: '#A78BFA', GraduationCap: '#14B8A6',
+  Heart: '#FF6B9D', TrendingUp: '#34C759', LineChart: '#3B82F6',
+  Target: '#8B5CF6', Bike: '#2DD4BF', Gamepad2: '#5AC8FA',
+};
 
 function getIcon(name: string): LucideIcon { return allIcons[name] || MoreHorizontal; }
 function getTint(iconName: string): string { return iconTintMap[iconName] || '#FFFFFF'; }
@@ -107,6 +113,7 @@ function MyMoneyContent() {
   const [sliderVal, setSliderVal] = useState(0);
   const [sliderOriginal, setSliderOriginal] = useState(0);
   const [showFab, setShowFab] = useState(false);
+  const [fabMode, setFabMode] = useState<'expense' | 'income' | 'goal' | undefined>(undefined);
   const [prefillAmount, setPrefillAmount] = useState<number | undefined>();
   const [prefillCatId, setPrefillCatId] = useState<string | undefined>();
   const [manageSubscriptions, setManageSubscriptions] = useState(false);
@@ -162,8 +169,8 @@ function MyMoneyContent() {
 
   // Sorted goals with assigned colors
   const sortedGoals = useMemo(() =>
-    [...goals].sort((a, b) => b.monthlyContribution - a.monthlyContribution).map((g, i) => ({
-      ...g, _color: goalColors[Math.min(i, goalColors.length - 1)]
+    [...goals].sort((a, b) => b.monthlyContribution - a.monthlyContribution).map((g) => ({
+      ...g, _color: goalIconColors[g.icon] || '#8B5CF6'
     })), [goals]);
 
   // Macro blocks
@@ -337,6 +344,9 @@ function MyMoneyContent() {
               €{Math.abs(displayAmount)}
               {isFree && freeAmount < 0 && <span className="text-[12px] ml-1">over</span>}
             </span>
+            {id === 'goals' && goals.length === 0 && (
+              <span className="text-[10px] text-white/15 mt-0.5">Tap + to add a goal</span>
+            )}
           </div>
 
           {/* Johnny in free block */}
@@ -600,6 +610,21 @@ function MyMoneyContent() {
               );
             })}
 
+            {subView === 'goals' && sortedGoals.length === 0 && (
+              <div className="col-span-full flex flex-col items-center justify-center py-12">
+                <Target size={48} className="text-white/15 mb-3" />
+                <span className="text-[18px] text-white/25 font-medium mb-1">No goals yet</span>
+                <span className="text-[13px] text-white/15 text-center max-w-[240px] mb-4">What are you saving for? A house? A vacation? An emergency fund?</span>
+                <button
+                  onClick={() => { setSubView(null); setFabMode('goal'); setShowFab(true); }}
+                  className="px-6 rounded-xl text-white font-semibold text-[14px]"
+                  style={{ height: 44, background: 'linear-gradient(135deg, #34C759, #5AC8FA)' }}
+                >
+                  Add Goal
+                </button>
+              </div>
+            )}
+
             {subView === 'goals' && sortedGoals.map(goal => {
               const GoalIcon = getIcon(goal.icon);
               const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
@@ -841,7 +866,7 @@ function MyMoneyContent() {
       </div>
 
       {/* FAB */}
-      <button onClick={() => { setPrefillAmount(undefined); setPrefillCatId(undefined); setShowFab(true); }}
+      <button onClick={() => { setPrefillAmount(undefined); setPrefillCatId(undefined); setFabMode(undefined); setShowFab(true); }}
         className="fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
         style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>
         <Plus size={24} className="text-white" />
@@ -851,8 +876,8 @@ function MyMoneyContent() {
       <AnimatePresence>{renderSubTetris()}</AnimatePresence>
 
       {/* Add Transaction Sheet */}
-      <AddTransactionSheet open={showFab} onClose={() => { setShowFab(false); setAffordInput(''); }}
-        prefillAmount={prefillAmount} prefillCategoryId={prefillCatId} />
+      <AddTransactionSheet open={showFab} onClose={() => { setShowFab(false); setFabMode(undefined); setAffordInput(''); }}
+        prefillAmount={prefillAmount} prefillCategoryId={prefillCatId} initialMode={fabMode} />
     </div>
   );
 }
