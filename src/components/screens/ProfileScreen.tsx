@@ -596,8 +596,8 @@ function ProfileScreenContent() {
 
       {/* ── Settings Sheet ── */}
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <SheetContent side="bottom" className="rounded-t-3xl border-0 bg-transparent p-0 max-h-[70vh]">
-          <div className="jfb-bg rounded-t-3xl p-5 space-y-2 overflow-auto">
+        <SheetContent side="bottom" className="rounded-t-3xl border-0 bg-transparent p-0" style={{ maxHeight: '85vh' }}>
+          <div className="jfb-bg rounded-t-3xl p-5 space-y-2 overflow-y-auto" style={{ maxHeight: '85vh', paddingBottom: 40 }}>
             <SheetHeader className="pb-2">
               <SheetTitle className="text-white text-lg">Settings</SheetTitle>
               <SheetDescription className="sr-only">App settings</SheetDescription>
