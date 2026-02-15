@@ -17,9 +17,9 @@ const EXPENSE_ICONS: Record<string, LucideIcon> = {
 
 // Correct answers for quiz calibration
 const QUIZ_CORRECT: Record<string, string> = {
-  q7a: 'More than €102',
-  q7b: 'Less than today',
-  q7c: 'False',
+  q5a: 'More than €102',
+  q5b: 'Less than today',
+  q5c: 'False',
 };
 
 interface Props {
@@ -34,7 +34,8 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   const [showCompletion, setShowCompletion] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
   const [direction, setDirection] = useState<1 | -1>(1);
-  const { updateConfig, addCategory } = useBudget();
+  const [expenseFreq, setExpenseFreq] = useState<Record<string, string>>({});
+  const { updateConfig, addCategory, addTransaction } = useBudget();
   const { addGoal, setActiveTab } = useApp();
 
   const allQuestions = useMemo(() => getModuleQuestions(moduleKey), [moduleKey]);
@@ -65,8 +66,8 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   }, []);
 
   const handleNext = () => {
-    // After Q7d (calibration estimate), show calibration result card
-    if (moduleKey === 'module0' && currentQ?.id === 'q7d' && !showCalibration) {
+    // After Q5d (calibration estimate), show calibration result card
+    if (moduleKey === 'module0' && currentQ?.id === 'q5d' && !showCalibration) {
       setShowCalibration(true);
       return;
     }
@@ -97,12 +98,18 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
 
     // For module0: compute calibration and store with answers
     const finalAnswers = { ...answers };
+
     if (moduleKey === 'module0') {
-      const actualCorrect = ['q7a', 'q7b', 'q7c'].filter(k => finalAnswers[k] === QUIZ_CORRECT[k]).length;
-      const estimatedCorrect = Number(finalAnswers.q7d) || 0;
-      finalAnswers.q7_actual = actualCorrect;
-      finalAnswers.q7_estimated = estimatedCorrect;
-      finalAnswers.q7_calibration = estimatedCorrect - actualCorrect;
+      const actualCorrect = ['q5a', 'q5b', 'q5c'].filter(k => finalAnswers[k] === QUIZ_CORRECT[k]).length;
+      const estimatedCorrect = Number(finalAnswers.q5d) || 0;
+      finalAnswers.q5_actual = actualCorrect;
+      finalAnswers.q5_estimated = estimatedCorrect;
+      finalAnswers.q5_calibration = estimatedCorrect - actualCorrect;
+    }
+
+    // For clarity: store frequency data
+    if (moduleKey === 'clarity') {
+      finalAnswers.step5_freq = expenseFreq;
     }
 
     if (node.lsAnswers) localStorage.setItem(node.lsAnswers, JSON.stringify(finalAnswers));
@@ -123,6 +130,14 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       updateConfig({ monthlyIncome: income, monthlySavingsTarget: savings, setupComplete: true });
 
       const exp = finalAnswers.step5 || {};
+      const freq = finalAnswers.step5_freq || {};
+
+      // Get monthly value for each expense (apply 4.33x for weekly)
+      const getMonthly = (key: string) => {
+        const v = Number(exp[key]) || 0;
+        return freq[key] === 'weekly' ? Math.round(v * 4.33) : v;
+      };
+
       const fixedMap = [
         { key: 'rent', name: 'Rent', icon: 'Home' }, { key: 'utilities', name: 'Utilities', icon: 'Zap' },
         { key: 'tax', name: 'Tax', icon: 'Landmark' }, { key: 'car', name: 'Car', icon: 'Car' },
@@ -132,25 +147,31 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         { key: 'other', name: 'Other Fixed', icon: 'MoreHorizontal' },
       ];
       let totalFixed = 0;
+      const createdCategories: { key: string; id?: string }[] = [];
       fixedMap.forEach(item => {
-        const amt = Number(exp[item.key]) || 0;
+        const amt = getMonthly(item.key);
         if (amt > 0) {
           addCategory({ name: item.name, icon: item.icon, monthlyBudget: amt, type: 'fixed' });
           totalFixed += amt;
+          createdCategories.push({ key: item.key });
         }
       });
 
       const flex = Math.max(0, income - totalFixed - savings);
-      const groceries = Number(exp.groceries) || Math.round(flex * 0.35);
-      addCategory({ name: 'Food', icon: 'UtensilsCrossed', monthlyBudget: groceries, type: 'expense' });
-      addCategory({ name: 'Entertainment', icon: 'Film', monthlyBudget: Math.round(flex * 0.15), type: 'expense' });
-      addCategory({ name: 'Shopping', icon: 'ShoppingBag', monthlyBudget: Math.round(flex * 0.20), type: 'expense' });
-      addCategory({ name: 'Personal', icon: 'Heart', monthlyBudget: Math.round(flex * 0.15), type: 'expense' });
-      addCategory({ name: 'Other', icon: 'MoreHorizontal', monthlyBudget: Math.round(flex * 0.15), type: 'expense' });
+      const groceries = getMonthly('groceries');
+      const foodBudget = groceries > 0 ? groceries : Math.round(flex * 0.35);
+      const remainingFlex = flex - foodBudget;
 
+      addCategory({ name: 'Food', icon: 'UtensilsCrossed', monthlyBudget: foodBudget, type: 'expense' });
+      addCategory({ name: 'Entertainment', icon: 'Film', monthlyBudget: Math.round(remainingFlex * 0.20), type: 'expense' });
+      addCategory({ name: 'Shopping', icon: 'ShoppingBag', monthlyBudget: Math.round(remainingFlex * 0.25), type: 'expense' });
+      addCategory({ name: 'Personal', icon: 'Heart', monthlyBudget: Math.round(remainingFlex * 0.25), type: 'expense' });
+      addCategory({ name: 'Other', icon: 'MoreHorizontal', monthlyBudget: Math.round(remainingFlex * 0.30), type: 'expense' });
+
+      // Create goals from Step 3 selections
       const goalMap: Record<string, { name: string; icon: string; target: number; mc: number }> = {
         'Grow my money': { name: 'Investment Fund', icon: 'TrendingUp', target: 5000, mc: 100 },
-        'Save for a purchase': { name: 'Savings Goal', icon: 'Target', target: 2000, mc: 100 },
+        'Save for a specific purchase': { name: 'Savings Goal', icon: 'Target', target: 2000, mc: 100 },
         'Start investing': { name: 'Start Investing', icon: 'LineChart', target: 1000, mc: 50 },
         'Save for retirement': { name: 'Retirement', icon: 'Sunset', target: 50000, mc: 200 },
       };
@@ -158,10 +179,33 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         const d = goalMap[g];
         if (d) addGoal({ name: d.name, icon: d.icon, target: d.target, saved: 0, monthlyContribution: d.mc, targetDate: '', monthIndex: -1 });
       });
+
+      // Store debt data
+      if (finalAnswers.step6a === 'Yes') {
+        localStorage.setItem('jfb_debt', JSON.stringify({
+          creditCard: { balance: Number(finalAnswers.step6b?.cc_balance) || 0, payment: Number(finalAnswers.step6b?.cc_payment) || 0 },
+          loans: { balance: Number(finalAnswers.step6c?.pl_balance) || 0, payment: Number(finalAnswers.step6c?.pl_payment) || 0 },
+          other: { balance: Number(finalAnswers.step6d?.od_balance) || 0, payment: Number(finalAnswers.step6d?.od_payment) || 0 },
+        }));
+      }
+
+      // Store cash reserves
+      localStorage.setItem('jfb_cash', JSON.stringify({
+        bankAccounts: Number(finalAnswers.step8?.bank) || 0,
+        savingsAccounts: Number(finalAnswers.step8?.savings) || 0,
+      }));
+    }
+
+    // Module0: persona assignment
+    if (moduleKey === 'module0') {
+      const persona = getPersona(finalAnswers);
+      if (persona) {
+        localStorage.setItem('jfb_persona', persona.n);
+      }
     }
 
     setShowCompletion(true);
-  }, [answers, moduleKey, updateConfig, addCategory, addGoal]);
+  }, [answers, moduleKey, updateConfig, addCategory, addGoal, addTransaction, expenseFreq]);
 
   const handleContinue = () => {
     if (moduleKey === 'clarity') setActiveTab(1);
@@ -172,10 +216,10 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   const NodeIcon = node.Icon;
   const badge = BADGES.find(b => b.key === node.badgeKey);
 
-  // ── Calibration result (after Q7d) ──
+  // ── Calibration result (after Q5d) ──
   if (showCalibration) {
-    const actualCorrect = ['q7a', 'q7b', 'q7c'].filter(k => answers[k] === QUIZ_CORRECT[k]).length;
-    const estimated = Number(answers.q7d) || 0;
+    const actualCorrect = ['q5a', 'q5b', 'q5c'].filter(k => answers[k] === QUIZ_CORRECT[k]).length;
+    const estimated = Number(answers.q5d) || 0;
     const diff = estimated - actualCorrect;
     let message: string, messageColor: string;
     if (diff > 0) { message = "Slightly overconfident — that's normal and fixable!"; messageColor = 'rgba(245,158,11,0.5)'; }
@@ -300,7 +344,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
             <p className="text-[22px] font-bold text-white text-center leading-[1.4] max-w-[500px] mx-auto whitespace-pre-line">
               {currentQ?.text}
             </p>
-            {currentQ && <QuestionInput q={currentQ} value={value} onChange={(v) => setAnswer(currentQ.id, v)} />}
+            {currentQ && <QuestionInput q={currentQ} value={value} onChange={(v) => setAnswer(currentQ.id, v)} expenseFreq={expenseFreq} onFreqChange={setExpenseFreq} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -328,7 +372,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
 }
 
 // ── Question Input Renderer ──
-function QuestionInput({ q, value, onChange }: { q: ProfileQ; value: any; onChange: (v: any) => void }) {
+function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: ProfileQ; value: any; onChange: (v: any) => void; expenseFreq: Record<string, string>; onFreqChange: (f: Record<string, string>) => void }) {
   switch (q.type) {
     case 'text':
       return (
@@ -507,24 +551,43 @@ function QuestionInput({ q, value, onChange }: { q: ProfileQ; value: any; onChan
 
     case 'expenses': {
       const vals: Record<string, string> = value || {};
-      const total = Object.values(vals).reduce((s, v) => s + (Number(v) || 0), 0);
+      // Calculate total with frequency adjustments
+      const total = Object.entries(vals).reduce((s, [key, v]) => {
+        let amt = Number(v) || 0;
+        if (expenseFreq[key] === 'weekly') amt *= 4.33;
+        return s + amt;
+      }, 0);
       return (
         <div className="max-w-[460px] mx-auto rounded-2xl overflow-hidden"
           style={{ background: 'rgba(255,255,255,0.08)' }}>
           <div className="max-h-[320px] overflow-auto">
             {(q.fields || []).map((f, fi) => {
               const IconComp = f.icon ? EXPENSE_ICONS[f.icon] : MoreHorizontal;
+              const isWeekly = expenseFreq[f.key] === 'weekly';
               return (
                 <div key={f.key} className="flex items-center h-12 px-3"
                   style={{ borderBottom: fi < (q.fields?.length || 0) - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                  <div className="w-8 h-8 rounded-[10px] flex items-center justify-center mr-3"
+                  <div className="w-8 h-8 rounded-[10px] flex items-center justify-center mr-2"
                     style={{ background: 'rgba(255,255,255,0.06)' }}>
                     {IconComp && <IconComp className="w-4 h-4 text-white/40" strokeWidth={1.5} />}
                   </div>
-                  <span className="text-sm text-white/60 flex-1 truncate">{f.label}</span>
+                  <span className="text-[13px] text-white/60 flex-1 truncate">{f.label}</span>
+                  {/* Frequency toggle */}
+                  <div className="flex mr-2 rounded-md overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <button onClick={() => onFreqChange({ ...expenseFreq, [f.key]: 'monthly' })}
+                      className="px-1.5 py-0.5 text-[10px]"
+                      style={{ background: !isWeekly ? 'rgba(139,92,246,0.2)' : 'transparent', color: !isWeekly ? 'white' : 'rgba(255,255,255,0.3)' }}>
+                      mo
+                    </button>
+                    <button onClick={() => onFreqChange({ ...expenseFreq, [f.key]: 'weekly' })}
+                      className="px-1.5 py-0.5 text-[10px]"
+                      style={{ background: isWeekly ? 'rgba(139,92,246,0.2)' : 'transparent', color: isWeekly ? 'white' : 'rgba(255,255,255,0.3)' }}>
+                      wk
+                    </button>
+                  </div>
                   <input type="text" inputMode="decimal" value={vals[f.key] || ''} placeholder="0"
                     onChange={e => onChange({ ...vals, [f.key]: e.target.value })}
-                    className="w-[100px] h-9 rounded-[10px] text-white text-sm font-medium text-right px-3 outline-none placeholder:text-white/15 transition-all focus:border-[rgba(139,92,246,0.4)]"
+                    className="w-[80px] h-9 rounded-[10px] text-white text-sm font-medium text-right px-3 outline-none placeholder:text-white/15 transition-all focus:border-[rgba(139,92,246,0.4)]"
                     style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.08)' }} />
                 </div>
               );
@@ -532,7 +595,7 @@ function QuestionInput({ q, value, onChange }: { q: ProfileQ; value: any; onChan
           </div>
           <div className="px-4 py-3 text-right text-sm font-bold text-white/50"
             style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            Total: €{total}
+            Total: €{Math.round(total)}/mo
           </div>
         </div>
       );
