@@ -27,23 +27,28 @@ const allIcons: Record<string, LucideIcon> = {
 };
 
 const iconTintMap: Record<string, string> = {
-  UtensilsCrossed: '#FF9F0A', ShoppingBag: '#FF6B9D', Bus: '#007AFF', Film: '#8B5CF6',
-  Dumbbell: '#34C759', CreditCard: '#5AC8FA', Coffee: '#C4956A', Smartphone: '#FF6B9D',
-  Gift: '#FFD700', BookOpen: '#007AFF', Shirt: '#8B5CF6', Wrench: '#5AC8FA',
-  Heart: '#E040FB', MoreHorizontal: '#AAA', Home: '#6366F1', Zap: '#FF9F0A',
-  Landmark: '#14B8A6', Car: '#007AFF', Tv: '#8B5CF6', Shield: '#34C759', Baby: '#FF6B9D',
-  TrendingUp: '#34C759', LineChart: '#5AC8FA', Sunset: '#FF9F0A',
-  Target: '#34C759', ShieldCheck: '#34C759', Plane: '#5AC8FA', Laptop: '#8B5CF6',
-  GraduationCap: '#14B8A6', Gamepad2: '#5AC8FA', PiggyBank: '#34C759', Wallet: '#FFFFFF',
+  UtensilsCrossed: '#E67E22', ShoppingBag: '#E74C3C', Bus: '#2874A6', Film: '#9B59B6',
+  Dumbbell: '#27AE60', CreditCard: '#6C3483', Coffee: '#795548', Smartphone: '#E91E63',
+  Gift: '#F1C40F', BookOpen: '#8E44AD', Shirt: '#D35400', Wrench: '#5AC8FA',
+  Heart: '#1ABC9C', MoreHorizontal: '#7F8C8D', Home: '#2ECC71', Zap: '#2E86C1',
+  Landmark: '#1A5276', Car: '#3498DB', Tv: '#6C3483', Shield: '#1A5276', Baby: '#EC4899',
+  TrendingUp: '#27AE60', LineChart: '#3498DB', Sunset: '#F39C12',
+  Target: '#1ABC9C', ShieldCheck: '#2ECC71', Plane: '#F39C12', Laptop: '#8E44AD',
+  GraduationCap: '#8E44AD', Gamepad2: '#3498DB', PiggyBank: '#27AE60', Wallet: '#FFFFFF',
 };
 
-const fixedColors = ['#B0B0B0', '#8E8E93', '#6E6E73', '#545458', '#3A3A3C'];
-const goalColors = ['#34C759', '#5AC8FA', '#6366F1', '#8B5CF6', '#14B8A6'];
+const fixedColors: Record<string, string> = {
+  'Rent': '#5D6D7E', 'Utilities': '#2E86C1', 'Transport': '#2874A6',
+  'Subscriptions': '#6C3483', 'Insurance': '#1A5276', 'Tax': '#1A5276',
+  'Childcare': '#5D6D7E', 'Other Fixed': '#566573',
+};
+const fixedColorFallbacks = ['#5D6D7E', '#2E86C1', '#2874A6', '#6C3483', '#1A5276'];
+
 const goalIconColors: Record<string, string> = {
-  ShieldCheck: '#34C759', Plane: '#38BDF8', Car: '#2DD4BF',
-  Home: '#818CF8', Laptop: '#A78BFA', GraduationCap: '#14B8A6',
-  Heart: '#FF6B9D', TrendingUp: '#34C759', LineChart: '#3B82F6',
-  Target: '#8B5CF6', Bike: '#2DD4BF', Gamepad2: '#5AC8FA',
+  ShieldCheck: '#27AE60', Plane: '#F39C12', Car: '#3498DB',
+  Home: '#2ECC71', Laptop: '#8E44AD', GraduationCap: '#8E44AD',
+  Heart: '#E74C3C', TrendingUp: '#27AE60', LineChart: '#3498DB',
+  Target: '#1ABC9C', Gamepad2: '#3498DB',
 };
 
 function getIcon(name: string): LucideIcon { return allIcons[name] || MoreHorizontal; }
@@ -52,6 +57,14 @@ function getTint(iconName: string): string { return iconTintMap[iconName] || '#F
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function darkenHex(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const f = 1 - amount;
+  return `#${Math.round(r * f).toString(16).padStart(2, '0')}${Math.round(g * f).toString(16).padStart(2, '0')}${Math.round(b * f).toString(16).padStart(2, '0')}`;
 }
 
 type TimeZoom = 'Month' | 'Year' | '5 Year';
@@ -167,7 +180,7 @@ function MyMoneyContent() {
   // Sorted fixed cats with assigned colors
   const sortedFixed = useMemo(() =>
     [...fixedCategories].sort((a, b) => b.monthlyBudget - a.monthlyBudget).map((c, i) => ({
-      ...c, _color: fixedColors[Math.min(i, fixedColors.length - 1)]
+      ...c, _color: fixedColors[c.name] || fixedColorFallbacks[Math.min(i, fixedColorFallbacks.length - 1)]
     })), [fixedCategories]);
 
   // Sorted goals with assigned colors
@@ -180,10 +193,10 @@ function MyMoneyContent() {
   const macroBlocks = useMemo(() => {
     const goalsDisplay = zoom === '5 Year' ? goals.reduce((s, g) => s + g.target, 0) : totalGoalContributions;
     return [
-      { id: 'fixed', name: 'Fixed', icon: 'Lock', amount: totalFixed, tint: '#6E6E73', tintAlpha: 0.25 },
-      { id: 'savings', name: 'Savings', icon: 'PiggyBank', amount: savingsTarget, tint: '#34C759', tintAlpha: 0.20 },
-      { id: 'spending', name: 'Spending', icon: 'ShoppingBag', amount: totalSpendingBudget, tint: '#8B5CF6', tintAlpha: 0.20 },
-      { id: 'goals', name: 'Goals', icon: 'Target', amount: goalsDisplay, tint: '#FF6B9D', tintAlpha: 0.15 },
+      { id: 'fixed', name: 'Fixed', icon: 'Lock', amount: totalFixed, tint: '#5D6D7E', tintAlpha: 0.80 },
+      { id: 'savings', name: 'Savings', icon: 'PiggyBank', amount: savingsTarget, tint: '#27AE60', tintAlpha: 0.80 },
+      { id: 'spending', name: 'Spending', icon: 'ShoppingBag', amount: totalSpendingBudget, tint: '#8E44AD', tintAlpha: 0.80 },
+      { id: 'goals', name: 'Goals', icon: 'Target', amount: goalsDisplay, tint: '#E91E63', tintAlpha: 0.60 },
       { id: 'free', name: 'Free', icon: 'Wallet', amount: freeAmount, tint: '#FFFFFF', tintAlpha: 0.04 },
     ].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
   }, [totalFixed, savingsTarget, totalSpendingBudget, totalGoalContributions, freeAmount, goals, zoom]);
@@ -304,19 +317,25 @@ function MyMoneyContent() {
     const moreCount = visible.length - 3;
     return (
       <div className="absolute bottom-2 left-2.5 right-2.5">
-        <div className="flex rounded overflow-hidden" style={{ height: 8, background: 'rgba(255,255,255,0.06)' }}>
+        <div className="flex rounded overflow-hidden" style={{ height: 8, background: 'rgba(255,255,255,0.08)' }}>
           {visible.map((item, i) => (
-            <div key={i} style={{ width: `${(item.amount / total) * 100}%`, background: hexToRgba(item.color, 0.6), minWidth: 2 }} />
+            <div key={i} style={{
+              width: `${(item.amount / total) * 100}%`, background: item.color, minWidth: 2,
+              borderRight: i < visible.length - 1 ? '1px solid rgba(255,255,255,0.30)' : undefined,
+            }} />
           ))}
         </div>
         <div className="flex items-center gap-0 mt-0.5 overflow-hidden" style={{ fontSize: 9, lineHeight: '12px' }}>
           {legendItems.map((item, i) => (
             <span key={i}>
-              {i > 0 && <span className="text-white/15"> · </span>}
-              <span style={{ color: hexToRgba(item.color, 0.7) }}>{item.name} €{Math.round(item.amount * mult)}</span>
+              {i > 0 && <span style={{ color: 'rgba(255,255,255,0.25)' }}> · </span>}
+              <span className="inline-flex items-center gap-0.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: item.color }} />
+                <span style={{ color: 'white', fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{item.name} €{Math.round(item.amount * mult)}</span>
+              </span>
             </span>
           ))}
-          {moreCount > 0 && <span className="text-white/15"> · +{moreCount} more</span>}
+          {moreCount > 0 && <span style={{ color: 'rgba(255,255,255,0.4)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}> · +{moreCount}</span>}
         </div>
       </div>
     );
@@ -411,17 +430,17 @@ function MyMoneyContent() {
         {/* Content */}
         <div className="relative z-10 p-3 h-full flex flex-col">
           <div className="flex items-start justify-between">
-            <Icon size={20} style={{ color: hexToRgba(isFree ? '#FFFFFF' : tint, isFree ? 0.2 : 0.4) }} strokeWidth={1.5} />
-            {!isFree && <ChevronRight size={16} className="text-white/15" />}
+            <Icon size={20} style={{ color: isFree ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
+            {!isFree && <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.4)' }} />}
           </div>
           <div className="flex-1 flex flex-col justify-center mt-1">
-            <span className={`text-[16px] ${isFree ? 'text-white/30' : 'text-white/50'}`}>{name}</span>
-            <span className={`text-[22px] font-bold ${isFree ? 'text-white/40' : 'text-white'} ${freeAmount <= 0 && isFree ? 'text-amber-400/60' : ''}`}>
+            <span className="text-[16px]" style={{ color: isFree ? 'rgba(255,255,255,0.3)' : 'white', fontWeight: 600, textShadow: isFree ? undefined : '0 1px 3px rgba(0,0,0,0.3)' }}>{name}</span>
+            <span className="text-[22px] font-bold" style={{ color: isFree ? 'rgba(255,255,255,0.4)' : 'white', textShadow: isFree ? undefined : '0 1px 4px rgba(0,0,0,0.3)' }}>
               €{Math.abs(displayAmount)}
               {isFree && freeAmount < 0 && <span className="text-[12px] ml-1">over</span>}
             </span>
             {id === 'goals' && goals.length === 0 && (
-              <span className="text-[10px] text-white/15 mt-0.5">Tap + to add a goal</span>
+              <span className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>Tap + to add a goal</span>
             )}
           </div>
 
@@ -446,10 +465,10 @@ function MyMoneyContent() {
     if (!subView) return null;
 
     const blockMeta = {
-      fixed: { name: 'Fixed Expenses', icon: 'Lock', tint: '#6E6E73', total: totalFixed },
-      savings: { name: 'Savings', icon: 'PiggyBank', tint: '#34C759', total: savingsTarget },
-      spending: { name: 'Spending', icon: 'ShoppingBag', tint: '#8B5CF6', total: totalSpendingBudget },
-      goals: { name: 'Goals', icon: 'Target', tint: '#FF6B9D', total: zoom === '5 Year' ? goals.reduce((s, g) => s + g.target, 0) : totalGoalContributions },
+      fixed: { name: 'Fixed Expenses', icon: 'Lock', tint: '#5D6D7E', total: totalFixed },
+      savings: { name: 'Savings', icon: 'PiggyBank', tint: '#27AE60', total: savingsTarget },
+      spending: { name: 'Spending', icon: 'ShoppingBag', tint: '#8E44AD', total: totalSpendingBudget },
+      goals: { name: 'Goals', icon: 'Target', tint: '#E91E63', total: zoom === '5 Year' ? goals.reduce((s, g) => s + g.target, 0) : totalGoalContributions },
     }[subView]!;
 
     const Icon = getIcon(blockMeta.icon);
@@ -474,9 +493,9 @@ function MyMoneyContent() {
             <span className="text-[20px] font-bold text-white">{blockMeta.name}</span>
           </div>
           <div className="ml-10">
-            <span className="text-[13px] text-white/40">€{Math.round(blockMeta.total * mult)} of €{Math.round(totalIncome * mult)} · {pct}% of income</span>
+            <span className="text-[14px]" style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500, textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>€{Math.round(blockMeta.total * mult)} of €{Math.round(totalIncome * mult)} · {pct}% of income</span>
             <div className="mt-1 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
-              <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, background: hexToRgba(blockMeta.tint, 0.5) }} />
+              <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, background: blockMeta.tint }} />
             </div>
           </div>
         </div>
@@ -490,15 +509,15 @@ function MyMoneyContent() {
               return (
                 <div key={cat.id} className="relative rounded-xl p-3 flex flex-col" style={{
                   gridColumn: `span ${sp.col}`, gridRow: `span ${sp.row}`,
-                  background: hexToRgba(cat._color, 0.25), border: '1.5px solid rgba(255,255,255,0.10)',
+                  background: cat._color, border: `1.5px solid rgba(255,255,255,0.15)`,
                 }}>
                   <div className="flex items-start justify-between">
-                    <CatIcon size={18} className="text-white/40" strokeWidth={1.5} />
-                    <Lock size={10} className="text-white/15" />
+                    <CatIcon size={18} style={{ color: 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
+                    <Lock size={10} style={{ color: 'rgba(255,255,255,0.4)' }} />
                   </div>
-                  <span className="text-[14px] text-white/50 mt-2">{cat.name}</span>
-                  <span className="text-[18px] font-bold text-white">€{Math.round(cat.monthlyBudget * mult)}</span>
-                  <span className="text-[10px] text-white/15 mt-0.5">fixed</span>
+                  <span className="text-[14px] mt-2" style={{ color: 'white', fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{cat.name}</span>
+                  <span className="text-[18px] font-bold" style={{ color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>€{Math.round(cat.monthlyBudget * mult)}</span>
+                  <span className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>fixed</span>
                 </div>
               );
             })}
@@ -616,18 +635,21 @@ function MyMoneyContent() {
               const spent = categorySpentMap[cat.id] || 0;
               const budget = cat.monthlyBudget;
               const fillPct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
-              const fillColor = fillPct > 70 ? hexToRgba('#FF9F0A', 0.35) : hexToRgba(tint, 0.40);
+              const darkerTint = darkenHex(tint, 0.2);
+              const fillColor = fillPct > 80 ? 'rgba(0,0,0,0.15)' : `${hexToRgba(darkerTint, 0.50)}`;
               const sp = getSpans(budget, totalSpendingBudget);
               const isExpanded = expandedItemId === cat.id;
+              const isOverBudget = fillPct >= 100;
 
               return (
                 <motion.div key={cat.id} layout className="relative rounded-xl overflow-hidden cursor-pointer"
                   style={{
                     gridColumn: isExpanded ? '1 / -1' : `span ${sp.col}`,
                     gridRow: isExpanded ? 'span 3' : `span ${sp.row}`,
-                    background: hexToRgba(tint, 0.25), border: `1.5px solid ${hexToRgba(tint, 0.20)}`,
-                    borderLeft: `4px solid ${hexToRgba(tint, 0.50)}`,
+                    background: tint, border: `1.5px solid ${hexToRgba(tint, 0.30)}`,
+                    borderLeft: `4px solid ${darkenHex(tint, 0.15)}`,
                     minHeight: isExpanded ? 280 : 80,
+                    boxShadow: isOverBudget ? '0 0 12px rgba(231,76,60,0.4)' : undefined,
                   }}
                   onClick={() => handleExpandItem(cat.id, budget)}
                 >
@@ -638,10 +660,10 @@ function MyMoneyContent() {
 
                   <div className="relative z-10 p-3">
                     <div className="flex items-start justify-between">
-                      <CatIcon size={18} className="text-white/70" strokeWidth={1.5} />
+                      <CatIcon size={18} style={{ color: 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
                     </div>
-                    <span className="text-[14px] text-white mt-1 block">{cat.name}</span>
-                    <span className="text-[12px] text-white/40">€{Math.round(spent)} / €{Math.round(budget * mult)}</span>
+                    <span className="text-[14px] mt-1 block" style={{ color: 'white', fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{cat.name}</span>
+                    <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.85)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>€{Math.round(spent)} / €{Math.round(budget * mult)}</span>
                   </div>
 
                   {/* Expanded content */}
@@ -731,6 +753,7 @@ function MyMoneyContent() {
 
             {subView === 'goals' && sortedGoals.map(goal => {
               const GoalIcon = getIcon(goal.icon);
+              const goalAccent = goalIconColors[goal.icon] || '#1ABC9C';
               const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
               const dispAmount = zoom === '5 Year' ? goal.target : goal.monthlyContribution;
               const sp = getSpans(dispAmount, blockMeta.total);
@@ -743,17 +766,17 @@ function MyMoneyContent() {
                   style={{
                     gridColumn: isExpanded ? '1 / -1' : `span ${sp.col}`,
                     gridRow: isExpanded ? 'span 3' : `span ${sp.row}`,
-                    background: 'rgba(255,255,255,0.10)', border: '1.5px solid rgba(255,255,255,0.12)',
+                    background: 'rgba(255,255,255,0.12)', border: `2px solid ${goalAccent}`,
                     minHeight: isExpanded ? 280 : 80,
                   }}
                   onClick={() => handleExpandItem(goal.id, goal.monthlyContribution)}
                 >
                   <div className="relative z-10 p-3">
-                    <GoalIcon size={18} className="text-white/50" strokeWidth={1.5} />
-                    <span className="text-[14px] font-bold text-white mt-1 block">{goal.name}</span>
-                    <span className="text-[12px] text-white/40">€{goal.saved} / €{goal.target}</span>
+                    <GoalIcon size={18} style={{ color: goalAccent }} strokeWidth={1.5} />
+                    <span className="text-[14px] font-bold mt-1 block" style={{ color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{goal.name}</span>
+                    <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.85)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>€{goal.saved} / €{goal.target}</span>
                     <div className="mt-1.5 h-[5px] rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                      <div className="h-full rounded-full" style={{ width: `${pctFunded}%`, background: 'linear-gradient(90deg, #8B5CF6, #FF6B9D)' }} />
+                      <div className="h-full rounded-full" style={{ width: `${pctFunded}%`, background: goalAccent }} />
                     </div>
                   </div>
 
@@ -767,9 +790,9 @@ function MyMoneyContent() {
                           <svg width={80} height={80} style={{ transform: 'rotate(-90deg)' }}>
                             <circle cx={40} cy={40} r={34} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={6} />
                             <circle cx={40} cy={40} r={34} fill="none"
-                              stroke="url(#goalGrad)" strokeWidth={6}
+                              stroke={`url(#goalGrad-${goal.id})`} strokeWidth={6}
                               strokeDasharray={2 * Math.PI * 34} strokeDashoffset={2 * Math.PI * 34 * (1 - pctFunded / 100)} strokeLinecap="round" />
-                            <defs><linearGradient id="goalGrad"><stop offset="0%" stopColor="#8B5CF6" /><stop offset="100%" stopColor="#FF6B9D" /></linearGradient></defs>
+                            <defs><linearGradient id={`goalGrad-${goal.id}`}><stop offset="0%" stopColor={goalAccent} /><stop offset="100%" stopColor={goalAccent} /></linearGradient></defs>
                           </svg>
                           <span className="text-white mt-1">{Math.round(pctFunded)}% funded</span>
                         </div>
@@ -803,11 +826,11 @@ function MyMoneyContent() {
 
             {subView === 'savings' && (
               <div className="relative rounded-xl p-4 flex flex-col items-center justify-center col-span-full" style={{
-                background: 'rgba(52,199,89,0.15)', border: '1.5px solid rgba(52,199,89,0.15)', minHeight: 120,
+                background: '#27AE60', border: '1.5px solid rgba(255,255,255,0.15)', minHeight: 120,
               }}>
-                <PiggyBank size={28} className="text-white/40 mb-2" />
-                <span className="text-[16px] text-white/50">Savings Target</span>
-                <span className="text-[24px] font-bold text-white">€{Math.round(savingsTarget * mult)}</span>
+                <PiggyBank size={28} style={{ color: 'rgba(255,255,255,0.9)' }} />
+                <span className="text-[16px]" style={{ color: 'white', fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.3)', marginTop: 8 }}>Savings Target</span>
+                <span className="text-[24px] font-bold" style={{ color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>€{Math.round(savingsTarget * mult)}</span>
               </div>
             )}
 

@@ -14,33 +14,35 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 export const CATEGORY_TINTS: Record<string, string> = {
-  Food: '#FF9F0A',
-  Shopping: '#FF6B9D',
-  Transport: '#007AFF',
-  Entertainment: '#8B5CF6',
-  Health: '#34C759',
-  Subscriptions: '#5AC8FA',
-  Coffee: '#C4956A',
-  Other: '#FFFFFF',
+  Food: '#E67E22',
+  Shopping: '#E74C3C',
+  Transport: '#2874A6',
+  Entertainment: '#9B59B6',
+  Health: '#27AE60',
+  Subscriptions: '#6C3483',
+  Coffee: '#795548',
+  Personal: '#1ABC9C',
+  Other: '#7F8C8D',
 };
 
 export const ICON_TINT_MAP: Record<string, string> = {
-  UtensilsCrossed: '#FF9F0A',
-  ShoppingBag: '#FF6B9D',
-  Bus: '#007AFF',
-  Film: '#8B5CF6',
-  Dumbbell: '#34C759',
-  CreditCard: '#5AC8FA',
-  Coffee: '#C4956A',
-  Gift: '#FF6B9D',
-  BookOpen: '#007AFF',
-  Smartphone: '#5AC8FA',
-  Shirt: '#8B5CF6',
-  MoreHorizontal: '#FFFFFF',
+  UtensilsCrossed: '#E67E22',
+  ShoppingBag: '#E74C3C',
+  Bus: '#2874A6',
+  Film: '#9B59B6',
+  Dumbbell: '#27AE60',
+  CreditCard: '#6C3483',
+  Coffee: '#795548',
+  Gift: '#F1C40F',
+  BookOpen: '#8E44AD',
+  Smartphone: '#E91E63',
+  Shirt: '#D35400',
+  Heart: '#1ABC9C',
+  MoreHorizontal: '#7F8C8D',
 };
 
 export function getTintColor(name: string): string {
-  return CATEGORY_TINTS[name] || '#FFFFFF';
+  return CATEGORY_TINTS[name] || '#7F8C8D';
 }
 
 interface CategoryBlockProps {
@@ -96,16 +98,16 @@ export function CategoryBlock({
   const isOver80 = pct > 0.8;
   const isOver100 = pct > 1;
 
-  const fillColor = isOver80 ? '#FF9F0A' : tintColor;
+  const fillColor = isOver80 ? '#C0392B' : darkenHex(tintColor, 0.2);
   const fillHeight = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
   const ghostFillHeight = budget > 0 ? Math.min((ghostAmount / budget) * 100, 100 - fillHeight) : 0;
 
   const blockBg = isOver100
     ? `rgba(255,159,10,0.35)`
-    : `rgba(${hexToRgb(tintColor)},0.30)`;
+    : tintColor;
   const blockBorder = isOver100
     ? `rgba(255,159,10,0.40)`
-    : `rgba(${hexToRgb(tintColor)},0.25)`;
+    : darkenHex(tintColor, 0.15);
 
   const maxPossible = Math.max(budget + flexRemaining, budget);
 
@@ -170,6 +172,7 @@ export function CategoryBlock({
         height,
         background: isSimulated ? 'rgba(139,92,246,0.08)' : blockBg,
         border: isSimulated ? '2px dashed rgba(139,92,246,0.3)' : `1px solid ${blockBorder}`,
+        borderLeft: isSimulated ? undefined : `4px solid ${darkenHex(tintColor, 0.15)}`,
         animation: isSimulated ? 'ghostPulse 2s ease-in-out infinite' : undefined,
       }}
     >
@@ -178,7 +181,7 @@ export function CategoryBlock({
         className="absolute bottom-0 left-0 right-0 transition-all duration-300"
         style={{
           height: `${fillHeight}%`,
-          background: `rgba(${hexToRgb(fillColor)},0.45)`,
+          background: isOver80 ? 'rgba(0,0,0,0.15)' : `rgba(${hexToRgb(darkenHex(tintColor, 0.2))},0.50)`,
           borderRadius: '0 0 12px 12px',
         }}
       />
@@ -209,12 +212,13 @@ export function CategoryBlock({
           </button>
         )}
 
-        <Icon size={18} className="text-white/70 flex-shrink-0" strokeWidth={1.5} />
-        <span className="text-[11px] text-white text-center leading-tight mt-1 line-clamp-2 max-w-full px-0.5">
+        <Icon size={18} className="flex-shrink-0" strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.9)' }} />
+        <span className="text-[11px] text-center leading-tight mt-1 line-clamp-2 max-w-full px-0.5"
+          style={{ color: 'white', fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
           {name}
         </span>
-        <span className="text-[16px] font-bold text-white mt-1">€{Math.round(spent)}</span>
-        <span className="text-[10px] text-white/40">of €{Math.round(sliderValue)}</span>
+        <span className="text-[16px] font-bold mt-1" style={{ color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>€{Math.round(spent)}</span>
+        <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.85)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>of €{Math.round(sliderValue)}</span>
 
         {/* Save/Cancel confirmation */}
         <AnimatePresence>
@@ -299,4 +303,12 @@ function hexToRgb(hex: string): string {
   return result
     ? `${parseInt(result[1], 16)},${parseInt(result[2], 16)},${parseInt(result[3], 16)}`
     : '255,255,255';
+}
+
+function darkenHex(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const f = 1 - amount;
+  return `#${Math.round(r * f).toString(16).padStart(2, '0')}${Math.round(g * f).toString(16).padStart(2, '0')}${Math.round(b * f).toString(16).padStart(2, '0')}`;
 }
