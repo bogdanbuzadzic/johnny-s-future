@@ -1,25 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Info, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Info } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { useToast } from '@/hooks/use-toast';
-import { Progress } from '@/components/ui/progress';
 import avatarImg from '@/assets/avatar.png';
-
-// Sky imports
-import sky1 from '@/assets/world/sky1_sunny.png';
-import sky2 from '@/assets/world/sky2_sunset.png';
-import sky3 from '@/assets/world/sky3_overcast.png';
-
-// Ground imports
-import ground1 from '@/assets/world/ground1_healthy.png';
-import ground2 from '@/assets/world/ground2_average.png';
-import ground3 from '@/assets/world/ground3_struggling.png';
-
-// Weather imports
-import weather1 from '@/assets/world/weather1_sunny.png';
-import weather2 from '@/assets/world/weather2_cloudy.png';
-import weather3 from '@/assets/world/weather3_rain.png';
 
 // Goal assets
 import car1Img from '@/assets/world/car1.png';
@@ -45,9 +29,23 @@ import house4Img from '@/assets/world/house4.png';
 import generalGoal1 from '@/assets/world/general_goal_icon1.png';
 import generalGoal2 from '@/assets/world/general_goal_icon2.png';
 
-const SKY_MAP: Record<string, string> = { sky1_sunny: sky1, sky2_sunset: sky2, sky3_overcast: sky3 };
-const GROUND_MAP: Record<string, string> = { ground1_healthy: ground1, ground2_average: ground2, ground3_struggling: ground3 };
-const WEATHER_MAP: Record<string, string> = { weather1_sunny: weather1, weather2_cloudy: weather2, weather3_rain: weather3 };
+const SKY_GRADIENTS: Record<string, string> = {
+  healthy: 'linear-gradient(180deg, #87CEEB 0%, #B0E0FF 40%, #E0F0FF 100%)',
+  average: 'linear-gradient(180deg, #C8A2C8 0%, #DEB8D0 40%, #F0D0E0 100%)',
+  struggling: 'linear-gradient(180deg, #8E7BA4 0%, #A090B0 40%, #C0B0C8 100%)',
+};
+
+const GROUND_GRADIENTS: Record<string, string> = {
+  healthy: 'linear-gradient(180deg, #5B8C3E 0%, #4A7A32 50%, #3D6B28 100%)',
+  average: 'linear-gradient(180deg, #7A9A5A 0%, #6A8A4A 50%, #5A7A3A 100%)',
+  struggling: 'linear-gradient(180deg, #9A8A5A 0%, #8A7A4A 50%, #7A6A3A 100%)',
+};
+
+const GROUND_EDGE: Record<string, string> = {
+  healthy: '#5B8C3E',
+  average: '#7A9A5A',
+  struggling: '#9A8A5A',
+};
 
 const GOAL_ASSETS: Record<string, string> = {
   car1: car1Img, car2: car2Img, car3: car3Img, car4: car4Img,
@@ -128,39 +126,8 @@ export function MyWorldScreen({ onClose }: Props) {
     try { return JSON.parse(localStorage.getItem('jfb_goals') || '[]'); } catch { return []; }
   }, []);
 
-  // Sky / Ground
-  const skyKey = clarityScore > 60 ? 'sky1_sunny' : clarityScore > 30 ? 'sky2_sunset' : clarityScore === 0 ? 'sky2_sunset' : 'sky3_overcast';
-  const groundKey = clarityScore > 60 ? 'ground1_healthy' : clarityScore > 30 ? 'ground2_average' : clarityScore === 0 ? 'ground2_average' : 'ground3_struggling';
-
-  // Weather from budget pace
-  const weatherKey = useMemo(() => {
-    try {
-      const bd = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
-      const cfg = bd.config || {};
-      const txns = bd.transactions || [];
-      const cats = bd.categories || [];
-      const income = Number(cfg.monthlyIncome) || 0;
-      const totalFixed = cats.filter((c: any) => c.type === 'fixed').reduce((s: number, c: any) => s + (Number(c.monthlyBudget) || 0), 0);
-      const savings = Number(cfg.monthlySavingsTarget) || 0;
-      const flexBudget = income - totalFixed - savings;
-      if (flexBudget <= 0) return 'weather1_sunny';
-      const now = new Date();
-      const dayOfMonth = now.getDate();
-      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-      const percentMonth = (dayOfMonth / daysInMonth) * 100;
-      const totalSpent = txns
-        .filter((t: any) => {
-          if (t.type !== 'expense') return false;
-          const d = new Date(t.date);
-          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        })
-        .reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
-      const percentSpent = (totalSpent / flexBudget) * 100;
-      if (percentSpent <= percentMonth + 5) return 'weather1_sunny';
-      if (percentSpent <= percentMonth + 15) return 'weather2_cloudy';
-      return 'weather3_rain';
-    } catch { return 'weather1_sunny'; }
-  }, []);
+  // Health tier
+  const healthTier = clarityScore > 60 ? 'healthy' : clarityScore > 30 ? 'average' : clarityScore === 0 ? 'average' : 'struggling';
 
   const sorted = useMemo(() => [...goals].sort((a, b) => b.targetAmount - a.targetAmount), [goals]);
 
@@ -183,41 +150,34 @@ export function MyWorldScreen({ onClose }: Props) {
     };
   }, []);
 
-  const showClouds = weatherKey === 'weather2_cloudy' || weatherKey === 'weather3_rain';
-
   return (
     <motion.div
       className="fixed inset-0 z-50 overflow-hidden"
-      style={{ background: '#000' }}
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Sky */}
-      <motion.img
-        src={SKY_MAP[skyKey]} alt="sky"
-        className="absolute inset-0 w-full object-cover"
-        style={{ height: '80%', imageRendering: 'pixelated' as any }}
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
+      {/* Sky - CSS gradient */}
+      <div
+        className="absolute inset-0"
+        style={{ height: '75%', background: SKY_GRADIENTS[healthTier] }}
       />
 
-      {/* Ground */}
-      <motion.img
-        src={GROUND_MAP[groundKey]} alt="ground"
-        className="absolute bottom-0 w-full object-cover"
-        style={{ height: '22%', imageRendering: 'pixelated' as any }}
-        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.3 }}
-      />
-
-      {/* Weather overlay */}
-      <div className="absolute inset-0" style={{ height: '80%', overflow: 'hidden', pointerEvents: 'none' }}>
-        <img src={WEATHER_MAP[weatherKey]} alt="weather" className="absolute inset-0 w-full h-full object-cover" style={{ opacity: 0.5, imageRendering: 'pixelated' as any }} />
-        {showClouds && (
-          <div className="absolute inset-0" style={{ overflow: 'hidden' }}>
-            <img src={WEATHER_MAP[weatherKey]} alt="clouds" className="absolute h-full object-cover"
-              style={{ width: '200%', imageRendering: 'pixelated' as any, opacity: 0.3, animation: 'cloud-drift 30s linear infinite' }} />
-          </div>
-        )}
+      {/* Optional soft clouds */}
+      <div className="absolute inset-0 pointer-events-none" style={{ height: '75%' }}>
+        <div className="absolute rounded-full" style={{ width: 120, height: 40, top: '10%', left: '15%', background: 'rgba(255,255,255,0.4)', filter: 'blur(8px)', animation: 'cloud-drift-soft 60s linear infinite' }} />
+        <div className="absolute rounded-full" style={{ width: 80, height: 30, top: '18%', right: '20%', background: 'rgba(255,255,255,0.3)', filter: 'blur(10px)', animation: 'cloud-drift-soft 45s linear infinite reverse' }} />
+        <div className="absolute rounded-full" style={{ width: 100, height: 35, top: '8%', right: '40%', background: 'rgba(255,255,255,0.35)', filter: 'blur(9px)', animation: 'cloud-drift-soft 55s linear infinite' }} />
       </div>
+
+      {/* Ground - CSS gradient */}
+      <motion.div
+        className="absolute bottom-0 w-full"
+        style={{ height: '25%', background: GROUND_GRADIENTS[healthTier] }}
+        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.3 }}
+      >
+        {/* Soft grass edge */}
+        <div className="absolute left-0 right-0" style={{ top: -4, height: 8, background: `linear-gradient(180deg, transparent, ${GROUND_EDGE[healthTier]})` }} />
+      </motion.div>
 
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-12 pb-3 z-30">
@@ -388,9 +348,9 @@ export function MyWorldScreen({ onClose }: Props) {
 
       {/* CSS animations */}
       <style>{`
-        @keyframes cloud-drift {
+        @keyframes cloud-drift-soft {
           0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+          100% { transform: translateX(30px); }
         }
         @keyframes goal-bob {
           0%, 100% { transform: translateY(0); }
@@ -399,6 +359,10 @@ export function MyWorldScreen({ onClose }: Props) {
         @keyframes sparkle-dot {
           0%, 100% { opacity: 0; }
           50% { opacity: 1; }
+        }
+        @keyframes avatar-bob {
+          0%, 100% { transform: translateX(-50%) translateY(0); }
+          50% { transform: translateX(-50%) translateY(-4px); }
         }
       `}</style>
     </motion.div>
