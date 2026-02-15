@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { EditBudgetSheet } from '@/components/budget/EditBudgetSheet';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { QuestionnaireOverlay } from '@/components/profile/QuestionnaireOverlay';
+import { MyWorldScreen } from '@/components/screens/MyWorldScreen';
 import {
   QUEST_NODES, BADGES, getLevelTitle, getLevelTier, calculateCompleteness,
   getPersona, getJohnnyObservations, getDimensionScore, getModuleQuestions,
@@ -157,6 +158,7 @@ function ProfileScreenContent() {
   const [nameInput, setNameInput] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [worldOpen, setWorldOpen] = useState(false);
 
   const handleResetAll = useCallback(() => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('jfb_') || k === 'jfb-budget-data');
@@ -305,12 +307,16 @@ function ProfileScreenContent() {
                 })}
               </svg>
 
-              {/* Avatar center */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ zIndex: 2 }}>
+              {/* Avatar center - tap to open My World */}
+              <button
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
+                style={{ zIndex: 2 }}
+                onClick={() => setWorldOpen(true)}
+              >
                 <img src={avatarImg} alt="Avatar" className="w-[100px] h-[100px] object-contain" style={{ animation: 'avatar-bob 2s ease-in-out infinite' }} />
                 <span className="text-lg font-bold text-white mt-1">{userName}</span>
                 <span className="text-xs text-white/40">◆ {levelTitle} ◆</span>
-              </div>
+              </button>
 
               {/* Orbital nodes */}
               {QUEST_NODES.map((node, i) => {
@@ -679,6 +685,11 @@ function ProfileScreenContent() {
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
+
+      {/* My World overlay */}
+      <AnimatePresence>
+        {worldOpen && <MyWorldScreen onClose={() => setWorldOpen(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
