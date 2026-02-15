@@ -64,16 +64,21 @@ function TodayDrawerContent({ onClose, budgetData }: TodayDrawerProps & { budget
 
   // Compute display values from budget data
   const computed = useMemo(() => {
+    const now = new Date();
+    const dIM = getDaysInMonth(now);
+    const dOM = getDate(now);
+    const dR = dIM - dOM + 1;
+    const pM = Math.round((dOM / dIM) * 100);
+
     if (!budgetData || !budgetData.config.setupComplete) {
-      return { flexRemaining: 0, dailyAllowance: 0, percentSpent: 0, percentMonth: 0, paceStatus: 'on-track' as const, daysRemaining: 0, monthlyIncome: 0 };
+      return { flexRemaining: 0, dailyAllowance: 0, percentSpent: 0, percentMonth: pM, paceStatus: 'on-track' as const, daysRemaining: dR, monthlyIncome: 0, hasData: false };
     }
 
-    const now = new Date();
     const monthStart = startOfMonth(now);
     const monthEnd = endOfMonth(now);
-    const daysInMonth = getDaysInMonth(now);
-    const dayOfMonth = getDate(now);
-    const daysRemaining = daysInMonth - dayOfMonth + 1;
+    const daysInMonth = dIM;
+    const dayOfMonth = dOM;
+    const daysRemaining = dR;
 
     const { config, categories, transactions } = budgetData;
     const expenseCats = categories.filter(c => c.type === 'expense');
@@ -98,7 +103,7 @@ function TodayDrawerContent({ onClose, budgetData }: TodayDrawerProps & { budget
     const paceStatus: 'on-track' | 'watch' | 'slow-down' =
       percentSpent <= percentMonth + 5 ? 'on-track' : percentSpent <= percentMonth + 15 ? 'watch' : 'slow-down';
 
-    return { flexRemaining, dailyAllowance, percentSpent, percentMonth, paceStatus, daysRemaining, monthlyIncome: config.monthlyIncome };
+    return { flexRemaining, dailyAllowance, percentSpent, percentMonth, paceStatus, daysRemaining, monthlyIncome: config.monthlyIncome, hasData: true };
   }, [budgetData]);
 
   const PaceIcon = computed.paceStatus === 'on-track' ? CheckCircle : computed.paceStatus === 'watch' ? AlertTriangle : AlertCircle;

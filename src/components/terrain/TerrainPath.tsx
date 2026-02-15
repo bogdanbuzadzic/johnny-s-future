@@ -52,52 +52,86 @@ const currentMonth = today.getMonth();
 // --- Read budget data from localStorage ---
 const STORAGE_KEY = 'jfb-budget-data';
 
-function readBudgetForTerrain(): { bills: BillEvent[]; income: IncomeEvent[]; isProjection: boolean; hasRealData: boolean; projectionPoints?: { day: number; balance: number }[] } {
+interface BudgetTerrainData {
+  bills: BillEvent[];
+  income: IncomeEvent[];
+  isProjection: boolean;
+  hasRealData: boolean;
+  isEmpty: boolean;
+  monthlyIncome: number;
+  flexBudget: number;
+  totalFixed: number;
+  savings: number;
+  dailySpendRate: number;
+  fixedCats: Array<{ name: string; icon: string; monthlyBudget: number }>;
+}
+
+function readBudgetForTerrain(): BudgetTerrainData {
+  const empty: BudgetTerrainData = { bills: [], income: [], isProjection: false, hasRealData: false, isEmpty: true, monthlyIncome: 0, flexBudget: 0, totalFixed: 0, savings: 0, dailySpendRate: 0, fixedCats: [] };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { bills: [], income: [], isProjection: false, hasRealData: false };
+    if (!raw) return empty;
     const parsed = JSON.parse(raw);
     const config = parsed.config || {};
     const categories = (parsed.categories || []) as any[];
     const transactions = (parsed.transactions || []) as any[];
 
-    if (!config.setupComplete) return { bills: [], income: [], isProjection: false, hasRealData: false };
+    if (!config.setupComplete) return empty;
 
-    // Derive bills from fixed categories (spread across month)
+    const mi = Number(config.monthlyIncome) || 0;
+    if (mi === 0) return empty;
+
     const fixedCats = categories.filter((c: any) => c.type === 'fixed');
+    const totalFixed = fixedCats.reduce((s: number, c: any) => s + (Number(c.monthlyBudget) || 0), 0);
+    const savings = Number(config.monthlySavingsTarget) || 0;
+    const flexBudget = mi - totalFixed - savings;
+
     const bills: BillEvent[] = fixedCats.map((c: any, i: number) => ({
       name: c.name,
-      amount: c.monthlyBudget,
-      icon: Home, // Generic icon
+      amount: Number(c.monthlyBudget) || 0,
+      icon: Home,
       date: new Date(currentYear, currentMonth, Math.min(3 + i * 4, 28)),
     }));
 
-    const income: IncomeEvent[] = [
-      { name: 'Salary', amount: config.monthlyIncome || 0, icon: Wallet, date: new Date(currentYear, currentMonth, 1) },
+    const incomeEvents: IncomeEvent[] = [
+      { name: 'Salary', amount: mi, icon: Wallet, date: new Date(currentYear, currentMonth, 1) },
     ];
 
-    // Check if real transactions exist
-    if (transactions.length > 0) {
-      return { bills, income, isProjection: false, hasRealData: true };
-    }
+    // Compute actual spending this month
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    const expenseCats = categories.filter((c: any) => c.type === 'expense');
+    const expenseCatIds = new Set(expenseCats.map((c: any) => c.id));
+    const monthTx = transactions.filter((t: any) => {
+      if (t.type !== 'expense') return false;
+      if (!expenseCatIds.has(t.categoryId)) return false;
+      const d = new Date(t.date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    const totalSpent = monthTx.reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+    const pastDays = Math.max(dayOfMonth - 1, 1);
+    const dailySpendRate = totalSpent > 0 ? totalSpent / pastDays : flexBudget / 30;
 
-    // No transactions: build projection from Clarity data
-    const totalFixed = fixedCats.reduce((s: number, c: any) => s + (c.monthlyBudget || 0), 0);
-    const savings = config.monthlySavingsTarget || 0;
-    const monthlyIncome = config.monthlyIncome || 0;
-    const flexBudget = monthlyIncome - totalFixed - savings;
-    const dailyFlex = flexBudget / 30;
+    const hasRealData = transactions.length > 0;
 
-    const projectionPoints: { day: number; balance: number }[] = [];
-    let balance = flexBudget;
-    for (let day = 0; day < 30; day++) {
-      balance -= dailyFlex * 0.85;
-      projectionPoints.push({ day, balance: Math.max(balance, 0) });
-    }
+    console.log('Terrain data:', { monthlyIncome: mi, flexBudget, totalFixed, savings, dailySpendRate, hasRealData, txCount: transactions.length });
 
-    return { bills, income, isProjection: true, hasRealData: false, projectionPoints };
-  } catch {
-    return { bills: [], income: [], isProjection: false, hasRealData: false };
+    return {
+      bills,
+      income: incomeEvents,
+      isProjection: !hasRealData,
+      hasRealData,
+      isEmpty: false,
+      monthlyIncome: mi,
+      flexBudget,
+      totalFixed,
+      savings,
+      dailySpendRate,
+      fixedCats: fixedCats.map((c: any) => ({ name: c.name, icon: c.icon || 'Home', monthlyBudget: Number(c.monthlyBudget) || 0 })),
+    };
+  } catch (e) {
+    console.error('Terrain data read error:', e);
+    return empty;
   }
 }
 
@@ -110,24 +144,29 @@ function getMarkerSize(amount: number) {
 
 // --- Helper: Build terrain data (1 point per day) ---
 function buildTerrainData(
-  monthlyIncome: number,
-  averageDailySpend: number,
+  flexBudget: number,
+  dailySpendRate: number,
   bills: BillEvent[],
   incomeEvents: IncomeEvent[],
   simulations: TerrainSimulation[],
 ): TerrainPoint[] {
-  const monthStart = startOfMonth(today);
-  const endDate = addDays(today, 30);
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const endDate = addDays(now, 30);
+  const monthStart = startOfMonth(now);
   const totalDays = differenceInDays(endDate, monthStart) + 1;
 
-  let balance = monthlyIncome;
+  // Calculate how much has been spent so far (approximate from daily rate)
+  const spentSoFar = dailySpendRate * (dayOfMonth - 1);
+  let balance = flexBudget - spentSoFar;
   const points: TerrainPoint[] = [];
 
   for (let i = 0; i < totalDays; i++) {
     const date = addDays(monthStart, i);
-    const isPast = date < today && !isSameDay(date, today);
-    const isToday = isSameDay(date, today);
-    const isFuture = date > today;
+    const isPast = date < now && !isSameDay(date, now);
+    const isToday = isSameDay(date, now);
+    const isFuture = date > now;
 
     const dayBills = bills.filter(b => isSameDay(b.date, date));
     const dayIncome = incomeEvents.filter(inc => isSameDay(inc.date, date));
@@ -137,24 +176,35 @@ function buildTerrainData(
     const simIncome = daySims.filter(s => s.type === 'add-income').reduce((s, x) => s + x.amount, 0);
     const cancelledBills = daySims.filter(s => s.type === 'cancel-bill');
 
-    const incomeAmount = dayIncome.reduce((s, x) => s + x.amount, 0) + simIncome;
+    // Only add income for FUTURE salary events (new month boundary)
+    const incomeAmount = (isFuture || isToday) && date.getDate() === 1 && date.getMonth() !== monthStart.getMonth()
+      ? dayIncome.reduce((s, x) => s + x.amount, 0) + simIncome
+      : simIncome;
+
     let expenseAmount = dayBills
       .filter(b => !cancelledBills.some(c => c.description === b.name))
       .reduce((s, x) => s + x.amount, 0) + simExpenses;
 
-    balance += incomeAmount;
-    balance -= expenseAmount;
+    // Only subtract bills for future days (past bills already in spentSoFar)
+    if (isFuture) {
+      balance -= expenseAmount;
+      balance -= dailySpendRate;
+    } else if (isToday) {
+      // Today: just show current balance
+    } else {
+      // Past: reconstruct approximate balance
+      balance -= dailySpendRate;
+    }
 
-    const dailySpend = averageDailySpend;
-    balance -= dailySpend;
+    balance += incomeAmount;
 
     points.push({
       dayIndex: i,
       date,
-      balance: Math.max(0, balance),
+      balance: Math.max(0, Math.round(balance)),
       income: incomeAmount,
-      expenses: expenseAmount,
-      dailySpend,
+      expenses: isFuture ? expenseAmount : 0,
+      dailySpend: dailySpendRate,
       isPast,
       isToday,
       isFuture,
@@ -372,16 +422,20 @@ export function TerrainPath() {
     billAmount?: number;
   } | null>(null);
 
-  // Read budget data from localStorage for terrain
+  // Read budget data directly from localStorage (source of truth)
   const budgetTerrain = useMemo(() => readBudgetForTerrain(), []);
-  const terrainBills = budgetTerrain.hasRealData || budgetTerrain.isProjection ? budgetTerrain.bills : [];
-  const terrainIncome = budgetTerrain.hasRealData || budgetTerrain.isProjection ? budgetTerrain.income : [];
+  const terrainBills = budgetTerrain.isEmpty ? [] : budgetTerrain.bills;
+  const terrainIncome = budgetTerrain.isEmpty ? [] : budgetTerrain.income;
   const isProjection = budgetTerrain.isProjection;
+
+  // Use localStorage values (not context) for base terrain to avoid stale/zero values
+  const effectiveFlexBudget = budgetTerrain.flexBudget || monthlyIncome;
+  const effectiveDailySpend = budgetTerrain.dailySpendRate || averageDailySpend;
 
   // Build terrain data
   const points = useMemo(() =>
-    buildTerrainData(monthlyIncome, averageDailySpend, terrainBills, terrainIncome, terrainSimulations),
-    [monthlyIncome, averageDailySpend, terrainSimulations, terrainBills, terrainIncome]
+    buildTerrainData(effectiveFlexBudget, effectiveDailySpend, terrainBills, terrainIncome, terrainSimulations),
+    [effectiveFlexBudget, effectiveDailySpend, terrainSimulations, terrainBills, terrainIncome]
   );
 
   const todayIndex = useMemo(() => points.findIndex(p => p.isToday), [points]);
@@ -553,6 +607,21 @@ export function TerrainPath() {
       : simulatedDailyAllowance + amount / Math.max(1, points.length - todayIndex);
     return `€${Math.round(dailyAllowance)}/day becomes €${Math.round(newDaily)}/day`;
   }, [activeBubble, selectedTool, simulatedDailyAllowance, dailyAllowance, points.length, todayIndex]);
+
+  // Empty state - no budget data
+  if (budgetTerrain.isEmpty) {
+    return (
+      <div className="relative mx-5 rounded-2xl overflow-hidden flex items-center justify-center" style={{
+        background: 'linear-gradient(180deg, rgba(60, 30, 80, 0.9) 0%, rgba(80, 40, 100, 0.85) 50%, rgba(50, 25, 70, 0.9) 100%)',
+        height: TERRAIN_HEIGHT + DATE_AXIS_HEIGHT,
+      }}>
+        <div className="text-center px-6">
+          <p className="text-white/40 text-sm font-medium">Complete Clarity to see your financial terrain</p>
+          <p className="text-white/20 text-xs mt-1">Your 30-day projection will appear here</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative mx-5 rounded-2xl overflow-hidden" style={{
@@ -858,7 +927,7 @@ export function TerrainPath() {
                 fill="rgba(255,255,255,0.12)"
                 fontSize={9}
               >
-                ~€{averageDailySpend}/day
+                ~€{Math.round(effectiveDailySpend)}/day
               </text>
             )}
 
