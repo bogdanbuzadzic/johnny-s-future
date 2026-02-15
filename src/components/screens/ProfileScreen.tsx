@@ -5,6 +5,7 @@ import {
   UserCircle, Bell, Palette, Download, Shield, Info, Flame, Hourglass, Users, BookOpen, BookHeart, Eye, Zap, PiggyBank, AlertTriangle, Target, TrendingUp, Clock, Heart, Trash2, Building2, BarChart3
 } from 'lucide-react';
 import { getPersonaObservation } from '@/lib/personaMessaging';
+import { BADGE_IMAGES } from '@/lib/badgeImages';
 import { useApp } from '@/context/AppContext';
 import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { useToast } from '@/hooks/use-toast';
@@ -470,33 +471,41 @@ function ProfileScreenContent() {
             <h3 className="text-base font-bold text-white">Trophy Case</h3>
           </div>
 
-          {/* Featured badges */}
+          {/* Featured badges - pixel art */}
           <div className="flex gap-3 justify-center mb-4">
             {[0, 1, 2].map(i => {
               const badge = featuredBadges[i];
               if (badge) {
+                const badgeImg = BADGE_IMAGES[badge.key];
                 return (
                   <button key={badge.key} onClick={() => handleBadgeTap(badge)} className="flex flex-col items-center gap-1.5">
-                    <div className="w-16 h-16 rounded-[14px] flex items-center justify-center relative overflow-hidden"
+                    <motion.div
+                      animate={{ y: [0, -2, 0] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                      className="w-[72px] h-[72px] rounded-[14px] flex items-center justify-center relative overflow-hidden"
                       style={{
-                        background: badge.tint + '4D',
-                        border: `2.5px solid ${badge.tint}80`,
-                        boxShadow: `0 4px 12px ${badge.tint}40`,
+                        background: badge.tint + '26',
+                        border: `2px solid ${badge.tint}4D`,
+                        boxShadow: `0 4px 12px ${badge.tint}33`,
                       }}>
-                      <badge.Icon className="w-8 h-8 text-white" strokeWidth={1.5} />
+                      {badgeImg ? (
+                        <img src={badgeImg} alt={badge.name} className="w-14 h-14 object-contain" style={{ imageRendering: 'pixelated' }} />
+                      ) : (
+                        <badge.Icon className="w-8 h-8 text-white" strokeWidth={1.5} />
+                      )}
                       <div className="absolute inset-0" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.10) 50%, transparent 70%)', animation: 'shimmer 4s infinite' }} />
-                    </div>
-                    <span className="text-[10px] w-16 text-center truncate" style={{ color: badge.tint, opacity: 0.7 }}>{badge.name}</span>
+                    </motion.div>
+                    <span className="text-[10px] w-[72px] text-center truncate font-bold" style={{ color: badge.tint, opacity: 0.7 }}>{badge.name}</span>
                   </button>
                 );
               }
               return (
                 <div key={i} className="flex flex-col items-center gap-1.5">
-                  <div className="w-16 h-16 rounded-[14px] flex items-center justify-center"
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '2px dashed rgba(255,255,255,0.12)' }}>
-                    <Sparkles className="w-5 h-5 text-white/12" style={{ animation: 'sparkle-pulse 3s ease-in-out infinite' }} />
+                  <div className="w-[72px] h-[72px] rounded-[14px] flex items-center justify-center"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '2px dashed rgba(255,255,255,0.10)' }}>
+                    <Sparkles className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.10)', animation: 'sparkle-pulse 3s ease-in-out infinite' }} />
                   </div>
-                  <span className="text-[9px] text-white/12">Earn a badge!</span>
+                  <span className="text-[9px] text-white/[0.12]">Earn a badge!</span>
                 </div>
               );
             })}
@@ -510,17 +519,21 @@ function ProfileScreenContent() {
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {BADGES.map((b, i) => {
                 const unlocked = allBadgeUnlocks[b.key];
+                const badgeImg = BADGE_IMAGES[b.key];
                 return (
                   <motion.button key={b.key} onClick={() => handleBadgeTap(b)}
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 + i * 0.04 }}
                     className="shrink-0 flex flex-col items-center gap-0.5">
-                    <div className="w-11 h-11 rounded-full flex items-center justify-center relative"
+                    <div className="w-11 h-11 rounded-[10px] flex items-center justify-center relative"
                       style={{
-                        background: unlocked ? b.tint + '40' : 'rgba(255,255,255,0.04)',
+                        background: unlocked ? b.tint + '26' : 'rgba(255,255,255,0.04)',
                         border: unlocked ? `1.5px solid ${b.tint}4D` : '1px solid rgba(255,255,255,0.06)',
                       }}>
-                      <b.Icon className="w-5 h-5" strokeWidth={1.5} style={{ color: unlocked ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.08)' }} />
-                      {!unlocked && <Lock className="w-2.5 h-2.5 absolute bottom-0.5 right-0.5" style={{ color: 'rgba(255,255,255,0.12)' }} />}
+                      {unlocked && badgeImg ? (
+                        <img src={badgeImg} alt={b.name} className="w-9 h-9 object-contain" style={{ imageRendering: 'pixelated' }} />
+                      ) : (
+                        <span className="text-[18px] font-bold" style={{ color: 'rgba(255,255,255,0.08)' }}>?</span>
+                      )}
                     </div>
                     <span className="text-[8px] w-11 text-center truncate" style={{ color: unlocked ? b.tint : 'rgba(255,255,255,0.08)', opacity: unlocked ? 0.6 : 1 }}>
                       {unlocked ? b.name : '???'}
