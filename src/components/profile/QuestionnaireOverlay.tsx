@@ -181,9 +181,15 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         'Save for retirement': { name: 'Retirement', icon: 'Sunset', target: 50000, mc: 200 },
         'Other savings goal': { name: 'Savings Goal', icon: 'Target', target: 2000, mc: 50 },
       };
+      // Append goals, skipping duplicates by name
+      const existingGoals: Array<{ name: string }> = (() => {
+        try { return JSON.parse(localStorage.getItem('jfb_goals') || '[]'); } catch { return []; }
+      })();
       (finalAnswers.step3 || []).forEach((g: string) => {
         const d = goalMap[g];
-        if (d) addGoal({ name: d.name, icon: d.icon, target: d.target, saved: 0, monthlyContribution: d.mc, targetDate: '', monthIndex: -1 });
+        if (d && !existingGoals.some(eg => eg.name === d.name)) {
+          addGoal({ name: d.name, icon: d.icon, target: d.target, saved: 0, monthlyContribution: d.mc, targetDate: '', monthIndex: -1 });
+        }
       });
 
       // Store debt data

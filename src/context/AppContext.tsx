@@ -58,6 +58,7 @@ interface AppContextType extends AppState {
   addGoal: (goal: Omit<Goal, 'id'>) => void;
   updateGoal: (id: string, updates: Partial<Goal>) => void;
   deleteGoal: (id: string) => void;
+  setGoals: (goals: Goal[]) => void;
   setSelectedGoalId: (id: string | null) => void;
   viewGoalOnTimeline: (id: string) => void;
   getFilteredData: () => DataPoint[];
@@ -279,6 +280,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const setGoals = (goals: Goal[]) => {
+    localStorage.setItem('jfb_goals', JSON.stringify(goals));
+    setState(s => ({ ...s, goals }));
+  };
+
   const setSelectedGoalId = (id: string | null) => {
     setState(s => ({ ...s, selectedGoalId: id }));
   };
@@ -314,6 +320,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addGoal,
     updateGoal,
     deleteGoal,
+    setGoals,
     setSelectedGoalId,
     viewGoalOnTimeline,
     getFilteredData,
