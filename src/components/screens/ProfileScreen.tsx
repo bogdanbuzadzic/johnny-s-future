@@ -146,7 +146,7 @@ function ClarityMiniBar() {
 // Main Content (inside BudgetProvider)
 // ══════════════════════════════════════════════
 function ProfileScreenContent() {
-  const { goals, setActiveTab } = useApp();
+  const { goals, setActiveTab, setGoals } = useApp();
   const { config, transactions, paceStatus, flexSpent } = useBudget();
   const { toast } = useToast();
 
@@ -630,8 +630,9 @@ function ProfileScreenContent() {
                     { id: crypto.randomUUID(), name: 'Dream House', icon: 'Home', target: 40000, saved: 30000, monthlyContribution: 200, targetDate: '', monthIndex: -1 },
                     { id: crypto.randomUUID(), name: 'New Car', icon: 'Car', target: 10000, saved: 5000, monthlyContribution: 150, targetDate: '', monthIndex: -1 },
                   ];
-                  localStorage.setItem('jfb_goals', JSON.stringify(demoGoals));
-                  // Also seed mock transactions
+                  // Write to BOTH AppContext state and localStorage
+                  setGoals(demoGoals);
+                  // Also seed mock transactions via BudgetContext
                   try {
                     const bd = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
                     const cats = bd.categories || [];
@@ -654,8 +655,8 @@ function ProfileScreenContent() {
                     localStorage.setItem('jfb-budget-data', JSON.stringify(bd));
                   } catch {}
                   localStorage.setItem('jfb_import_shown', 'true');
-                  toast({ title: '🎬 Demo data loaded!', description: 'Goals with progress + mock transactions added.' });
-                  window.location.reload();
+                  toast({ title: '🎬 Demo data loaded!', description: 'Goals with progress + mock transactions added. Go to My Money to see them!' });
+                  setSettingsOpen(false);
                 }}
                   className="w-full h-[44px] rounded-2xl flex items-center justify-center gap-2 text-[13px] font-medium"
                   style={{ background: 'rgba(245,158,11,0.10)', border: '1.5px solid rgba(245,158,11,0.20)', color: 'rgba(255,255,255,0.4)' }}>
