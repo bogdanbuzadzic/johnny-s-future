@@ -172,10 +172,14 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
 
       // Create goals from Step 3 selections
       const goalMap: Record<string, { name: string; icon: string; target: number; mc: number }> = {
+        'Save for a home': { name: 'Dream House', icon: 'Home', target: 40000, mc: 200 },
+        'Save for a car': { name: 'New Car', icon: 'Car', target: 10000, mc: 150 },
+        'Build emergency fund': { name: 'Emergency Fund', icon: 'ShieldCheck', target: 3000, mc: 100 },
+        'Save for a vacation': { name: 'Vacation', icon: 'Plane', target: 2000, mc: 75 },
         'Grow my money': { name: 'Investment Fund', icon: 'TrendingUp', target: 5000, mc: 100 },
-        'Save for a specific purchase': { name: 'Savings Goal', icon: 'Target', target: 2000, mc: 100 },
         'Start investing': { name: 'Start Investing', icon: 'LineChart', target: 1000, mc: 50 },
         'Save for retirement': { name: 'Retirement', icon: 'Sunset', target: 50000, mc: 200 },
+        'Other savings goal': { name: 'Savings Goal', icon: 'Target', target: 2000, mc: 50 },
       };
       (finalAnswers.step3 || []).forEach((g: string) => {
         const d = goalMap[g];

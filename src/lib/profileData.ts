@@ -95,7 +95,7 @@ const CLARITY: ProfileQ[] = [
   { id: 'step1', text: "Are you completing this for yourself or your household?", type: 'single', options: ['Just myself', 'My household'] },
   { id: 'step2', text: "How often do you pay your bills on time?", type: 'single', options: ['Always on time', 'Sometimes late', 'Often late'] },
   { id: 'step3', text: "What are your financial goals?", type: 'multi', options: [
-    'Better budgeting', 'Manage debt', 'Grow my money', 'Save for a specific purchase', 'Start investing', 'Save for retirement'
+    'Better budgeting', 'Manage debt', 'Save for a home', 'Save for a car', 'Build emergency fund', 'Save for a vacation', 'Start investing', 'Save for retirement', 'Other savings goal'
   ]},
   { id: 'step4', text: "What is your monthly income after tax?", type: 'number', prefix: '€' },
   { id: 'step5', text: "Your monthly expenses", type: 'expenses', fields: [

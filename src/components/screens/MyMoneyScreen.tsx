@@ -229,15 +229,47 @@ function MyMoneyContent() {
   }, [expenseCategories, addTransaction]);
 
   // What If quick scenarios
+  const [activeScenarioLabel, setActiveScenarioLabel] = useState<string | null>(null);
   const handleQuickScenario = useCallback((scenario: string) => {
     if (scenario === 'rent') {
       const rent = fixedCategories.find(c => c.name === 'Rent');
       if (rent) setSimulations([{ id: 'rent-sim', field: 'fixed', value: rent.monthlyBudget - 100, original: rent.monthlyBudget }]);
+      setActiveScenarioLabel('rent');
     } else if (scenario === 'save') {
       setSimulations([{ id: 'save-sim', field: 'savings', value: savingsTarget + 100, original: savingsTarget }]);
+      setActiveScenarioLabel('save');
+    } else if (scenario === 'income-drop') {
+      setSimulations([{ id: 'income-sim', field: 'income', value: Math.round(totalIncome * 0.8), original: totalIncome }]);
+      setActiveScenarioLabel('income-drop');
     }
     setWhatIfFirstActivation(false);
-  }, [fixedCategories, savingsTarget]);
+  }, [fixedCategories, savingsTarget, totalIncome]);
+
+  const handleTryAnother = useCallback(() => {
+    setSimulations([]);
+    setActiveScenarioLabel(null);
+    setWhatIfFirstActivation(true);
+  }, []);
+
+  // Computed scenario impact
+  const scenarioImpact = useMemo(() => {
+    if (!activeScenarioLabel || simulations.length === 0) return null;
+    const sim = simulations[0];
+    const diff = sim.value - sim.original;
+    const newFree = freeAmount + (sim.field === 'fixed' ? -diff : sim.field === 'savings' ? -diff : sim.field === 'income' ? diff : 0);
+    const annualSaved = Math.abs(diff) * 12;
+    const nearestGoal = goals[0];
+    let goalImpact = '';
+    if (nearestGoal && nearestGoal.monthlyContribution > 0) {
+      const remaining = nearestGoal.target - nearestGoal.saved;
+      const monthsNow = Math.ceil(remaining / nearestGoal.monthlyContribution);
+      const extra = diff < 0 ? Math.abs(diff) : 0; // savings from cheaper rent
+      const monthsNew = extra > 0 ? Math.ceil(remaining / (nearestGoal.monthlyContribution + extra * 0.5)) : monthsNow;
+      const diff2 = monthsNow - monthsNew;
+      if (diff2 > 0) goalImpact = `${nearestGoal.name}: ${diff2} months sooner`;
+    }
+    return { diff, newFree, annualSaved, goalImpact, isNegative: newFree < 0, originalField: sim.field, originalValue: sim.original, newValue: sim.value };
+  }, [activeScenarioLabel, simulations, freeAmount, goals]);
 
   // Expand item in sub-tetris
   const handleExpandItem = (id: string, budget: number) => {
@@ -893,7 +925,13 @@ function MyMoneyContent() {
       {/* Income label */}
       <div className="px-4 mb-2 flex items-center gap-1.5">
         <Wallet size={16} className="text-white/25" />
-        <span className="text-[14px] text-white/40">{incomeLabel}</span>
+        {activeScenarioLabel === 'income-drop' && scenarioImpact ? (
+          <span className="text-[14px] text-white/40">
+            Monthly Income · <span className="line-through text-red-400/50">€{totalIncome}</span> → <span className="text-amber-400">€{scenarioImpact.newValue}</span>
+          </span>
+        ) : (
+          <span className="text-[14px] text-white/40">{incomeLabel}</span>
+        )}
       </div>
 
       {/* Macro Container */}
@@ -913,35 +951,92 @@ function MyMoneyContent() {
 
       {/* What If toolbar */}
       <AnimatePresence>
-        {isWhatIf && (
+      {isWhatIf && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
             className="px-4 mb-3">
             {/* Quick scenario suggestions on first activation */}
             {whatIfFirstActivation && simulations.length === 0 && (
               <div className="mb-3 rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                <span className="text-[12px] text-white/30">Try a scenario:</span>
-                <div className="flex gap-2 mt-2 flex-wrap">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Sparkles size={14} className="text-white/30" />
+                  <span className="text-[12px] text-white/30">Try a scenario:</span>
+                </div>
+                <div className="space-y-1.5">
                   <button onClick={() => handleQuickScenario('rent')}
-                    className="px-3 py-1.5 rounded-full text-[12px] text-white/60"
-                    style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.10)' }}>
-                    🏠 What if rent was €100 less?
+                    className="w-full px-3 h-9 rounded-xl text-left text-[13px] text-white/60 flex items-center"
+                    style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    🏠 Cheaper rent (-€100)
                   </button>
                   <button onClick={() => handleQuickScenario('save')}
-                    className="px-3 py-1.5 rounded-full text-[12px] text-white/60"
-                    style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.10)' }}>
-                    💰 What if I saved €100 more?
+                    className="w-full px-3 h-9 rounded-xl text-left text-[13px] text-white/60 flex items-center"
+                    style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    💰 Save €100 more
+                  </button>
+                  <button onClick={() => handleQuickScenario('income-drop')}
+                    className="w-full px-3 h-9 rounded-xl text-left text-[13px] text-white/60 flex items-center"
+                    style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    📉 Income drops 20%
                   </button>
                 </div>
               </div>
             )}
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] text-white/40">Changes: {whatIfChangeCount}</span>
-              <div className="flex items-center gap-2">
-                <button onClick={handleWhatIfReset} className="px-3 py-1 rounded-full text-[12px] text-white/50" style={{ background: 'rgba(255,255,255,0.10)' }}>Reset</button>
-                <button onClick={handleWhatIfSave} className="px-3 py-1 rounded-full text-[12px] text-white font-medium" style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>Save all</button>
-                <button onClick={handleWhatIfDone} className="text-[12px] text-white/40">Done</button>
+
+            {/* Impact banner when a scenario is active */}
+            {scenarioImpact && (
+              <div className="mb-3 rounded-xl p-3" style={{
+                background: scenarioImpact.isNegative ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(8px)',
+              }}>
+                {activeScenarioLabel === 'rent' && (
+                  <>
+                    <p className="text-[14px] text-white">🏠 Rent: €{scenarioImpact.originalValue} → <span className="text-green-400">€{scenarioImpact.newValue}</span></p>
+                    <p className="text-[14px] text-green-400">Free: €{Math.round(freeAmount)} → €{Math.round(scenarioImpact.newFree)} (+€100/mo)</p>
+                    <p className="text-[13px] text-white/50">That's €{scenarioImpact.annualSaved}/year saved</p>
+                    {scenarioImpact.goalImpact && <p className="text-[13px] text-green-400/60">{scenarioImpact.goalImpact}</p>}
+                  </>
+                )}
+                {activeScenarioLabel === 'save' && (
+                  <>
+                    <p className="text-[14px] text-white">💰 Savings: €{scenarioImpact.originalValue} → <span className="text-green-400">€{scenarioImpact.newValue}</span></p>
+                    <p className="text-[14px] text-white/60">Free: €{Math.round(freeAmount)} → €{Math.round(scenarioImpact.newFree)}</p>
+                    <p className="text-[13px] text-white/50">€{scenarioImpact.annualSaved}/year more saved</p>
+                  </>
+                )}
+                {activeScenarioLabel === 'income-drop' && (
+                  <>
+                    <p className="text-[14px] text-white">⚠️ Income: <span className="line-through text-red-400/60">€{scenarioImpact.originalValue}</span> → <span className="text-amber-400">€{scenarioImpact.newValue}</span></p>
+                    {scenarioImpact.isNegative ? (
+                      <>
+                        <p className="text-[14px] text-amber-400">You'd be €{Math.abs(Math.round(scenarioImpact.newFree))}/month over-committed</p>
+                        <p className="text-[13px] text-white/50">You'd need to cut: Spending by €{Math.abs(Math.round(scenarioImpact.newFree))}</p>
+                        <p className="text-[13px] text-white/40">or reduce savings + goals</p>
+                      </>
+                    ) : (
+                      <p className="text-[14px] text-white/60">Free: €{Math.round(freeAmount)} → €{Math.round(scenarioImpact.newFree)}</p>
+                    )}
+                  </>
+                )}
+                <div className="flex items-center gap-2 mt-3">
+                  <button onClick={() => { handleWhatIfReset(); setActiveScenarioLabel(null); }}
+                    className="px-3 py-1.5 rounded-full text-[12px] text-white/50" style={{ background: 'rgba(255,255,255,0.10)' }}>Reset</button>
+                  <button onClick={handleWhatIfSave}
+                    className="px-3 py-1.5 rounded-full text-[12px] text-white font-medium" style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>Save All</button>
+                  <button onClick={handleTryAnother}
+                    className="px-3 py-1.5 rounded-full text-[12px] text-white/50" style={{ background: 'rgba(255,255,255,0.10)' }}>Try Another</button>
+                </div>
               </div>
-            </div>
+            )}
+
+            {!scenarioImpact && !whatIfFirstActivation && (
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-white/40">Changes: {whatIfChangeCount}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleWhatIfReset} className="px-3 py-1 rounded-full text-[12px] text-white/50" style={{ background: 'rgba(255,255,255,0.10)' }}>Reset</button>
+                  <button onClick={handleWhatIfSave} className="px-3 py-1 rounded-full text-[12px] text-white font-medium" style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>Save all</button>
+                  <button onClick={handleWhatIfDone} className="text-[12px] text-white/40">Done</button>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
