@@ -215,14 +215,27 @@ function ProfileScreenContent() {
   const featuredBadges = useMemo(() => BADGES.filter(b => allBadgeUnlocks[b.key]).slice(0, 3), [allBadgeUnlocks]);
   const totalEarned = BADGES.filter(b => allBadgeUnlocks[b.key]).length;
 
+  // ── Find first current node ──
+  const firstCurrentKey = useMemo(() => {
+    for (const node of QUEST_NODES) {
+      if (node.status === 'coming-soon') continue;
+      if (doneFlags[node.key]) continue;
+      const prereqsMet = node.prereqs.every(p => doneFlags[p]);
+      if (prereqsMet) return node.key;
+    }
+    return null;
+  }, [doneFlags]);
+
   // ── Node status ──
   const getNodeStatus = useCallback((node: typeof QUEST_NODES[0]) => {
     if (node.status === 'coming-soon') return 'coming-soon' as const;
     if (doneFlags[node.key]) return 'completed' as const;
     const prereqsMet = node.prereqs.every(p => doneFlags[p]);
-    if (prereqsMet) return 'current' as const;
+    if (prereqsMet) {
+      return node.key === firstCurrentKey ? 'current' as const : 'available' as const;
+    }
     return 'locked' as const;
-  }, [doneFlags]);
+  }, [doneFlags, firstCurrentKey]);
 
   const nextQuestName = useMemo(() => {
     const next = QUEST_NODES.find(n => getNodeStatus(n) === 'current');
@@ -237,10 +250,10 @@ function ProfileScreenContent() {
       return;
     }
     if (status === 'completed') {
-      // Tap completed node to view results (toast for now)
       toast({ title: `${node.name} ✓`, description: 'Already completed!' });
       return;
     }
+    // Both 'current' and 'available' open the questionnaire
     setActiveQuest(node.key);
   }, [toast]);
 
@@ -329,8 +342,9 @@ function ProfileScreenContent() {
                 const y = Math.sin(radians) * ORBIT_RADIUS;
 
                 const isCompleted = status === 'completed';
-                const nodeSize = status === 'current' ? 80 : isCompleted ? 72 : status === 'coming-soon' ? 60 : 68;
-                const iconSize = status === 'current' ? 30 : isCompleted ? 28 : status === 'coming-soon' ? 20 : 24;
+                const isAvailable = status === 'available';
+                const nodeSize = status === 'current' ? 80 : isCompleted ? 72 : isAvailable ? 72 : status === 'coming-soon' ? 60 : 68;
+                const iconSize = status === 'current' ? 30 : isCompleted ? 28 : isAvailable ? 26 : status === 'coming-soon' ? 20 : 24;
                 const half = nodeSize / 2;
 
                 // Get result content for completed nodes
@@ -366,10 +380,12 @@ function ProfileScreenContent() {
                           width: nodeSize, height: nodeSize,
                           background: isCompleted ? colors.bg
                             : status === 'current' ? '#A855F7'
+                            : isAvailable ? colors.bg
                             : status === 'coming-soon' ? '#E5E7EB'
                             : '#D1D5DB',
                           boxShadow: isCompleted ? `0 5px 0 ${colors.shadow}`
                             : status === 'current' ? '0 6px 0 #7C3AED'
+                            : isAvailable ? `0 5px 0 ${colors.shadow}`
                             : status === 'coming-soon' ? '0 3px 0 #D1D5DB'
                             : '0 4px 0 #9CA3AF',
                           border: status === 'current' ? '3px solid #FFD700'
@@ -389,6 +405,7 @@ function ProfileScreenContent() {
                               width: iconSize, height: iconSize,
                               color: isCompleted ? 'white'
                                 : status === 'current' ? 'white'
+                                : isAvailable ? 'rgba(255,255,255,0.7)'
                                 : status === 'coming-soon' ? '#D1D5DB'
                                 : '#9CA3AF',
                             }} />
@@ -416,9 +433,10 @@ function ProfileScreenContent() {
                       <div className="mt-1 text-center" style={{ width: 80 }}>
                         <p style={{
                           fontSize: isCompleted ? 11 : status === 'coming-soon' ? 9 : status === 'locked' ? 10 : 12,
-                          fontWeight: (isCompleted || status === 'current') ? 700 : 400,
+                          fontWeight: (isCompleted || status === 'current' || isAvailable) ? 700 : 400,
                           color: isCompleted ? 'white'
                             : status === 'current' ? 'white'
+                            : isAvailable ? 'rgba(255,255,255,0.60)'
                             : status === 'locked' ? 'rgba(255,255,255,0.2)'
                             : 'rgba(255,255,255,0.12)',
                           lineHeight: '1.2',
@@ -433,6 +451,9 @@ function ProfileScreenContent() {
                         )}
                         {status === 'current' && (
                           <p className="text-[9px] text-white/30 mt-0.5">{node.subtitle}</p>
+                        )}
+                        {isAvailable && (
+                          <p className="text-[9px] text-white/25 mt-0.5">{node.subtitle}</p>
                         )}
                         {status === 'locked' && <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.12)' }}>Locked</p>}
                         {status === 'coming-soon' && <p style={{ fontSize: 8, color: 'rgba(255,255,255,0.08)' }}>Soon</p>}
@@ -480,8 +501,12 @@ function ProfileScreenContent() {
                 return (
                   <button key={badge.key} onClick={() => handleBadgeTap(badge)} className="flex flex-col items-center gap-1.5">
                     <div className="w-16 h-16 rounded-[14px] flex items-center justify-center relative overflow-hidden"
-                      style={{ background: badge.tint + '4D', border: `2px solid ${badge.tint}66` }}>
-                      <badge.Icon className="w-7 h-7 text-white/90" strokeWidth={1.5} />
+                      style={{
+                        background: badge.tint + '4D',
+                        border: `2.5px solid ${badge.tint}80`,
+                        boxShadow: `0 4px 12px ${badge.tint}40`,
+                      }}>
+                      <badge.Icon className="w-8 h-8 text-white" strokeWidth={1.5} />
                       <div className="absolute inset-0" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.10) 50%, transparent 70%)', animation: 'shimmer 4s infinite' }} />
                     </div>
                     <span className="text-[10px] w-16 text-center truncate" style={{ color: badge.tint, opacity: 0.7 }}>{badge.name}</span>
@@ -492,9 +517,9 @@ function ProfileScreenContent() {
                 <div key={i} className="flex flex-col items-center gap-1.5">
                   <div className="w-16 h-16 rounded-[14px] flex items-center justify-center"
                     style={{ background: 'rgba(255,255,255,0.06)', border: '2px dashed rgba(255,255,255,0.12)' }}>
-                    <Sparkles className="w-5 h-5 text-white/15" style={{ animation: 'sparkle-pulse 3s ease-in-out infinite' }} />
+                    <Sparkles className="w-5 h-5 text-white/12" style={{ animation: 'sparkle-pulse 3s ease-in-out infinite' }} />
                   </div>
-                  <span className="text-[9px] text-white/15">Earn a badge!</span>
+                  <span className="text-[9px] text-white/12">Earn a badge!</span>
                 </div>
               );
             })}
