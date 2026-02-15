@@ -1,131 +1,109 @@
 
 
-# Profile + Assessments + Data Flow - Complete Rebuild
+# Tamagotchi World - Implementation Plan
 
 ## Overview
-This rebuilds the Profile screen's orbital nodes to show results when completed, removes the separate Financial DNA card, enhances the Clarity questionnaire's data flow, and adds mock terrain projection to the Home screen.
 
-## Changes by File
+Create a full-screen pixel art world scene that opens when users tap their avatar on the Profile screen. The world visually represents their financial health (sky/ground) and goals (pixel art objects that materialize as they save).
 
-### 1. `src/components/screens/ProfileScreen.tsx` (Major Rewrite)
+## Assets to Copy (36 images)
 
-**Remove:**
-- The entire "Financial DNA Card" section (lines 387-485): the radar pentagon chart, dimension stat pills, and persona display. The orbital nodes themselves become the DNA visualization.
+Copy all uploaded pixel art assets into `src/assets/world/`:
 
-**Add - Completed Node Result Displays:**
-- When a node's status is `completed`, instead of rendering a plain colored circle with an icon, render a **result node** that shows the module's output data inside the circle:
-  - **Clarity**: Blue `#3B82F6` circle showing `[score]/100` (24px bold + 11px white/50). BarChart3 icon badge (24px) on top-left edge. Below: mini segmented bar (spending/saving/planning).
-  - **Know Yourself**: Purple `#8B5CF6` showing abbreviated persona (14px bold): "Avoider" / "Impulse" / "Steady" etc. Below: full persona name.
-  - **Risk Pulse**: Orange `#F97316` showing risk score + "risk". Below: "Moderate"/"High"/"Low".
-  - **Time Lens**: Teal `#14B8A6` showing time score + "time". Below: descriptor.
-  - **Confidence**: Indigo `#6366F1` showing confidence score + "conf.". Below: calibration descriptor.
-  - **Social Mirror**: Pink `#EC4899` showing social score + "social". Below: descriptor.
-  - **Money Story**: Yellow `#EAB308` showing dominant script abbreviated. Below: trigger emotion from M6.
-- All completed nodes keep: 3D shadow, green check badge bottom-right, icon badge top-left edge.
-- Add helper functions to compute result labels (e.g., risk level from score, dominant money script from M5 answers).
+**Skies (3):** `sky1_sunny`, `sky2_sunset`, `sky3_overcast`
+**Grounds (3):** `ground1_healthy`, `ground2_average`, `ground3_struggling`
+**Weather (4):** `weather1_sunny`, `weather2_cloudy`, `weather3_rain`, `Weather_Effects_Clouds`
+**Goals (36 = 9 types x 4 states):** `house1-4`, `car1-4`, `vacation1-4`, `laptop1-4`, `bike1-4`, `shield1-4`, `education1-4`, `investment1-4`, `target1-4`
 
-**Keep unchanged:**
-- Orbital layout structure, avatar center, arc connections, score badge, level progress, trophy case, Johnny's observations, settings, spacer.
+Note: Only `car4` and the two general goal icons are uploaded. The remaining goal assets (house, vacation, laptop, bike, shield, education, investment, target) are referenced in the spec but not uploaded. The implementation will use the uploaded assets and fall back to `target` or `General_Goal_Icon` images for missing assets.
 
-### 2. `src/lib/profileData.ts` (Minor Updates)
+## New Files
 
-**Update Clarity questions:**
-- Step 2 text: Change `'Always'` to `'Always on time'` for clarity score consistency with the spec's scoring logic.
-- Step 5 (expenses): Add a `frequency` concept. The current `expenses` type doesn't support a weekly/monthly toggle. We'll handle this in the QuestionnaireOverlay by storing a secondary `step5_freq` answer object.
-- Step 3 goal option: Change `'Save for a purchase'` to `'Save for a specific purchase'` to match the goalMap key in completion handler.
+### `src/components/screens/MyWorldScreen.tsx`
 
-**Add result label helpers:**
-- `getRiskLabel(score)`: returns "Low" / "Moderate" / "High"
-- `getTimeLabel(score)`: returns "Present-focused" / "Balanced" / "Future-focused"
-- `getConfidenceLabel(score)`: returns "Underestimates" / "Well calibrated" / "Overconfident"
-- `getSocialLabel(score)`: returns "Independent" / "Moderate" / "Socially driven"
-- `getDominantScript(answers)`: returns highest-scoring script from M1-M4 ("Avoid" / "Worship" / "Status" / "Vigil.")
-- `getPersonaAbbrev(personaName)`: returns shortened display name
+Full-screen component with:
 
-### 3. `src/components/profile/QuestionnaireOverlay.tsx` (Moderate Updates)
+- **Entry trigger**: Avatar tap on ProfileScreen opens this screen (state: `worldOpen`)
+- **Transition**: Avatar scales up (400ms spring), world scene fades in around it
+- **Header**: ArrowLeft + "My World" 18px bold white. Back returns to Profile.
+- **Scene layers** (full viewport, no scroll):
+  - z-0: Sky background image (top 80%) -- selected by Clarity score
+  - z-0: Ground image (bottom 20%) -- selected by Clarity score
+  - z-1: Weather overlay -- selected by spending pace
+  - z-2: Goal objects -- positioned by target amount, progress state 1-4
+  - z-3: Avatar (120px, centered on ground line, bob animation)
+- **Sky selection**: `score > 60` = sunny, `> 30` = sunset, else overcast. Default: sunset.
+- **Ground selection**: Same thresholds mapped to healthy/average/struggling.
+- **Weather selection**: Based on `percentSpent vs percentMonth` pace calculation from budget data.
+- **Goal objects**: Read from `localStorage('jfb_goals')`. Map goal name/icon to asset prefix (house/car/vacation/etc). Progress state 1-4 based on `savedAmount/targetAmount` percentage.
+- **Goal positions**: 7 preset positions sorted by targetAmount descending. Largest goal = center back, most prominent.
+- **Goal tap**: Opens frosted bottom sheet with name, asset image, progress bar, amounts, monthly contribution, months-to-go estimate, Close button.
+- **Goal long-press** (500ms): Cross-fades current progress image to the "4" (100% complete) version for 2 seconds as a "dream preview", then fades back.
+- **Empty state**: If no goals, show "?" markers, "Your world is empty!" text, and "Go to My Money" button.
+- **Info tooltip**: Top-right frosted pill, tap shows toast explaining the world concept.
 
-**Clarity completion handler updates:**
-- Add frequency support for Step 5: if a field has `frequency === 'weekly'`, multiply by 4.33 before creating the fixed category.
-- Store step5 with frequency data so the multiplied monthly value is used.
-- After creating fixed categories, also create a recurring transaction for subscriptions if `step5f > 0` (using `addTransaction` from BudgetContext).
-- Create goals using updated goalMap keys matching the multi-select options (including `'Save for a specific purchase'`).
-- Store debt data: `localStorage.setItem('jfb_debt', JSON.stringify({...}))` from step6 compound answers.
-- Store cash reserves: `localStorage.setItem('jfb_cash', JSON.stringify({...}))` from step8 compound answers.
-- On completion, navigate to My Money tab (`setActiveTab(1)`).
+### Animations
 
-**Expense input frequency toggle:**
-- Add a small "mo/wk" toggle next to each expense input field in the `expenses` type renderer. Store frequency per field in a parallel state object. Apply 4.33x multiplier for weekly items in the running total display.
+- Goal objects: gentle bob (translateY -3px to 0, 2-3s infinite, staggered 400ms each)
+- Weather clouds (cloudy/rain): translateX drift 0 to -100%, 30s linear infinite loop
+- Sparkles on 100%-funded goals: 3 tiny white dots cycling opacity
+- Scene entrance: sky fade in (300ms), ground slide up (200ms delay), goals pop in staggered (spring 300ms), avatar last
 
-### 4. `src/components/terrain/TerrainPath.tsx` (Moderate Update)
+## Modified Files
 
-**Mock terrain from Clarity data:**
-- Before using `FALLBACK_BILLS` and `FALLBACK_INCOME`, check if real budget data exists in localStorage.
-- If `config.setupComplete === true` but `transactions.length === 0`:
-  - Build a projected terrain from Clarity data: start with flex budget, subtract 85% of daily flex each day for 30 days.
-  - Use dashed stroke for the terrain line (`strokeDasharray="8 4"`)
-  - Use `rgba(255,255,255,0.15)` fill instead of the normal gradient
-  - Add a label at the bottom: "Projected from your Clarity data. Start tracking to see real trends." (10px white/20)
-- If real transactions exist (even 1): use real data, solid line, normal gradient, no label.
-- Read budget data from localStorage inside the component (using the same `readBudgetFromStorage` pattern from TodayDrawer).
+### `src/components/screens/ProfileScreen.tsx`
 
-**Remove hardcoded fallback data:**
-- Replace `FALLBACK_BILLS` and `FALLBACK_INCOME` usage. When real categories exist, derive bills from fixed categories. When no data at all, show a flat empty terrain.
-
-### 5. `src/components/sheets/TodayDrawer.tsx` (Minor Update)
-
-- Pass budget categories as bill events to the terrain when real data exists (derive from fixed categories stored in localStorage).
-- The SimulationProvider already receives fresh data - just ensure the terrain component reads from it.
-
----
+- Add `worldOpen` state
+- Make avatar center area clickable -- on tap, set `worldOpen = true`
+- Render `MyWorldScreen` when `worldOpen` is true (with AnimatePresence)
+- Pass `onClose={() => setWorldOpen(false)}` to MyWorldScreen
 
 ## Technical Details
 
-### Result Node Rendering Logic (ProfileScreen)
+### Goal-to-Asset Mapping
 
 ```text
-For each completed node:
-1. Read answers from localStorage (jfb_[module]_answers)
-2. Compute score using getDimensionScore() or clarity score
-3. Render result circle:
-   - Same size as completed (72px)
-   - Background: module's unique color
-   - 3D shadow preserved
-   - Content: score/label text centered inside
-   - Icon badge: 24px circle with module icon at top-left edge (offset -8px, -8px)
-   - Check badge: green circle at bottom-right (existing)
-   - Below: module name + descriptor label
+Goal name/icon keyword -> asset prefix:
+  house/home/apartment/Home -> "house"
+  car/vehicle/Car -> "car"
+  vacation/travel/trip/Plane -> "vacation"
+  laptop/computer/tech/Laptop -> "laptop"
+  bike/bicycle/Bike -> "bike"
+  emergency/safety/ShieldCheck -> "shield"
+  education/school/course/GraduationCap -> "education"
+  invest/grow/TrendingUp/LineChart -> "investment"
+  fallback -> "target"
 ```
 
-### Expense Frequency Toggle
+### Progress State Selection
 
 ```text
-Each expense row gets a small toggle:
-- Two pills: "mo" | "wk" (24px tall each, 10px font)
-- Default: "mo" (monthly)
-- When "wk" selected: the stored value represents weekly spend
-- Running total multiplies weekly values by 4.33
-- On save: weekly values are stored with a frequency flag
+0-24%  -> prefix1 (most ghosted/incomplete)
+25-49% -> prefix2
+50-74% -> prefix3
+75-100% -> prefix4 (fully complete)
 ```
 
-### Mock Terrain Data Flow
+### Data Sources (all from localStorage)
 
 ```text
-TerrainPath reads localStorage directly:
-1. Check jfb-budget-data exists and setupComplete === true
-2. If transactions.length === 0: build projection
-   - dailyFlex = (income - fixed - savings) / 30
-   - Loop 30 days, subtract dailyFlex * 0.85 each day
-   - Return with isProjection: true flag
-3. If transactions exist: use real data (existing behavior)
-4. Visual: dashed line + muted fill + projection label
+Sky/Ground: jfb_clarityScore -> .total
+Weather: jfb-budget-data -> config + transactions (pace calc)
+Goals: jfb_goals -> array of {name, icon, savedAmount, targetAmount, monthlyContribution}
 ```
 
-### Files Summary
+### Missing Assets Strategy
+
+Since only a subset of goal assets are uploaded (car4, general goal icons, sky/ground/weather), the component will:
+1. Import all available uploaded assets
+2. For missing goal type images, fall back to the `General_Goal_Icon` or render a styled placeholder with the Lucide icon from the goal data
+3. This allows the feature to work immediately while additional assets can be added later
+
+## File Summary
+
 | File | Action | Scope |
 |------|--------|-------|
-| `src/components/screens/ProfileScreen.tsx` | Rewrite completed node rendering, remove DNA card | Major |
-| `src/lib/profileData.ts` | Add result label helpers, fix option text | Minor |
-| `src/components/profile/QuestionnaireOverlay.tsx` | Frequency toggle, debt/cash storage, subscription tx | Moderate |
-| `src/components/terrain/TerrainPath.tsx` | Mock terrain from Clarity, remove hardcoded fallbacks | Moderate |
-| `src/components/sheets/TodayDrawer.tsx` | Derive bills from real categories | Minor |
+| `src/assets/world/*` | Create (copy uploaded assets) | ~10 files |
+| `src/components/screens/MyWorldScreen.tsx` | Create | Major - new feature |
+| `src/components/screens/ProfileScreen.tsx` | Edit - add avatar tap + world overlay | Minor |
 
