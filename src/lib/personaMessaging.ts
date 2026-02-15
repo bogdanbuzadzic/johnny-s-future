@@ -45,28 +45,19 @@ export const tipsByPersona: Record<string, string[]> = {
   ],
 };
 
-export function getImpactText(diff: number, newDaily: number, goalText: string, persona: string | null): string {
-  const p = persona || '';
+export function getImpactText(diff: number, newDaily: number, goalText: string, persona: string | null, oldDaily?: number, originalBudget?: number): string {
+  const abs = Math.abs(diff);
+  const oldDailyStr = oldDaily !== undefined ? `€${oldDaily}` : '—';
+  const budgetStr = originalBudget !== undefined ? `Budget: €${originalBudget} → €${originalBudget + diff}. ` : '';
+  
   if (diff < 0) {
-    const abs = Math.abs(diff);
-    const map: Record<string, string> = {
-      "Money Avoider": `Small move: €${abs} freed up. ${goalText}`,
-      "Impulsive Optimist": `€${abs} redirected! Smart. Daily: €${newDaily}. ${goalText}`,
-      "Present Hedonist": `€${abs} freed for what matters. ${goalText}`,
-      "Vigilant Saver": `Optimized by €${abs}. Efficient. ${goalText}`,
-      "Confident Controller": `Reallocation: -€${abs}. Rate: €${newDaily}/day. ${goalText}`,
-      "Steady Saver": `€${abs} shifted. Steady progress. ${goalText}`,
-    };
-    return map[p] || `Reducing by €${abs}. Daily: €${newDaily}/day. ${goalText}`;
-  } else {
-    const map: Record<string, string> = {
-      "Money Avoider": `Adding €${diff}. That's OK — just notice how it feels.`,
-      "Impulsive Optimist": `+€${diff} here = less elsewhere. Sure about this?`,
-      "Vigilant Saver": `+€${diff} reduces your buffer. Daily: €${newDaily}.`,
-      "Confident Controller": `+€${diff}. New rate: €${newDaily}/day. ${goalText}`,
-    };
-    return map[p] || `Adding €${diff}. Daily: €${newDaily}/day. ${goalText}`;
+    // Decreasing budget — daily rises
+    return `${budgetStr}Daily allowance rises from ${oldDailyStr} to €${newDaily}/day.${goalText ? ` ${goalText.replace('→ ', '')}: sooner.` : ''}`;
+  } else if (diff > 0) {
+    // Increasing budget — daily drops
+    return `${budgetStr}Daily allowance drops from ${oldDailyStr} to €${newDaily}/day.${goalText ? ` ${goalText.replace('→ ', '')}: later.` : ''}`;
   }
+  return 'Drag to adjust';
 }
 
 export function getAffordText(result: string, persona: string | null, daily: number, days: number, shortage: number): string {

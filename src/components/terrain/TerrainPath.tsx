@@ -176,8 +176,9 @@ function buildTerrainData(
     const simIncome = daySims.filter(s => s.type === 'add-income').reduce((s, x) => s + x.amount, 0);
     const cancelledBills = daySims.filter(s => s.type === 'cancel-bill');
 
-    // Only add income for FUTURE salary events (new month boundary)
-    const incomeAmount = (isFuture || isToday) && date.getDate() === 1 && date.getMonth() !== monthStart.getMonth()
+    // Add income for salary day (1st of any future month)
+    const isNewMonth = date.getDate() === 1 && date.getMonth() !== monthStart.getMonth();
+    const incomeAmount = (isFuture || isToday) && isNewMonth
       ? dayIncome.reduce((s, x) => s + x.amount, 0) + simIncome
       : simIncome;
 
@@ -209,7 +210,7 @@ function buildTerrainData(
       isToday,
       isFuture,
       bills: dayBills.filter(b => !cancelledBills.some(c => c.description === b.name)),
-      incomeItems: dayIncome,
+      incomeItems: isNewMonth && (isFuture || isToday) ? dayIncome : [],
     });
   }
 
@@ -751,6 +752,33 @@ export function TerrainPath() {
                 Projected from Clarity data
               </text>
             )}
+
+            {/* Monthly income label top-left */}
+            {budgetTerrain.monthlyIncome > 0 && (
+              <text x={8} y={14} textAnchor="start" fill="rgba(255,255,255,0.2)" fontSize={10}>
+                Monthly: €{budgetTerrain.monthlyIncome.toLocaleString()}
+              </text>
+            )}
+
+            {/* Salary spike labels on income days */}
+            {points.map((p, i) => {
+              if (p.income <= 0 || p.isPast) return null;
+              const markerX = i * DAY_WIDTH;
+              const surfaceY = getTerrainYAtX(markerX, pathPoints);
+              return (
+                <text
+                  key={`salary-label-${i}`}
+                  x={markerX}
+                  y={surfaceY - 22}
+                  textAnchor="middle"
+                  fill="rgba(52,199,89,0.5)"
+                  fontSize={10}
+                  fontWeight={600}
+                >
+                  €{p.income.toLocaleString()}
+                </text>
+              );
+            })}
 
             {/* 6. Vertical dotted connector lines for expenses */}
             {points.map((p, i) => {

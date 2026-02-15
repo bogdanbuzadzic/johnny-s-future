@@ -55,14 +55,15 @@ const GOAL_ASSETS: Record<string, string> = {
   house1: house1Img, house2: house2Img, house3: house3Img, house4: house4Img,
 };
 
+// Positions: goal objects ON THE GROUND (bottom 25% area), not floating in sky
 const POSITIONS = [
-  { x: '50%', y: '18%', size: 90 },
-  { x: '20%', y: '25%', size: 80 },
-  { x: '75%', y: '22%', size: 80 },
-  { x: '35%', y: '38%', size: 75 },
-  { x: '65%', y: '35%', size: 75 },
-  { x: '15%', y: '45%', size: 70 },
-  { x: '80%', y: '42%', size: 70 },
+  { x: '30%', bottom: '20%', size: 90 },
+  { x: '70%', bottom: '22%', size: 80 },
+  { x: '15%', bottom: '18%', size: 80 },
+  { x: '50%', bottom: '24%', size: 75 },
+  { x: '85%', bottom: '19%', size: 75 },
+  { x: '40%', bottom: '16%', size: 70 },
+  { x: '60%', bottom: '17%', size: 70 },
 ];
 
 function getAssetPrefix(goal: any): string {
@@ -209,9 +210,9 @@ export function MyWorldScreen({ onClose }: Props) {
               key={i}
               className="absolute"
               style={{
-                left: pos.x, top: pos.y,
+                left: pos.x, bottom: pos.bottom,
                 transform: 'translateX(-50%)',
-                zIndex: Math.round(parseFloat(pos.y)),
+                zIndex: 10 + i,
               }}
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}

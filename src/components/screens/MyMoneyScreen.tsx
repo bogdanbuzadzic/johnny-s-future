@@ -390,6 +390,15 @@ function MyMoneyContent() {
         }}
         onClick={() => {
           if (isFree) return;
+          if (id === 'goals') {
+            // Navigate to My World instead of sub-Tetris
+            setActiveTab(2);
+            // Signal to ProfileScreen to open My World
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('openMyWorld'));
+            }, 100);
+            return;
+          }
           setSubView(id as SubView);
         }}
         whileTap={isFree ? undefined : { scale: 0.97 }}
@@ -685,14 +694,15 @@ function MyMoneyContent() {
                           <span className="text-[10px] text-white/15">€{Math.round(budget + flexRemaining)}</span>
                         </div>
                         <div className="mt-2 text-[13px]">
-                          {Math.round(sliderVal) === Math.round(budget) ? (
+                        {Math.round(sliderVal) === Math.round(budget) ? (
                             <span className="text-white/25">Drag to adjust</span>
                           ) : (() => {
                             const diff = Math.round(sliderVal) - Math.round(budget);
+                            const oldDaily = Math.round(flexRemaining / daysRemaining);
                             const newDaily = Math.round((flexRemaining + budget - sliderVal) / daysRemaining);
                             const nearestGoal = goals[0]?.name;
                             const goalText = nearestGoal ? `→ ${nearestGoal}` : '';
-                            const text = getImpactText(diff, newDaily, goalText, personaName);
+                            const text = getImpactText(diff, newDaily, goalText, personaName, oldDaily, Math.round(budget));
                             return (
                               <span className="text-white/60">{text}</span>
                             );
@@ -710,23 +720,37 @@ function MyMoneyContent() {
                         )}
                         {/* Recent transactions */}
                         <div className="mt-3">
-                          <span className="text-[12px] text-white/30">Recent</span>
+                          <span className="text-[12px] text-white/30 block mb-1">Recent</span>
                           {(() => {
                             const now = new Date();
                             const catTxns = transactions
                               .filter(t => t.categoryId === cat.id && t.type === 'expense' && isWithinInterval(parseISO(t.date), { start: startOfMonth(now), end: endOfMonth(now) }))
-                              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                              .slice(0, 4);
-                            if (catTxns.length === 0) return <div className="text-[12px] text-white/20 text-center py-2">No spending yet</div>;
-                            return catTxns.map(t => (
-                              <div key={t.id} className="flex justify-between py-1">
-                                <div>
-                                  <div className="text-[13px] text-white/60 truncate">{t.description || 'Untitled'}</div>
-                                  <div className="text-[10px] text-white/25">{isTodayFn(parseISO(t.date)) ? 'Today' : isYesterdayFn(parseISO(t.date)) ? 'Yesterday' : format(parseISO(t.date), 'MMM d')}</div>
-                                </div>
-                                <span className="text-[13px] text-white/50">-€{Number(t.amount).toFixed(2)}</span>
-                              </div>
-                            ));
+                              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                            const shown = catTxns.slice(0, 5);
+                            const hasMore = catTxns.length > 5;
+                            if (shown.length === 0) return <div className="text-[12px] text-white/20 text-center py-2">No spending yet</div>;
+                            return (
+                              <>
+                                {shown.map(t => (
+                                  <div key={t.id} className="flex justify-between items-center" style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <div>
+                                      <div style={{ color: 'white', fontSize: 13, fontWeight: 500 }}>{t.description || 'Untitled'}</div>
+                                      <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
+                                        {isTodayFn(parseISO(t.date)) ? 'Today' : isYesterdayFn(parseISO(t.date)) ? 'Yesterday' : format(parseISO(t.date), 'MMM d')}
+                                      </div>
+                                    </div>
+                                    <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 600 }}>
+                                      -€{Number(t.amount).toFixed(2)}
+                                    </div>
+                                  </div>
+                                ))}
+                                {hasMore && (
+                                  <button className="text-[12px] mt-1" style={{ color: 'rgba(139,92,246,0.6)' }}>
+                                    See all ({catTxns.length})
+                                  </button>
+                                )}
+                              </>
+                            );
                           })()}
                         </div>
                       </motion.div>
