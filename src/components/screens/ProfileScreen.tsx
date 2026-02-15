@@ -161,6 +161,13 @@ function ProfileScreenContent() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [worldOpen, setWorldOpen] = useState(false);
 
+  // Listen for openMyWorld event from Goals macro block
+  useEffect(() => {
+    const handler = () => setWorldOpen(true);
+    window.addEventListener('openMyWorld', handler);
+    return () => window.removeEventListener('openMyWorld', handler);
+  }, []);
+
   const handleResetAll = useCallback(() => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('jfb_') || k === 'jfb-budget-data');
     keys.forEach(k => localStorage.removeItem(k));
@@ -643,9 +650,8 @@ function ProfileScreenContent() {
                     { id: crypto.randomUUID(), name: 'Dream House', icon: 'Home', target: 40000, saved: 30000, monthlyContribution: 200, targetDate: '', monthIndex: -1 },
                     { id: crypto.randomUUID(), name: 'New Car', icon: 'Car', target: 10000, saved: 5000, monthlyContribution: 150, targetDate: '', monthIndex: -1 },
                   ];
-                  // Write to BOTH AppContext state and localStorage
                   setGoals(demoGoals);
-                  // Also seed mock transactions via BudgetContext
+                  // Seed mock transactions with CURRENT month dates
                   try {
                     const bd = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
                     const cats = bd.categories || [];
@@ -653,23 +659,34 @@ function ProfileScreenContent() {
                     const entCat = cats.find((c: any) => c.name === 'Entertainment');
                     const shopCat = cats.find((c: any) => c.name === 'Shopping');
                     const persCat = cats.find((c: any) => c.name === 'Personal');
+                    if (!foodCat || !entCat || !shopCat || !persCat) {
+                      toast({ title: 'Complete Clarity first', description: 'Spending categories need to exist before loading demo data.' });
+                      return;
+                    }
+                    const now = new Date();
+                    const yr = now.getFullYear();
+                    const mo = String(now.getMonth() + 1).padStart(2, '0');
                     const mockTxs = [
-                      { id: crypto.randomUUID(), amount: 45, type: 'expense', categoryId: foodCat?.id, description: 'Grocery Store', date: '2026-02-10', isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 12, type: 'expense', categoryId: foodCat?.id, description: 'Coffee Shop', date: '2026-02-11', isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 35, type: 'expense', categoryId: entCat?.id, description: 'Cinema', date: '2026-02-09', isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 89, type: 'expense', categoryId: shopCat?.id, description: 'H&M', date: '2026-02-08', isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 15, type: 'expense', categoryId: foodCat?.id, description: 'Uber Eats', date: '2026-02-12', isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 25, type: 'expense', categoryId: persCat?.id, description: 'Pharmacy', date: '2026-02-07', isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 60, type: 'expense', categoryId: foodCat?.id, description: 'Weekly Groceries', date: '2026-02-14', isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 10, type: 'expense', categoryId: entCat?.id, description: 'Spotify', date: '2026-02-01', isRecurring: true },
-                      { id: crypto.randomUUID(), amount: 50, type: 'expense', categoryId: shopCat?.id, description: 'Amazon', date: '2026-02-05', isRecurring: false },
-                    ].filter(t => t.categoryId);
+                      { id: crypto.randomUUID(), amount: 45, type: 'expense', categoryId: foodCat.id, description: 'Grocery Store', date: `${yr}-${mo}-10`, isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 12, type: 'expense', categoryId: foodCat.id, description: 'Coffee Shop', date: `${yr}-${mo}-11`, isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 35, type: 'expense', categoryId: entCat.id, description: 'Cinema', date: `${yr}-${mo}-09`, isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 89, type: 'expense', categoryId: shopCat.id, description: 'H&M', date: `${yr}-${mo}-08`, isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 15, type: 'expense', categoryId: foodCat.id, description: 'Uber Eats', date: `${yr}-${mo}-12`, isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 25, type: 'expense', categoryId: persCat.id, description: 'Pharmacy', date: `${yr}-${mo}-07`, isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 60, type: 'expense', categoryId: foodCat.id, description: 'Weekly Groceries', date: `${yr}-${mo}-14`, isRecurring: false },
+                      { id: crypto.randomUUID(), amount: 10, type: 'expense', categoryId: entCat.id, description: 'Spotify', date: `${yr}-${mo}-01`, isRecurring: true },
+                      { id: crypto.randomUUID(), amount: 50, type: 'expense', categoryId: shopCat.id, description: 'Amazon', date: `${yr}-${mo}-05`, isRecurring: false },
+                    ];
                     bd.transactions = [...(bd.transactions || []), ...mockTxs];
                     localStorage.setItem('jfb-budget-data', JSON.stringify(bd));
-                  } catch {}
+                  } catch (e) {
+                    console.error('Demo data error:', e);
+                  }
                   localStorage.setItem('jfb_import_shown', 'true');
-                  toast({ title: '🎬 Demo data loaded!', description: 'Goals with progress + mock transactions added. Go to My Money to see them!' });
+                  toast({ title: '🎬 Demo data loaded!', description: 'Goals with progress + mock transactions added. Reloading...' });
                   setSettingsOpen(false);
+                  // Force reload so BudgetContext picks up the new localStorage data
+                  setTimeout(() => window.location.reload(), 500);
                 }}
                   className="w-full h-[44px] rounded-2xl flex items-center justify-center gap-2 text-[13px] font-medium"
                   style={{ background: 'rgba(245,158,11,0.10)', border: '1.5px solid rgba(245,158,11,0.20)', color: 'rgba(255,255,255,0.4)' }}>

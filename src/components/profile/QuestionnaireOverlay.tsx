@@ -142,7 +142,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       const fixedMap = [
         { key: 'rent', name: 'Rent', icon: 'Home' }, { key: 'utilities', name: 'Utilities', icon: 'Zap' },
         { key: 'tax', name: 'Tax', icon: 'Landmark' }, { key: 'car', name: 'Car', icon: 'Car' },
-        { key: 'transport', name: 'Transport', icon: 'Bus' }, { key: 'subs', name: 'Subscriptions', icon: 'Tv' },
+        { key: 'transport', name: 'Transport', icon: 'Bus' },
         { key: 'insurance', name: 'Insurance', icon: 'Shield' },
         { key: 'childcare', name: 'Childcare', icon: 'Baby' },
         { key: 'other', name: 'Other Fixed', icon: 'MoreHorizontal' },
@@ -170,6 +170,33 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       addCategory({ name: 'Shopping', icon: 'ShoppingBag', monthlyBudget: Math.round(allocatable * 0.25), type: 'expense' });
       addCategory({ name: 'Personal', icon: 'Heart', monthlyBudget: Math.round(allocatable * 0.25), type: 'expense' });
       addCategory({ name: 'Other', icon: 'MoreHorizontal', monthlyBudget: Math.round(allocatable * 0.30), type: 'expense' });
+
+      // Subscriptions as recurring expense transaction (NOT a fixed category)
+      const subsAmount = getMonthly('subs');
+      if (subsAmount > 0) {
+        // We'll add this after categories are created - use Entertainment as default sub category
+        // The subscription card in Spending sub-Tetris will detect recurring transactions automatically
+        setTimeout(() => {
+          try {
+            const bd = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
+            const cats = bd.categories || [];
+            const entCat = cats.find((c: any) => c.name === 'Entertainment');
+            if (entCat) {
+              const subTx = {
+                id: crypto.randomUUID(),
+                amount: subsAmount,
+                type: 'expense',
+                categoryId: entCat.id,
+                description: 'Monthly Subscriptions',
+                date: new Date().toISOString().split('T')[0],
+                isRecurring: true,
+              };
+              bd.transactions = [...(bd.transactions || []), subTx];
+              localStorage.setItem('jfb-budget-data', JSON.stringify(bd));
+            }
+          } catch {}
+        }, 500);
+      }
 
       // Create goals from Step 3 selections
       const goalMap: Record<string, { name: string; icon: string; target: number; mc: number }> = {
@@ -292,18 +319,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
             transition={{ duration: 3, delay: p.delay, ease: 'easeIn' }} />
         ))}
 
-        {/* Glowing module icon */}
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-          transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.1 }}
-          className="w-[88px] h-[88px] rounded-full flex items-center justify-center mb-4"
-          style={{
-            background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
-            boxShadow: '0 0 40px rgba(139,92,246,0.4), 0 0 80px rgba(236,72,153,0.2)',
-          }}>
-          <NodeIcon className="w-9 h-9 text-white" strokeWidth={2} />
-        </motion.div>
-
-        {/* Title */}
+        {/* Title - no duplicate icon, text IS the hero */}
         <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}
           className="text-[28px] font-bold text-white mb-1">{(() => {
             const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();

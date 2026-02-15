@@ -88,13 +88,23 @@ export function HomeScreen() {
         </motion.div>
         
         <h1 className="text-xl font-bold text-white mt-4">Johnny</h1>
-        {(() => {
-          const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
-          const p = getPersona(m0);
-          const tips = tipsByPersona[p?.n || 'default'] || tipsByPersona['default'];
-          const tip = tips[new Date().getDate() % tips.length];
-          return <p className="text-sm text-white/60 mt-1">{tip}</p>;
-        })()}
+         <p className="text-sm text-white/60 mt-1">Your financial buddy</p>
+      </div>
+
+      {/* Johnny's Notes Card */}
+      <div className="px-4 mb-4">
+        <div className="flex items-center gap-3 rounded-2xl p-4"
+          style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <img src={johnnyImage} alt="Johnny" className="w-11 h-11 flex-shrink-0" style={{ imageRendering: 'pixelated' as any }} />
+          <p className="text-[14px] font-medium leading-snug" style={{ color: 'rgba(255,255,255,0.8)' }}>
+            {(() => {
+              const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
+              const p = getPersona(m0);
+              const tips = tipsByPersona[p?.n || 'default'] || tipsByPersona['default'];
+              return tips[new Date().getDate() % tips.length];
+            })()}
+          </p>
+        </div>
       </div>
 
       {/* Bottom Action Area */}

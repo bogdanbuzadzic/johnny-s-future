@@ -159,9 +159,10 @@ export function AddTransactionSheet({ open, onClose, prefillAmount, prefillCateg
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent 
         side="bottom" 
-        className="h-[90vh] rounded-t-3xl border-0 bg-transparent p-0"
+        className="rounded-t-3xl border-0 bg-transparent p-0"
+        style={{ maxHeight: '85vh' }}
       >
-        <div className="h-full jfb-bg rounded-t-3xl overflow-auto">
+        <div className="jfb-bg rounded-t-3xl overflow-y-auto" style={{ maxHeight: '85vh' }}>
           <SheetHeader className="p-5 pb-0">
             <div className="flex items-center justify-between">
               <SheetTitle className="text-white text-lg font-semibold">
@@ -409,18 +410,25 @@ export function AddTransactionSheet({ open, onClose, prefillAmount, prefillCateg
                   )}
                 </div>
 
-                {/* Save button */}
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleSave}
-                  disabled={!isValid}
-                  className="w-full py-4 rounded-2xl gradient-primary text-white font-semibold disabled:opacity-50"
-                >
-                  {type === 'expense' ? 'Add expense' : 'Add income'}
-                </motion.button>
+                {/* Spacer for sticky button */}
+                <div style={{ height: 80 }} />
               </>
             )}
           </div>
+
+          {/* Sticky Save button */}
+          {type !== 'goal' && (
+            <div className="sticky bottom-0 left-0 right-0 p-4 z-10" style={{ background: 'linear-gradient(to top, rgba(30,20,40,0.95) 60%, transparent)' }}>
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={handleSave}
+                disabled={!isValid}
+                className="w-full py-4 rounded-2xl gradient-primary text-white font-semibold disabled:opacity-50"
+              >
+                {type === 'expense' ? 'Add expense' : 'Add income'}
+              </motion.button>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
