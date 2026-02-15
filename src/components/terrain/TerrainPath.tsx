@@ -555,7 +555,9 @@ export function TerrainPath() {
   }, [activeBubble, selectedTool, simulatedDailyAllowance, dailyAllowance, points.length, todayIndex]);
 
   return (
-    <div className="relative">
+    <div className="relative mx-5 rounded-2xl overflow-hidden" style={{
+      background: 'linear-gradient(to bottom, rgba(100, 70, 120, 0.6), rgba(80, 50, 100, 0.8))',
+    }}>
       {/* Playground border */}
       {playgroundMode && (
         <div className="absolute inset-0 rounded-2xl pointer-events-none z-10"
@@ -591,14 +593,19 @@ export function TerrainPath() {
           >
             <defs>
               <linearGradient id="terrainGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.35} />
-                <stop offset="50%" stopColor="#FF6B9D" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="#FF9F0A" stopOpacity={0.25} />
+                <stop offset="0%" stopColor="rgba(139, 92, 246, 0.4)" />
+                <stop offset="50%" stopColor="rgba(236, 72, 153, 0.3)" />
+                <stop offset="100%" stopColor="rgba(249, 115, 22, 0.1)" />
               </linearGradient>
               <linearGradient id="terrainGradientDim" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.09} />
-                <stop offset="50%" stopColor="#FF6B9D" stopOpacity={0.06} />
-                <stop offset="100%" stopColor="#FF9F0A" stopOpacity={0.06} />
+                <stop offset="0%" stopColor="rgba(139, 92, 246, 0.25)" />
+                <stop offset="50%" stopColor="rgba(236, 72, 153, 0.18)" />
+                <stop offset="100%" stopColor="rgba(249, 115, 22, 0.06)" />
+              </linearGradient>
+              <linearGradient id="terrainGradientProjected" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgba(139, 92, 246, 0.24)" />
+                <stop offset="50%" stopColor="rgba(236, 72, 153, 0.18)" />
+                <stop offset="100%" stopColor="rgba(249, 115, 22, 0.06)" />
               </linearGradient>
               <clipPath id="pastClip">
                 <rect x="0" y="0" width={pastClipX} height={TERRAIN_HEIGHT} />
@@ -615,33 +622,48 @@ export function TerrainPath() {
               stroke="rgba(255,255,255,0.08)" strokeWidth={1}
             />
 
+            {/* Y-axis horizontal gridlines */}
+            {altitudeLabels.map((label) => (
+              <line
+                key={`grid-${label.value}`}
+                x1="0" y1={label.y}
+                x2={totalWidth} y2={label.y}
+                stroke="rgba(255,255,255,0.04)"
+                strokeWidth={1}
+                strokeDasharray="4 4"
+              />
+            ))}
+
             {/* 2. Terrain fill - past (dimmed) */}
-            <path d={terrainFillPath} fill={isProjection ? "rgba(255,255,255,0.08)" : "url(#terrainGradientDim)"} clipPath="url(#pastClip)" />
+            <path d={terrainFillPath} fill={isProjection ? "url(#terrainGradientProjected)" : "url(#terrainGradientDim)"} clipPath="url(#pastClip)" />
 
             {/* 2. Terrain fill - future */}
-            <path d={terrainFillPath} fill={isProjection ? "rgba(255,255,255,0.15)" : "url(#terrainGradient)"} clipPath="url(#futureClip)" />
+            <path d={terrainFillPath} fill={isProjection ? "url(#terrainGradientProjected)" : "url(#terrainGradient)"} clipPath="url(#futureClip)" />
 
-            {/* 3. BUG 4 FIX: Green tint as slope wedge, not rectangle */}
+            {/* Today vertical marker line */}
+            {todayIndex >= 0 && (
+              <line
+                x1={todayIndex * DAY_WIDTH}
+                y1={0}
+                x2={todayIndex * DAY_WIDTH}
+                y2={TERRAIN_HEIGHT}
+                stroke="rgba(255,255,255,0.2)"
+                strokeWidth={1}
+              />
+            )}
+
+            {/* 3. Green tint wedges for income days */}
             {points.map((p, i) => {
               if (p.income <= 0) return null;
               const markerX = i * DAY_WIDTH;
-              const preBalance = i > 0 ? points[i - 1].balance : p.balance;
               const preY = getTerrainYAtX(markerX - DAY_WIDTH * 0.3, pathPoints);
               const postY = getTerrainYAtX(markerX + DAY_WIDTH * 0.3, pathPoints);
               const startX = markerX - DAY_WIDTH * 0.3;
               const endX = markerX + DAY_WIDTH * 0.3;
-              
-              // Wedge path: follow terrain surface from pre to post, then drop straight down
-              const midY = Math.max(preY, postY); // base level (lower on screen = higher Y)
+              const midY = Math.max(preY, postY);
               const tintPath = `M ${startX} ${preY} L ${markerX} ${getTerrainYAtX(markerX, pathPoints)} L ${endX} ${postY} L ${endX} ${midY} L ${startX} ${midY} Z`;
-              
               return (
-                <path
-                  key={`green-${i}`}
-                  d={tintPath}
-                  fill="#34C759"
-                  opacity={0.12}
-                />
+                <path key={`green-${i}`} d={tintPath} fill="#34C759" opacity={0.12} />
               );
             })}
 
@@ -649,15 +671,15 @@ export function TerrainPath() {
             <path
               d={surfacePath}
               fill="none"
-              stroke="rgba(255,255,255,0.5)"
+              stroke={isProjection ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.8)"}
               strokeWidth={2}
-              strokeDasharray={isProjection ? "8 4" : undefined}
+              strokeDasharray={isProjection ? "6 4" : undefined}
             />
 
             {/* Projection label */}
             {isProjection && (
-              <text x={totalWidth / 2} y={TERRAIN_HEIGHT - 6} textAnchor="middle" fill="rgba(255,255,255,0.20)" fontSize={10}>
-                Projected from Clarity data. Start tracking to see real trends.
+              <text x={totalWidth - 10} y={TERRAIN_HEIGHT - 8} textAnchor="end" fill="rgba(255,255,255,0.2)" fontSize={9}>
+                Projected from Clarity data
               </text>
             )}
 
