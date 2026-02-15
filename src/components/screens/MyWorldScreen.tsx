@@ -21,8 +21,18 @@ import weather1 from '@/assets/world/weather1_sunny.png';
 import weather2 from '@/assets/world/weather2_cloudy.png';
 import weather3 from '@/assets/world/weather3_rain.png';
 
-// Goal assets - only car4 is uploaded; rest fallback to general icon
+// Goal assets
+import car1Img from '@/assets/world/car1.png';
+import car2Img from '@/assets/world/car2.png';
+import car3Img from '@/assets/world/car3.png';
 import car4Img from '@/assets/world/car4.png';
+import vacation1Img from '@/assets/world/vacation1.png';
+import vacation2Img from '@/assets/world/vacation2.png';
+import vacation3Img from '@/assets/world/vacation3.png';
+import vacation4Img from '@/assets/world/vacation4.png';
+import education2Img from '@/assets/world/education2.png';
+import education3Img from '@/assets/world/education3.png';
+import education4Img from '@/assets/world/education4.png';
 import generalGoal1 from '@/assets/world/general_goal_icon1.png';
 import generalGoal2 from '@/assets/world/general_goal_icon2.png';
 
@@ -30,8 +40,11 @@ const SKY_MAP: Record<string, string> = { sky1_sunny: sky1, sky2_sunset: sky2, s
 const GROUND_MAP: Record<string, string> = { ground1_healthy: ground1, ground2_average: ground2, ground3_struggling: ground3 };
 const WEATHER_MAP: Record<string, string> = { weather1_sunny: weather1, weather2_cloudy: weather2, weather3_rain: weather3 };
 
-// Only car4 is a real uploaded goal asset
-const GOAL_ASSETS: Record<string, string> = { car4: car4Img };
+const GOAL_ASSETS: Record<string, string> = {
+  car1: car1Img, car2: car2Img, car3: car3Img, car4: car4Img,
+  vacation1: vacation1Img, vacation2: vacation2Img, vacation3: vacation3Img, vacation4: vacation4Img,
+  education2: education2Img, education3: education3Img, education4: education4Img,
+};
 
 const POSITIONS = [
   { x: '50%', y: '18%', size: 90 },
