@@ -631,8 +631,8 @@ function MyMoneyContent() {
         style={{
           gridColumn: `span ${spans.col}`,
           gridRow: `span ${spans.row}`,
-          background: 'rgba(255,255,255,0.05)',
-          border: `1.5px solid rgba(255,255,255,0.10)`,
+          background: color,
+          border: 'none',
           padding: 8,
           minHeight: 120,
         }}
@@ -787,7 +787,6 @@ function MyMoneyContent() {
             : 'none',
           minHeight: '62vh',
           padding: 10,
-          paddingBottom: 50,
           animation: isWhatIf ? 'ghostPulse 3s ease-in-out infinite' : undefined,
           boxShadow: freeAmount < 0 ? '0 0 24px rgba(245,158,11,0.2)' : undefined,
         }}>
@@ -799,13 +798,47 @@ function MyMoneyContent() {
 
           {isWhatIf && <div className="absolute top-3 right-3 z-10 flex items-center gap-1 text-[10px] text-white/30"><Sparkles size={10} /> Playground</div>}
 
+          {/* ONE-LINE SUMMARY BAR at top */}
+          <div className="relative z-10 flex items-center justify-between" style={{
+            height: 36,
+            background: 'rgba(0,0,0,0.3)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            padding: '0 12px',
+            borderRadius: 10,
+            marginTop: 28,
+            marginBottom: 8,
+          }}>
+            <div className="flex items-center gap-1">
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Income</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(totalIncome * mult).toLocaleString()}</span>
+            </div>
+            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
+            <div className="flex items-center gap-1">
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Committed</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round((totalIncome - freeAmount) * mult).toLocaleString()}</span>
+            </div>
+            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
+            <div className="flex items-center gap-1">
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Free</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: freeAmount >= 0 ? '#90EE90' : '#FF6B6B' }}>
+                {freeAmount < 0 ? `Over €${Math.abs(Math.round(freeAmount * mult)).toLocaleString()}` : `€${Math.round(freeAmount * mult).toLocaleString()}`}
+              </span>
+            </div>
+            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(dailyAllowance)}/d</span>
+            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
+            <span style={{ fontSize: 11, color: paceStatus === 'on-track' ? '#34C759' : '#F59E0B' }}>
+              {paceStatus === 'on-track' ? '✓' : '⚠'}
+            </span>
+          </div>
+
           {/* Parent blocks grid */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
             gridAutoRows: 'minmax(120px, auto)',
             gap: 8,
-            marginTop: 32,
           }}>
             {parentBlocks.map(renderParentBlock)}
           </div>
@@ -840,43 +873,6 @@ function MyMoneyContent() {
             )}
           </div>
 
-          {/* ONE-LINE SUMMARY BAR inside container bottom */}
-          <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between" style={{
-            height: 40,
-            background: 'rgba(0,0,0,0.25)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            padding: '0 14px',
-            borderRadius: '0 0 20px 20px',
-          }}>
-            {/* Income */}
-            <div className="flex items-center gap-1">
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Income</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(totalIncome * mult).toLocaleString()}</span>
-            </div>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            {/* Committed */}
-            <div className="flex items-center gap-1">
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Committed</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round((totalIncome - freeAmount) * mult).toLocaleString()}</span>
-            </div>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            {/* Free */}
-            <div className="flex items-center gap-1">
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Free</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: freeAmount >= 0 ? '#90EE90' : '#FF6B6B' }}>
-                {freeAmount < 0 ? `Over €${Math.abs(Math.round(freeAmount * mult)).toLocaleString()}` : `€${Math.round(freeAmount * mult).toLocaleString()}`}
-              </span>
-            </div>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            {/* Daily */}
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(dailyAllowance)}/d</span>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            {/* Pace */}
-            <span style={{ fontSize: 11, color: paceStatus === 'on-track' ? '#34C759' : '#F59E0B' }}>
-              {paceStatus === 'on-track' ? '✓' : '⚠'}
-            </span>
-          </div>
         </div>
       </div>
 
