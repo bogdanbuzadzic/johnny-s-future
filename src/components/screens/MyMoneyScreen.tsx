@@ -197,9 +197,8 @@ function MyMoneyContent() {
       { id: 'savings', name: 'Savings', icon: 'PiggyBank', amount: savingsTarget, tint: '#27AE60', tintAlpha: 0.80 },
       { id: 'spending', name: 'Spending', icon: 'ShoppingBag', amount: totalSpendingBudget, tint: '#8E44AD', tintAlpha: 0.80 },
       { id: 'goals', name: 'Goals', icon: 'Target', amount: goalsDisplay, tint: '#E91E63', tintAlpha: 0.60 },
-      { id: 'free', name: 'Free', icon: 'Wallet', amount: freeAmount, tint: '#FFFFFF', tintAlpha: 0.04 },
-    ].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
-  }, [totalFixed, savingsTarget, totalSpendingBudget, totalGoalContributions, freeAmount, goals, zoom]);
+    ].filter(b => b.amount > 0).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+  }, [totalFixed, savingsTarget, totalSpendingBudget, totalGoalContributions, goals, zoom]);
 
   // What If handlers
   const whatIfChangeCount = simulations.length;
@@ -307,7 +306,7 @@ function MyMoneyContent() {
   };
 
   // Income label
-  const incomeLabel = zoom === 'Month' ? `Monthly Income · €${totalIncome}` : zoom === 'Year' ? `Annual Income · €${totalIncome * 12}` : `5-Year Income · €${totalIncome * 60}`;
+  const incomeLabel = zoom === 'Month' ? `Income · €${totalIncome}/month` : zoom === 'Year' ? `Income · €${totalIncome * 12}/year` : `Income · €${totalIncome * 60}/5yr`;
 
   // Segmented bar renderer
   const renderSegmentedBar = (items: Array<{ name: string; amount: number; color: string }>, total: number) => {
@@ -320,8 +319,8 @@ function MyMoneyContent() {
         <div className="flex rounded overflow-hidden" style={{ height: 8, background: 'rgba(255,255,255,0.08)' }}>
           {visible.map((item, i) => (
             <div key={i} style={{
-              width: `${(item.amount / total) * 100}%`, background: item.color, minWidth: 2,
-              borderRight: i < visible.length - 1 ? '1px solid rgba(255,255,255,0.30)' : undefined,
+              width: `${(item.amount / total) * 100}%`, background: item.color, opacity: 1, minWidth: 2,
+              borderRight: i < visible.length - 1 ? '1px solid rgba(255,255,255,0.60)' : undefined,
             }} />
           ))}
         </div>
@@ -346,12 +345,15 @@ function MyMoneyContent() {
     const { id, name, icon, amount, tint, tintAlpha } = block;
     const Icon = getIcon(icon);
     const spans = getSpans(Math.abs(amount), totalIncome);
-    const isFree = id === 'free';
     const displayAmount = Math.round(amount * mult);
 
-    // Spending fill
+    // Spending fill - WHITE overlay for contrast
     const spendingFillPct = id === 'spending' && totalSpendingBudget > 0 ? Math.min((flexSpent / totalSpendingBudget) * 100, 100) : 0;
-    const spendingFillColor = spendingFillPct > 70 ? hexToRgba('#FF9F0A', 0.15) : hexToRgba('#8B5CF6', 0.15);
+
+    // Goals fill - average progress
+    const avgGoalProgress = id === 'goals' && goals.length > 0
+      ? goals.reduce((s, g) => s + (g.target > 0 ? (g.saved / g.target) * 100 : 0), 0) / goals.length
+      : 0;
 
     // Ghost (can I afford)
     const isGhosting = id === 'spending' && affordNum > 0;
@@ -363,7 +365,7 @@ function MyMoneyContent() {
       segments = sortedFixed.map(c => ({ name: c.name, amount: c.monthlyBudget, color: c._color }));
       segTotal = totalFixed;
     } else if (id === 'spending') {
-      segments = expenseCategories.map(c => ({ name: c.name, amount: c.monthlyBudget, color: getTint(c.icon) }));
+      segments = expenseCategories.filter(c => c.monthlyBudget > 0).map(c => ({ name: c.name, amount: c.monthlyBudget, color: getTint(c.icon) }));
       segTotal = totalSpendingBudget;
     } else if (id === 'goals') {
       segments = sortedGoals.map(g => ({ name: g.name, amount: zoom === '5 Year' ? g.target : g.monthlyContribution, color: g._color }));
@@ -381,36 +383,40 @@ function MyMoneyContent() {
         style={{
           gridColumn: `span ${spans.col}`,
           gridRow: `span ${spans.row}`,
-          background: isFree
-            ? `rgba(255,255,255,0.04)`
-            : `${hexToRgba(tint, tintAlpha)}`,
-          border: isFree ? '1.5px dashed rgba(255,255,255,0.08)' : `1.5px solid ${hexToRgba(tint, 0.15)}`,
+          background: `${hexToRgba(tint, tintAlpha)}`,
+          border: `1.5px solid ${hexToRgba(tint, 0.15)}`,
           minHeight: 80,
-          opacity: isGhosting && id !== 'spending' && id !== 'free' ? 0.8 : 1,
+          opacity: isGhosting && id !== 'spending' ? 0.8 : 1,
         }}
         onClick={() => {
-          if (isFree) return;
           if (id === 'goals') {
-            // Navigate to My World instead of sub-Tetris
             setActiveTab(2);
-            // Signal to ProfileScreen to open My World
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('openMyWorld'));
-            }, 100);
+            setTimeout(() => { window.dispatchEvent(new CustomEvent('openMyWorld')); }, 100);
             return;
           }
           setSubView(id as SubView);
         }}
-        whileTap={isFree ? undefined : { scale: 0.97 }}
+        whileTap={{ scale: 0.97 }}
       >
-        {/* Spending fill */}
+        {/* White progress fill for spending */}
         {id === 'spending' && spendingFillPct > 0 && (
           <motion.div
             className="absolute bottom-0 left-0 right-0"
             initial={{ height: 0 }}
             animate={{ height: `${spendingFillPct}%` }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
-            style={{ background: spendingFillColor, borderRadius: '0 0 16px 16px' }}
+            style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '0 0 16px 16px' }}
+          />
+        )}
+
+        {/* White progress fill for goals */}
+        {id === 'goals' && avgGoalProgress > 0 && (
+          <motion.div
+            className="absolute bottom-0 left-0 right-0"
+            initial={{ height: 0 }}
+            animate={{ height: `${Math.min(avgGoalProgress, 100)}%` }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '0 0 16px 16px' }}
           />
         )}
 
@@ -428,39 +434,24 @@ function MyMoneyContent() {
           />
         )}
 
-        {/* Free block dotted grid */}
-        {isFree && (
-          <div className="absolute inset-0 pointer-events-none" style={{
-            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px)',
-            backgroundSize: '16px 16px',
-          }} />
-        )}
-
         {/* Content */}
         <div className="relative z-10 p-3 h-full flex flex-col">
           <div className="flex items-start justify-between">
-            <Icon size={20} style={{ color: isFree ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
-            {!isFree && <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.4)' }} />}
+            <Icon size={20} style={{ color: 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
+            <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.4)' }} />
           </div>
           <div className="flex-1 flex flex-col justify-center mt-1">
-            <span className="text-[16px]" style={{ color: isFree ? 'rgba(255,255,255,0.3)' : 'white', fontWeight: 600, textShadow: isFree ? undefined : '0 1px 3px rgba(0,0,0,0.3)' }}>{name}</span>
-            <span className="text-[22px] font-bold" style={{ color: isFree ? 'rgba(255,255,255,0.4)' : 'white', textShadow: isFree ? undefined : '0 1px 4px rgba(0,0,0,0.3)' }}>
+            <span className="text-[16px]" style={{ color: 'white', fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{name}</span>
+            <span className="text-[22px] font-bold" style={{ color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
               €{Math.abs(displayAmount)}
-              {isFree && freeAmount < 0 && <span className="text-[12px] ml-1">over</span>}
             </span>
             {id === 'goals' && goals.length === 0 && (
               <span className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>Tap + to add a goal</span>
             )}
+            {id === 'savings' && (
+              <span className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>Target €{savingsTarget}/mo</span>
+            )}
           </div>
-
-          {/* Johnny in free block */}
-          {isFree && (
-            <div className="flex items-center gap-2 mt-1">
-              <motion.img src={johnnyImage} alt="Johnny" className="w-9 h-9 object-contain"
-                animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
-              <span className="text-[11px] text-white/15">€{Math.round(dailyAllowance)}/day</span>
-            </div>
-          )}
         </div>
 
         {/* Segmented bar */}
@@ -638,17 +629,17 @@ function MyMoneyContent() {
               </div>
             )}
 
-            {subView === 'spending' && expenseCategories.map(cat => {
+            {subView === 'spending' && expenseCategories.filter(c => c.monthlyBudget > 0).map(cat => {
               const CatIcon = getIcon(cat.icon);
               const tint = getTint(cat.icon);
               const spent = categorySpentMap[cat.id] || 0;
               const budget = cat.monthlyBudget;
               const fillPct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
-              const darkerTint = darkenHex(tint, 0.2);
-              const fillColor = fillPct > 80 ? 'rgba(0,0,0,0.15)' : `${hexToRgba(darkerTint, 0.50)}`;
+              const remaining = Math.max(0, budget - spent);
               const sp = getSpans(budget, totalSpendingBudget);
               const isExpanded = expandedItemId === cat.id;
               const isOverBudget = fillPct >= 100;
+              const healthBarColor = fillPct > 100 ? 'rgba(255,100,100,0.5)' : fillPct > 80 ? 'rgba(255,200,100,0.5)' : 'rgba(255,255,255,0.45)';
 
               return (
                 <motion.div key={cat.id} layout className="relative rounded-xl overflow-hidden cursor-pointer"
@@ -658,21 +649,28 @@ function MyMoneyContent() {
                     background: tint, border: `1.5px solid ${hexToRgba(tint, 0.30)}`,
                     borderLeft: `4px solid ${darkenHex(tint, 0.15)}`,
                     minHeight: isExpanded ? 280 : 80,
-                    boxShadow: isOverBudget ? '0 0 12px rgba(231,76,60,0.4)' : undefined,
+                    boxShadow: isOverBudget ? '0 0 12px rgba(255,100,100,0.4)' : undefined,
                   }}
                   onClick={() => handleExpandItem(cat.id, budget)}
                 >
-                  {/* Fill */}
-                  <motion.div className="absolute bottom-0 left-0 right-0" initial={{ height: 0 }}
-                    animate={{ height: `${fillPct}%` }} transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
-                    style={{ background: fillColor, borderRadius: '0 0 12px 12px' }} />
-
-                  <div className="relative z-10 p-3">
+                  <div className="relative z-10 p-3 h-full flex flex-col">
                     <div className="flex items-start justify-between">
                       <CatIcon size={18} style={{ color: 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
                     </div>
-                    <span className="text-[14px] mt-1 block" style={{ color: 'white', fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{cat.name}</span>
-                    <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.85)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>€{Math.round(spent)} / €{Math.round(budget * mult)}</span>
+                    <span className="text-[15px] mt-1 block" style={{ color: 'white', fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{cat.name}</span>
+                    <span className="text-[14px] mt-0.5" style={{ color: 'rgba(255,255,255,0.85)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>€{Math.round(spent)} of €{Math.round(budget * mult)}</span>
+                    <div className="flex-1" />
+                    {/* Health bar */}
+                    <div className="mt-2" style={{ height: 8, background: 'rgba(255,255,255,0.15)', borderRadius: 4, overflow: 'hidden' }}>
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(fillPct, 100)}%` }}
+                        transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
+                        style={{ height: '100%', background: healthBarColor, borderRadius: 4,
+                          boxShadow: isOverBudget ? '0 0 8px rgba(255,100,100,0.4)' : undefined }} />
+                    </div>
+                    <div className="flex justify-between mt-0.5">
+                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.50)' }}>{Math.round(fillPct)}% used</span>
+                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.50)' }}>€{Math.round(remaining)} left</span>
+                    </div>
                   </div>
 
                   {/* Expanded content */}
@@ -969,29 +967,59 @@ function MyMoneyContent() {
         </div>
       </div>
 
-      {/* Income label */}
-      <div className="px-4 mb-2 flex items-center gap-1.5">
-        <Wallet size={16} className="text-white/25" />
-        {activeScenarioLabel === 'income-drop' && scenarioImpact ? (
-          <span className="text-[14px] text-white/40">
-            Monthly Income · <span className="line-through text-red-400/50">€{totalIncome}</span> → <span className="text-amber-400">€{scenarioImpact.newValue}</span>
-          </span>
-        ) : (
-          <span className="text-[14px] text-white/40">{incomeLabel}</span>
-        )}
-      </div>
-
-      {/* Macro Container */}
+      {/* Macro Container = Income */}
       <div className="px-4 mb-3">
         <div className="rounded-[20px] overflow-hidden relative" style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: isWhatIf ? '2px dashed rgba(255,255,255,0.10)' : '2px solid rgba(255,255,255,0.15)',
+          background: 'rgba(255,255,255,0.03)',
+          border: isWhatIf ? '2px dashed rgba(255,255,255,0.10)'
+            : activeScenarioLabel === 'income-drop' && scenarioImpact ? '2px solid rgba(245,158,11,0.5)'
+            : freeAmount < 0 ? '2px solid rgba(245,158,11,0.4)'
+            : '2px solid rgba(255,255,255,0.20)',
           height: '58vh',
           animation: isWhatIf ? 'ghostPulse 3s ease-in-out infinite' : undefined,
+          boxShadow: freeAmount < 0 ? '0 0 24px rgba(245,158,11,0.2)' : undefined,
         }}>
-          {isWhatIf && <div className="absolute top-1.5 right-3 z-10 text-[10px] text-white/15">Playground</div>}
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] auto-rows-[minmax(80px,auto)] gap-2 p-2.5 h-full">
+          {/* Income label inside container top-left */}
+          <div className="absolute top-2 left-3 z-10">
+            {activeScenarioLabel === 'income-drop' && scenarioImpact ? (
+              <span className="text-[13px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                Income · <span className="line-through" style={{ color: 'rgba(239,68,68,0.5)' }}>€{totalIncome}</span> → <span style={{ color: '#F59E0B' }}>€{scenarioImpact.newValue}</span>/{zoom === 'Month' ? 'month' : zoom === 'Year' ? 'year' : '5yr'}
+              </span>
+            ) : (
+              <span className="text-[13px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>{incomeLabel}</span>
+            )}
+          </div>
+          {isWhatIf && <div className="absolute top-2 right-3 z-10 text-[10px] text-white/15">Playground</div>}
+
+          {/* Blocks grid */}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] auto-rows-[minmax(80px,auto)] gap-2 p-2.5 pt-8 h-full content-start">
             {macroBlocks.map(renderMacroBlock)}
+          </div>
+
+          {/* Empty space = unallocated with dot grid + Johnny */}
+          <div className="absolute bottom-0 right-0 pointer-events-none flex flex-col items-center justify-center"
+            style={{
+              width: '40%', height: '35%',
+              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)',
+              backgroundSize: '20px 20px',
+            }}>
+            {freeAmount >= 0 ? (
+              <>
+                <span className="text-[14px] font-medium" style={{ color: 'rgba(255,255,255,0.25)' }}>€{Math.round(freeAmount * mult)} free</span>
+                <motion.img src={johnnyImage} alt="Johnny" className="w-9 h-9 object-contain mt-1"
+                  animate={{ y: [0, -3, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{ imageRendering: 'pixelated' }} />
+                <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.15)' }}>€{Math.round(dailyAllowance)}/day</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[14px] font-medium" style={{ color: '#F59E0B' }}>€{Math.abs(Math.round(freeAmount * mult))} over</span>
+                <motion.img src={johnnyImage} alt="Johnny" className="w-7 h-7 object-contain mt-1"
+                  animate={{ y: [0, -2, 0], rotate: [0, -3, 3, 0] }} transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{ imageRendering: 'pixelated' }} />
+                <span className="text-[11px]" style={{ color: 'rgba(245,158,11,0.5)' }}>Over-committed</span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1091,11 +1119,13 @@ function MyMoneyContent() {
       {/* Impact Summary */}
       <div className="px-4 mb-4">
         <div className="flex items-center justify-between rounded-2xl px-4" style={{ height: 40, background: 'rgba(255,255,255,0.10)', backdropFilter: 'blur(8px)' }}>
-          <span className="text-[13px] text-white/40">€{Math.round(freeAmount)} free</span>
+          <span className="text-[13px]" style={{ color: freeAmount < 0 ? '#F59E0B' : 'rgba(255,255,255,0.5)' }}>
+            {freeAmount < 0 ? `€${Math.abs(Math.round(freeAmount))} over-committed` : `€${Math.round(freeAmount)} unallocated`}
+          </span>
           <span className={`text-[12px] px-2 py-0.5 rounded-full font-medium ${paceStatus === 'on-track' ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
             {paceStatus === 'on-track' ? 'Spending OK' : 'Watch spending'}
           </span>
-          <span className="text-[13px] text-white/40">€{Math.round(flexRemaining)} left · €{Math.round(dailyAllowance)}/day</span>
+          <span className="text-[13px] text-white/50">€{Math.round(flexRemaining)} to spend · €{Math.round(dailyAllowance)}/day</span>
         </div>
       </div>
 
