@@ -189,6 +189,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addCategory = useCallback((category: Omit<Category, 'id' | 'sortOrder'>) => {
+    if (Number(category.monthlyBudget) <= 0) return; // skip zero categories
     const newCategory: Category = {
       ...category,
       id: crypto.randomUUID(),

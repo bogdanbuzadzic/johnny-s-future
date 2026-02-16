@@ -158,18 +158,35 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         }
       });
 
-      const flex = Math.max(0, income - totalFixed - savings);
-      const groceries = getMonthly('groceries');
-      const foodBudget = groceries > 0 ? groceries : Math.round(flex * 0.35);
-      const remainingFlex = flex - foodBudget;
+      // Calculate goal contributions to subtract from flex
+      const goalMap_: Record<string, { mc: number }> = {
+        'Save for a home': { mc: 200 }, 'Save for a car': { mc: 150 },
+        'Build emergency fund': { mc: 100 }, 'Save for a vacation': { mc: 75 },
+        'Grow my money': { mc: 100 }, 'Start investing': { mc: 50 },
+        'Save for retirement': { mc: 200 }, 'Other savings goal': { mc: 50 },
+      };
+      const goalContributions = (finalAnswers.step3 || []).reduce((s: number, g: string) => s + (goalMap_[g]?.mc || 0), 0);
 
-      addCategory({ name: 'Food', icon: 'UtensilsCrossed', monthlyBudget: foodBudget, type: 'expense' });
-      // Only allocate 80% of remaining flex to leave ~20% free/unallocated
-      const allocatable = Math.max(0, remainingFlex * 0.80);
-      addCategory({ name: 'Entertainment', icon: 'Film', monthlyBudget: Math.round(allocatable * 0.20), type: 'expense' });
-      addCategory({ name: 'Shopping', icon: 'ShoppingBag', monthlyBudget: Math.round(allocatable * 0.25), type: 'expense' });
-      addCategory({ name: 'Personal', icon: 'Heart', monthlyBudget: Math.round(allocatable * 0.25), type: 'expense' });
-      addCategory({ name: 'Other', icon: 'MoreHorizontal', monthlyBudget: Math.round(allocatable * 0.30), type: 'expense' });
+      // What's actually available for variable spending:
+      const flexForSpending = Math.max(0, income - totalFixed - savings - goalContributions);
+      const groceries = getMonthly('groceries');
+      const foodBudget = groceries > 0 ? groceries : Math.round(flexForSpending * 0.30);
+      const remainingAfterFood = Math.max(0, flexForSpending - foodBudget);
+
+      // Leave ~10% unallocated as breathing room
+      const allocatable = Math.round(remainingAfterFood * 0.90);
+
+      const entertainmentBudget = Math.round(allocatable * 0.22);
+      const shoppingBudget = Math.round(allocatable * 0.30);
+      const personalBudget = Math.round(allocatable * 0.25);
+      const otherBudget = allocatable - entertainmentBudget - shoppingBudget - personalBudget;
+
+      // Only create categories with meaningful budget (> €0)
+      if (foodBudget > 0) addCategory({ name: 'Food', icon: 'UtensilsCrossed', monthlyBudget: foodBudget, type: 'expense' });
+      if (entertainmentBudget > 0) addCategory({ name: 'Entertainment', icon: 'Film', monthlyBudget: entertainmentBudget, type: 'expense' });
+      if (shoppingBudget > 0) addCategory({ name: 'Shopping', icon: 'ShoppingBag', monthlyBudget: shoppingBudget, type: 'expense' });
+      if (personalBudget > 0) addCategory({ name: 'Personal', icon: 'Heart', monthlyBudget: personalBudget, type: 'expense' });
+      if (otherBudget > 30) addCategory({ name: 'Other', icon: 'MoreHorizontal', monthlyBudget: otherBudget, type: 'expense' });
 
       // Subscriptions as recurring expense transaction (NOT a fixed category)
       const subsAmount = getMonthly('subs');
