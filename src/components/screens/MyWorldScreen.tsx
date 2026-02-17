@@ -81,7 +81,7 @@ function getAssetPrefix(goal: any): string {
 }
 
 function getProgressNumber(goal: any): number {
-  const pct = goal.targetAmount > 0 ? (goal.savedAmount / goal.targetAmount) * 100 : 0;
+  const pct = goal.target > 0 ? (goal.saved / goal.target) * 100 : 0;
   if (pct >= 75) return 4;
   if (pct >= 50) return 3;
   if (pct >= 25) return 2;
@@ -104,7 +104,7 @@ function getDreamImage(goal: any): string {
   return generalGoal2;
 }
 
-type Goal = { name: string; icon: string; savedAmount: number; targetAmount: number; monthlyContribution: number };
+type Goal = { name: string; icon: string; saved: number; target: number; monthlyContribution: number };
 
 interface Props {
   onClose: () => void;
@@ -130,7 +130,7 @@ export function MyWorldScreen({ onClose }: Props) {
   // Health tier
   const healthTier = clarityScore > 60 ? 'healthy' : clarityScore > 30 ? 'average' : clarityScore === 0 ? 'average' : 'struggling';
 
-  const sorted = useMemo(() => [...goals].sort((a, b) => b.targetAmount - a.targetAmount), [goals]);
+  const sorted = useMemo(() => [...goals].sort((a, b) => b.target - a.target), [goals]);
 
   // Long press handlers
   const handlePointerDown = useCallback((idx: number) => {
@@ -202,7 +202,7 @@ export function MyWorldScreen({ onClose }: Props) {
           const pos = POSITIONS[i];
           const isDreaming = dreamGoalIdx === i;
           const img = isDreaming ? getDreamImage(goal) : getGoalImage(goal);
-          const pct = goal.targetAmount > 0 ? (goal.savedAmount / goal.targetAmount) * 100 : 0;
+          const pct = goal.target > 0 ? (goal.saved / goal.target) * 100 : 0;
           const isFullyFunded = pct >= 100;
 
           return (
@@ -315,22 +315,22 @@ export function MyWorldScreen({ onClose }: Props) {
                 <div className="w-full max-w-[280px]">
                   <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
                     <div className="h-full rounded-full" style={{
-                      width: `${Math.min(100, selectedGoal.targetAmount > 0 ? (selectedGoal.savedAmount / selectedGoal.targetAmount) * 100 : 0)}%`,
+                      width: `${Math.min(100, selectedGoal.target > 0 ? (selectedGoal.saved / selectedGoal.target) * 100 : 0)}%`,
                       background: 'linear-gradient(90deg, #8B5CF6, #EC4899)',
                     }} />
                   </div>
                 </div>
                 <p className="text-sm text-white">
-                  €{selectedGoal.savedAmount.toLocaleString()} / €{selectedGoal.targetAmount.toLocaleString()}
+                  €{selectedGoal.saved.toLocaleString()} / €{selectedGoal.target.toLocaleString()}
                 </p>
                 <p className="text-[13px] text-white/40">
-                  {selectedGoal.targetAmount > 0 ? Math.round((selectedGoal.savedAmount / selectedGoal.targetAmount) * 100) : 0}% funded
+                  {selectedGoal.target > 0 ? Math.round((selectedGoal.saved / selectedGoal.target) * 100) : 0}% funded
                 </p>
                 {selectedGoal.monthlyContribution > 0 && (
                   <>
                     <p className="text-xs text-white/30">€{selectedGoal.monthlyContribution}/month</p>
                     <p className="text-xs text-white/30">
-                      At this rate: {Math.ceil((selectedGoal.targetAmount - selectedGoal.savedAmount) / selectedGoal.monthlyContribution)} months to go
+                      At this rate: {Math.ceil((selectedGoal.target - selectedGoal.saved) / selectedGoal.monthlyContribution)} months to go
                     </p>
                   </>
                 )}
