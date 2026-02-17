@@ -27,27 +27,27 @@ const allIcons: Record<string, LucideIcon> = {
 };
 
 const iconTintMap: Record<string, string> = {
-  UtensilsCrossed: '#E67E22', ShoppingBag: '#E74C3C', Bus: '#2874A6', Film: '#9B59B6',
-  Dumbbell: '#27AE60', CreditCard: '#6C3483', Coffee: '#795548', Smartphone: '#E91E63',
+  UtensilsCrossed: '#E67E22', ShoppingBag: '#E74C3C', Bus: '#34495E', Film: '#9B59B6',
+  Dumbbell: '#7F8C8D', CreditCard: '#6C3483', Coffee: '#795548', Smartphone: '#E91E63',
   Gift: '#F1C40F', BookOpen: '#8E44AD', Shirt: '#D35400', Wrench: '#5AC8FA',
-  Heart: '#1ABC9C', MoreHorizontal: '#7F8C8D', Home: '#2ECC71', Zap: '#2E86C1',
+  Heart: '#1ABC9C', MoreHorizontal: '#7F8C8D', Home: '#5D6D7E', Zap: '#2E86C1',
   Landmark: '#1A5276', Car: '#3498DB', Tv: '#6C3483', Shield: '#1A5276', Baby: '#EC4899',
-  TrendingUp: '#27AE60', LineChart: '#3498DB', Sunset: '#F39C12',
-  Target: '#1ABC9C', ShieldCheck: '#2ECC71', Plane: '#F39C12', Laptop: '#8E44AD',
+  TrendingUp: '#8B5CF6', LineChart: '#3498DB', Sunset: '#F39C12',
+  Target: '#1ABC9C', ShieldCheck: '#8B5CF6', Plane: '#F39C12', Laptop: '#8E44AD',
   GraduationCap: '#8E44AD', Gamepad2: '#3498DB', PiggyBank: '#2980B9', Wallet: '#FFFFFF',
 };
 
 const fixedColors: Record<string, string> = {
   'Rent': '#5D6D7E', 'Utilities': '#2E86C1', 'Transport': '#34495E',
   'Subscriptions': '#6C3483', 'Insurance': '#1A5276', 'Tax': '#1A5276',
-  'Childcare': '#5D6D7E', 'Other Fixed': '#566573',
+  'Childcare': '#5D6D7E', 'Other Fixed': '#566573', 'Car': '#34495E',
 };
 const fixedColorFallbacks = ['#5D6D7E', '#2E86C1', '#34495E', '#6C3483', '#1A5276'];
 
 const goalIconColors: Record<string, string> = {
-  ShieldCheck: '#27AE60', Plane: '#F39C12', Car: '#3498DB',
-  Home: '#2ECC71', Laptop: '#8E44AD', GraduationCap: '#8E44AD',
-  Heart: '#E74C3C', TrendingUp: '#27AE60', LineChart: '#3498DB',
+  ShieldCheck: '#8B5CF6', Plane: '#F39C12', Car: '#3498DB',
+  Home: '#5D6D7E', Laptop: '#8E44AD', GraduationCap: '#8E44AD',
+  Heart: '#E74C3C', TrendingUp: '#8B5CF6', LineChart: '#3498DB',
   Target: '#1ABC9C', Gamepad2: '#3498DB',
 };
 
@@ -75,9 +75,84 @@ function getSpans(amount: number, income: number) {
   if (income <= 0) return { col: 1, row: 1 };
   const ratio = amount / income;
   if (ratio > 0.35) return { col: 2, row: 2 };
-  if (ratio > 0.20) return { col: 2, row: 1 };
-  if (ratio > 0.10) return { col: 1, row: 2 };
+  if (ratio > 0.25) return { col: 2, row: 1 };
+  if (ratio > 0.12) return { col: 1, row: 2 };
   return { col: 1, row: 1 };
+}
+
+function getSubSpans(amount: number, parentTotal: number) {
+  if (parentTotal <= 0) return { col: 1, row: 1 };
+  const ratio = amount / parentTotal;
+  if (ratio > 0.50) return { col: 3, row: 2 };
+  if (ratio > 0.30) return { col: 2, row: 1 };
+  if (ratio > 0.15) return { col: 1, row: 2 };
+  return { col: 1, row: 1 };
+}
+
+// Goal progress bar colors (contrasting on pink)
+const goalBarColors: Record<string, string> = {
+  Home: '#87CEEB',    // sky blue
+  Car: '#FFD700',     // gold
+  Plane: '#FF69B4',   // hot pink
+  Laptop: '#FFA500',  // orange
+};
+
+// ── Add Block Inline Component ──
+function AddBlockInline({ parentType, onAdd }: { parentType: 'spending' | 'fixed'; onAdd: (item: { name: string; icon: string; monthlyBudget: number }) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [amount, setAmount] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState('MoreHorizontal');
+
+  const icons = parentType === 'fixed'
+    ? ['Home', 'Zap', 'Car', 'Bus', 'Shield', 'Tv', 'Landmark', 'MoreHorizontal']
+    : ['UtensilsCrossed', 'Film', 'ShoppingBag', 'Heart', 'Coffee', 'Shirt', 'Gift', 'MoreHorizontal'];
+
+  if (!isOpen) {
+    return (
+      <div onClick={() => setIsOpen(true)} className="rounded-xl flex items-center justify-center cursor-pointer"
+        style={{ border: '2px dashed rgba(255,255,255,0.15)', minHeight: 60 }}>
+        <Plus size={20} style={{ color: 'rgba(255,255,255,0.2)' }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl p-3" style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.1)' }}>
+      <div className="flex gap-1.5 mb-2 overflow-x-auto">
+        {icons.map(ic => {
+          const IC = allIcons[ic] || MoreHorizontal;
+          return (
+            <div key={ic} onClick={() => setSelectedIcon(ic)} className="flex items-center justify-center shrink-0 cursor-pointer"
+              style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: selectedIcon === ic ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.06)',
+                border: selectedIcon === ic ? '1.5px solid rgba(139,92,246,0.5)' : '1.5px solid transparent',
+              }}>
+              <IC size={16} className="text-white/60" />
+            </div>
+          );
+        })}
+      </div>
+      <input placeholder="Name" value={name} onChange={e => setName(e.target.value)}
+        className="w-full h-9 rounded-[10px] text-white text-[13px] px-3 outline-none placeholder:text-white/25 mb-1.5"
+        style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.1)' }} />
+      <input placeholder="€ Amount" value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal"
+        className="w-full h-9 rounded-[10px] text-white text-[13px] px-3 outline-none placeholder:text-white/25 mb-2"
+        style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.1)' }} />
+      <div className="flex gap-2">
+        <button onClick={() => {
+          if (name && Number(amount) > 0) {
+            onAdd({ name, icon: selectedIcon, monthlyBudget: Number(amount) });
+            setIsOpen(false); setName(''); setAmount('');
+          }
+        }} className="flex-1 h-9 rounded-[10px] text-white text-[13px] font-semibold border-none"
+          style={{ background: 'linear-gradient(135deg, #8B5CF6, #EC4899)' }}>Create</button>
+        <button onClick={() => setIsOpen(false)} className="h-9 px-4 rounded-[10px] text-[13px] border-none"
+          style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>Cancel</button>
+      </div>
+    </div>
+  );
 }
 
 // ── Main Content ──
@@ -383,7 +458,7 @@ function MyMoneyContent() {
     const monthlySubTotal = subscriptions.reduce((s, sub) => s + sub.amount, 0);
 
     return (
-      <>
+      <div className="relative">
         {/* Dark spending fill overlay */}
         {spendingFillPct > 0 && (
           <motion.div
@@ -398,7 +473,7 @@ function MyMoneyContent() {
         {/* Sub-grid */}
         <div className="relative z-10" style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+          gridTemplateColumns: 'repeat(3, 1fr)',
           gridAutoRows: 'minmax(60px, auto)',
           gap: 6,
         }}>
@@ -426,6 +501,7 @@ function MyMoneyContent() {
             const spent = categorySpentMap[cat.id] || 0;
             const budget = cat.monthlyBudget;
             const isExpanded = expandedItemId === cat.id;
+            const subSpans = getSubSpans(budget, totalSpendingBudget);
 
             if (isExpanded) {
               const recentTxs = getRecentTxs(cat.id);
@@ -451,10 +527,7 @@ function MyMoneyContent() {
                       €{Math.round(spent)} of €{Math.round(budget * mult)}
                     </span>
                     {renderHealthBar(spent, budget, tint)}
-
                     <div className="h-px bg-white/10 my-3" />
-
-                    {/* Budget slider */}
                     <div className="text-center mb-1">
                       <span className="text-[16px] font-bold text-white">€{Math.round(sliderVal)}</span>
                     </div>
@@ -466,8 +539,6 @@ function MyMoneyContent() {
                     <div className="text-[12px] mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       Budget: €{sliderOriginal} → €{Math.round(sliderVal)}. Daily: €{Math.round(dailyAllowance)}/day
                     </div>
-
-                    {/* Recent transactions */}
                     {recentTxs.length > 0 && (
                       <>
                         <div className="h-px bg-white/10 my-2" />
@@ -483,12 +554,10 @@ function MyMoneyContent() {
                         ))}
                       </>
                     )}
-
-                    {/* Save/Cancel */}
                     {Math.round(sliderVal) !== Math.round(sliderOriginal) && (
                       <div className="flex justify-center gap-3 mt-3">
                         <button onClick={() => handleSliderSave(cat.id)}
-                          style={{ height: 36, borderRadius: 12, background: 'linear-gradient(135deg, #34C759, #14B8A6)' }}
+                          style={{ height: 36, borderRadius: 12, background: 'linear-gradient(135deg, #8B5CF6, #EC4899)' }}
                           className="text-white font-medium text-[13px] px-6">Save</button>
                         <button onClick={() => setExpandedItemId(null)}
                           style={{ height: 36, borderRadius: 12, background: 'rgba(255,255,255,0.10)' }}
@@ -504,6 +573,8 @@ function MyMoneyContent() {
               <motion.div key={cat.id} layout
                 className="relative rounded-xl overflow-hidden cursor-pointer"
                 style={{
+                  gridColumn: `span ${subSpans.col}`,
+                  gridRow: `span ${subSpans.row}`,
                   background: tint, border: `1.5px solid ${hexToRgba(tint, 0.30)}`,
                   boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.12)',
                   minHeight: 60, padding: 8,
@@ -525,8 +596,13 @@ function MyMoneyContent() {
               </motion.div>
             );
           })}
+
+          {/* + Add block */}
+          <AddBlockInline parentType="spending" onAdd={(item) => {
+            addCategory({ name: item.name, icon: item.icon, monthlyBudget: item.monthlyBudget, type: 'expense' });
+          }} />
         </div>
-      </>
+      </div>
     );
   };
 
@@ -534,14 +610,17 @@ function MyMoneyContent() {
   const renderFixedChildren = () => (
     <div className="relative z-10" style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+      gridTemplateColumns: 'repeat(3, 1fr)',
       gridAutoRows: 'minmax(60px, auto)',
       gap: 6,
     }}>
       {sortedFixed.map(cat => {
         const CatIcon = getIcon(cat.icon);
+        const subSpans = getSubSpans(cat.monthlyBudget, totalFixed);
         return (
           <div key={cat.id} className="relative rounded-xl p-2 flex flex-col" style={{
+            gridColumn: `span ${subSpans.col}`,
+            gridRow: `span ${subSpans.row}`,
             background: cat._color,
             border: `1.5px solid rgba(255,255,255,0.15)`,
             boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.12)',
@@ -556,29 +635,45 @@ function MyMoneyContent() {
           </div>
         );
       })}
+
+      {/* + Add block */}
+      <AddBlockInline parentType="fixed" onAdd={(item) => {
+        addCategory({ name: item.name, icon: item.icon, monthlyBudget: item.monthlyBudget, type: 'fixed' });
+      }} />
     </div>
   );
 
   // ── Render Goals Parent Internals ──
   const renderGoalsChildren = () => (
     <div className="relative z-10 space-y-1.5">
-      {sortedGoals.slice(0, 3).map(goal => {
+      {sortedGoals.slice(0, 4).map(goal => {
         const GoalIcon = getIcon(goal.icon);
         const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
+        const barColor = goalBarColors[goal.icon] || '#8B5CF6';
         return (
           <div key={goal.id} className="flex items-center gap-2">
-            <GoalIcon size={16} style={{ color: goal._color }} strokeWidth={1.5} />
-            <span style={{ fontSize: 11, color: 'white', fontWeight: 600, flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{goal.name}</span>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.60)' }}>€{goal.saved}/€{goal.target}</span>
-            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.15)' }}>
-              <div style={{ width: `${pctFunded}%`, height: '100%', borderRadius: 2, background: goal._color }} />
+            <GoalIcon size={16} style={{ color: 'rgba(255,255,255,0.8)' }} strokeWidth={1.5} />
+            <span style={{ fontSize: 12, color: 'white', fontWeight: 700, flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{goal.name}</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.60)' }}>€{goal.saved}/€{goal.target}</span>
+          </div>
+        );
+      })}
+      {sortedGoals.length > 4 && (
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)' }}>+{sortedGoals.length - 4} more</span>
+      )}
+      {/* Progress bars below goals */}
+      {sortedGoals.slice(0, 4).map(goal => {
+        const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
+        const barColor = goalBarColors[goal.icon] || '#8B5CF6';
+        return (
+          <div key={`bar-${goal.id}`} className="flex items-center gap-2">
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)', width: 28, textAlign: 'right' }}>{Math.round(pctFunded)}%</span>
+            <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.15)' }}>
+              <div style={{ width: `${pctFunded}%`, height: '100%', borderRadius: 3, background: barColor }} />
             </div>
           </div>
         );
       })}
-      {sortedGoals.length > 3 && (
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)' }}>+{sortedGoals.length - 3} more</span>
-      )}
       {sortedGoals.length === 0 && (
         <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)' }}>Tap to add goals</span>
       )}
@@ -631,10 +726,12 @@ function MyMoneyContent() {
         style={{
           gridColumn: `span ${spans.col}`,
           gridRow: `span ${spans.row}`,
-          background: 'rgba(255,255,255,0.05)',
-          border: `1.5px solid rgba(255,255,255,0.10)`,
+          background: color,
+          border: `1.5px solid rgba(255,255,255,0.15)`,
           padding: 8,
           minHeight: 120,
+          boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.1)',
+          transition: 'all 400ms ease',
         }}
         onClick={() => {
           if (id === 'goals') {
@@ -651,7 +748,7 @@ function MyMoneyContent() {
         whileTap={{ scale: 0.97 }}
       >
         {/* Left accent stripe */}
-        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: color }} />
+        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: `${color}CC`, filter: 'brightness(1.3)' }} />
 
         {/* Ghost for Can I Afford */}
         {isGhosting && (
@@ -785,27 +882,60 @@ function MyMoneyContent() {
             : activeScenarioLabel === 'income-drop' && scenarioImpact ? '2px solid rgba(245,158,11,0.5)'
             : freeAmount < 0 ? '2px solid rgba(245,158,11,0.4)'
             : 'none',
-          minHeight: '62vh',
+          minHeight: '58vh',
           padding: 10,
-          paddingBottom: 50,
+          paddingTop: 52,
+          paddingBottom: 10,
           animation: isWhatIf ? 'ghostPulse 3s ease-in-out infinite' : undefined,
           boxShadow: freeAmount < 0 ? '0 0 24px rgba(245,158,11,0.2)' : undefined,
         }}>
-          {/* INCOME label top-left */}
-          <div className="absolute flex items-center gap-1.5 z-10" style={{ top: 10, left: 14 }}>
-            <Wallet size={16} style={{ color: 'rgba(255,255,255,0.6)' }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: 1 }}>Income</span>
+          {/* Summary bar at TOP */}
+          <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between" style={{
+            height: 44,
+            background: 'rgba(0,0,0,0.3)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            padding: '0 14px',
+            borderRadius: '20px 20px 0 0',
+          }}>
+            <div className="flex items-center gap-1">
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Income</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(totalIncome * mult).toLocaleString()}</span>
+            </div>
+            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
+            <div className="flex items-center gap-1">
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Committed</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round((totalIncome - freeAmount) * mult).toLocaleString()}</span>
+            </div>
+            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
+            <div className="flex items-center gap-1">
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Free</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: freeAmount >= 0 ? '#90EE90' : '#FF6B6B' }}>
+                {freeAmount < 0 ? `Over €${Math.abs(Math.round(freeAmount * mult)).toLocaleString()}` : `€${Math.round(freeAmount * mult).toLocaleString()}`}
+              </span>
+            </div>
+            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(dailyAllowance)}/d</span>
+            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
+            <span style={{ fontSize: 11, color: paceStatus === 'on-track' ? '#90EE90' : '#FFC107' }}>
+              {paceStatus === 'on-track' ? '✓' : '⚠'}
+            </span>
           </div>
 
-          {isWhatIf && <div className="absolute top-3 right-3 z-10 flex items-center gap-1 text-[10px] text-white/30"><Sparkles size={10} /> Playground</div>}
+          {/* INCOME watermark */}
+          <div className="absolute z-0" style={{ top: 48, left: 14 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 2 }}>INCOME</span>
+          </div>
+
+          {isWhatIf && <div className="absolute top-12 right-3 z-10 flex items-center gap-1 text-[10px] text-white/30"><Sparkles size={10} /> Playground</div>}
 
           {/* Parent blocks grid */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gridTemplateColumns: 'repeat(2, 1fr)',
             gridAutoRows: 'minmax(120px, auto)',
             gap: 8,
-            marginTop: 32,
+            marginTop: 6,
           }}>
             {parentBlocks.map(renderParentBlock)}
           </div>
@@ -840,43 +970,6 @@ function MyMoneyContent() {
             )}
           </div>
 
-          {/* ONE-LINE SUMMARY BAR inside container bottom */}
-          <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between" style={{
-            height: 40,
-            background: 'rgba(0,0,0,0.25)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            padding: '0 14px',
-            borderRadius: '0 0 20px 20px',
-          }}>
-            {/* Income */}
-            <div className="flex items-center gap-1">
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Income</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(totalIncome * mult).toLocaleString()}</span>
-            </div>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            {/* Committed */}
-            <div className="flex items-center gap-1">
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Committed</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round((totalIncome - freeAmount) * mult).toLocaleString()}</span>
-            </div>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            {/* Free */}
-            <div className="flex items-center gap-1">
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Free</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: freeAmount >= 0 ? '#90EE90' : '#FF6B6B' }}>
-                {freeAmount < 0 ? `Over €${Math.abs(Math.round(freeAmount * mult)).toLocaleString()}` : `€${Math.round(freeAmount * mult).toLocaleString()}`}
-              </span>
-            </div>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            {/* Daily */}
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(dailyAllowance)}/d</span>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            {/* Pace */}
-            <span style={{ fontSize: 11, color: paceStatus === 'on-track' ? '#34C759' : '#F59E0B' }}>
-              {paceStatus === 'on-track' ? '✓' : '⚠'}
-            </span>
-          </div>
         </div>
       </div>
 
