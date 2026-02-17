@@ -35,7 +35,7 @@ export type ProfileQ = {
 
 // ── Quest Nodes (Clarity first, Know Yourself second) ──
 export const QUEST_NODES: QuestNode[] = [
-  { key: 'clarity', name: 'Financial Clarity', Icon: BarChart3, subtitle: '11 steps · 7 min', lsDone: 'jfb_clarity_done', lsAnswers: 'jfb_clarity_answers', status: 'required', prereqs: [], badgeKey: 'know-thyself' },
+  { key: 'clarity', name: 'Financial Clarity', Icon: BarChart3, subtitle: '10 steps · 7 min', lsDone: 'jfb_clarity_done', lsAnswers: 'jfb_clarity_answers', status: 'required', prereqs: [], badgeKey: 'know-thyself' },
   { key: 'module0', name: 'Know Yourself', Icon: UserCircle, subtitle: '6 questions · 3 min', lsDone: 'jfb_module0_done', lsAnswers: 'jfb_module0_answers', status: 'required', prereqs: [], badgeKey: 'first-step' },
   { key: 'module1', name: 'Risk Pulse', Icon: Flame, subtitle: '6 questions · 3 min', lsDone: 'jfb_module1_done', lsAnswers: 'jfb_module1_answers', status: 'optional', prereqs: [], badgeKey: 'risk-taker' },
   { key: 'module2', name: 'Time Lens', Icon: Hourglass, subtitle: '6 questions · 3 min', lsDone: 'jfb_module2_done', lsAnswers: 'jfb_module2_answers', status: 'optional', prereqs: [], badgeKey: 'time-keeper' },
@@ -95,7 +95,7 @@ const CLARITY: ProfileQ[] = [
   { id: 'step1', text: "Are you completing this for yourself or your household?", type: 'single', options: ['Just myself', 'My household'] },
   { id: 'step2', text: "How often do you pay your bills on time?", type: 'single', options: ['Always on time', 'Sometimes late', 'Often late'] },
   { id: 'step3', text: "What are your financial goals?", type: 'multi', options: [
-    'Better budgeting', 'Manage debt', 'Save for a home', 'Save for a car', 'Build emergency fund', 'Save for a vacation', 'Start investing', 'Save for retirement', 'Other savings goal'
+    'Better budgeting', 'Manage debt', 'Save for a home', 'Save for a car', 'Save for a vacation', 'Save for a purchase', 'Build emergency fund', 'Start investing', 'Save for retirement'
   ]},
   { id: 'step4', text: "What is your monthly income after tax?", type: 'number', prefix: '€' },
   { id: 'step5', text: "Your monthly expenses", type: 'expenses', fields: [
@@ -121,12 +121,13 @@ const CLARITY: ProfileQ[] = [
     { key: 'od_balance', label: 'Balance', prefix: '€' }, { key: 'od_payment', label: 'Monthly payment', prefix: '€' },
   ], showIf: (a) => a.step6a === 'Yes' },
   { id: 'step7', text: "How much do you save each month?", type: 'number', prefix: '€' },
-  { id: 'step8', text: "How much cash do you have available?", type: 'compound', fields: [
-    { key: 'bank', label: 'Bank account(s)', prefix: '€' }, { key: 'savings', label: 'Savings account(s)', prefix: '€' },
+  { id: 'step8', text: "Your money right now", type: 'compound', fields: [
+    { key: 'bank', label: 'Bank account(s)', prefix: '€' },
+    { key: 'savings', label: 'Savings account(s)', prefix: '€' },
+    { key: 'investments', label: 'Investments (excl. pension)', prefix: '€' },
   ]},
   { id: 'step9', text: "Do you contribute to a pension?", type: 'single', options: ['Yes', 'No'] },
-  { id: 'step10', text: "Total value of investments (excluding pension)?", type: 'number', prefix: '€' },
-  { id: 'step11', text: "Which insurance do you have?", type: 'multi', options: ['Life insurance', 'Critical illness', 'Income protection', 'Home insurance', 'Other', 'None'] },
+  { id: 'step10', text: "Which insurance do you have?", type: 'multi', options: ['Life insurance', 'Critical illness', 'Income protection', 'Home insurance', 'Other', 'None'] },
 ];
 
 // ── Module 1: Risk Pulse ──
@@ -267,9 +268,10 @@ export function calculateClarityScore(a: Record<string, any>) {
   const saving = savRateScore + emergScore;
 
   const goals = a.step3 || [];
-  const ins = (a.step11 || []).filter((x: string) => x !== 'None');
+  const ins = (a.step10 || []).filter((x: string) => x !== 'None');
+  const investments = Number(a.step8?.investments) || 0;
   const planning = (goals.length > 0 ? 5 : 0) + (goals.length >= 2 ? 5 : 0) +
-    (a.step9 === 'Yes' ? 5 : 0) + (Number(a.step10) > 0 ? 5 : 0) + (ins.length >= 2 ? 5 : 0);
+    (a.step9 === 'Yes' ? 5 : 0) + (investments > 0 ? 5 : 0) + (ins.length >= 2 ? 5 : 0);
 
   return { total: spending + saving + planning, spending, saving, planning };
 }

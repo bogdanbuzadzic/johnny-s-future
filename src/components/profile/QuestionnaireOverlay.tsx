@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, ChevronRight, Check, Sparkles, Lock,
@@ -23,6 +23,9 @@ const QUIZ_CORRECT: Record<string, string> = {
   q5c: 'False',
 };
 
+// Auto-advance types
+const AUTO_ADVANCE_TYPES = new Set(['single']);
+
 interface Props {
   moduleKey: string;
   onComplete: () => void;
@@ -34,10 +37,12 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [showCompletion, setShowCompletion] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [expenseFreq, setExpenseFreq] = useState<Record<string, string>>({});
   const { updateConfig, addCategory, addTransaction } = useBudget();
   const { addGoal, setActiveTab } = useApp();
+  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const allQuestions = useMemo(() => getModuleQuestions(moduleKey), [moduleKey]);
   const visibleQuestions = useMemo(
@@ -62,11 +67,21 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
     return value !== undefined && value !== '' && value !== null;
   })();
 
+  // Clean up auto-advance timer
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+    };
+  }, []);
+
   const setAnswer = useCallback((id: string, v: any) => {
     setAnswers(prev => ({ ...prev, [id]: v }));
   }, []);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
+    // Clear any pending auto-advance
+    if (autoAdvanceTimer.current) { clearTimeout(autoAdvanceTimer.current); autoAdvanceTimer.current = null; }
+
     // After Q5d (calibration estimate), show calibration result card
     if (moduleKey === 'module0' && currentQ?.id === 'q5d' && !showCalibration) {
       setShowCalibration(true);
@@ -82,11 +97,38 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       setDirection(1);
       setCurrentIdx(safeIdx + 1);
     }
-  };
+  }, [moduleKey, currentQ, showCalibration, isLast, safeIdx]);
+
+  // Auto-advance handler for single-select
+  const handleAutoAdvanceAnswer = useCallback((id: string, v: any) => {
+    setAnswers(prev => ({ ...prev, [id]: v }));
+    // Schedule auto-advance
+    if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+    autoAdvanceTimer.current = setTimeout(() => {
+      autoAdvanceTimer.current = null;
+      // Use functional approach to get latest state
+      setDirection(1);
+      setCurrentIdx(prev => {
+        // Check if this is the last question
+        const visQ = allQuestions.filter(q => !q.showIf || q.showIf({ ...answers, [id]: v }));
+        const idx = Math.min(prev, visQ.length - 1);
+        if (idx === visQ.length - 1) {
+          // It's the last question - trigger complete via a flag
+          return prev; // Don't advance, handleNext will handle complete
+        }
+        return prev + 1;
+      });
+    }, 400);
+  }, [allQuestions, answers]);
 
   const handleBack = () => {
+    if (autoAdvanceTimer.current) { clearTimeout(autoAdvanceTimer.current); autoAdvanceTimer.current = null; }
     if (showCalibration) {
       setShowCalibration(false);
+      return;
+    }
+    if (showScoreBreakdown) {
+      setShowScoreBreakdown(false);
       return;
     }
     setDirection(-1);
@@ -148,13 +190,11 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         { key: 'other', name: 'Other Fixed', icon: 'MoreHorizontal' },
       ];
       let totalFixed = 0;
-      const createdCategories: { key: string; id?: string }[] = [];
       fixedMap.forEach(item => {
         const amt = getMonthly(item.key);
         if (amt > 0) {
           addCategory({ name: item.name, icon: item.icon, monthlyBudget: amt, type: 'fixed' });
           totalFixed += amt;
-          createdCategories.push({ key: item.key });
         }
       });
 
@@ -162,8 +202,8 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       const goalMap_: Record<string, { mc: number }> = {
         'Save for a home': { mc: 200 }, 'Save for a car': { mc: 150 },
         'Build emergency fund': { mc: 100 }, 'Save for a vacation': { mc: 75 },
-        'Grow my money': { mc: 100 }, 'Start investing': { mc: 50 },
-        'Save for retirement': { mc: 200 }, 'Other savings goal': { mc: 50 },
+        'Save for a purchase': { mc: 50 }, 'Start investing': { mc: 100 },
+        'Save for retirement': { mc: 200 },
       };
       const goalContributions = (finalAnswers.step3 || []).reduce((s: number, g: string) => s + (goalMap_[g]?.mc || 0), 0);
 
@@ -188,11 +228,9 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       if (personalBudget > 0) addCategory({ name: 'Personal', icon: 'Heart', monthlyBudget: personalBudget, type: 'expense' });
       if (otherBudget > 30) addCategory({ name: 'Other', icon: 'MoreHorizontal', monthlyBudget: otherBudget, type: 'expense' });
 
-      // Subscriptions as recurring expense transaction (NOT a fixed category)
+      // Subscriptions as recurring expense transaction
       const subsAmount = getMonthly('subs');
       if (subsAmount > 0) {
-        // We'll add this after categories are created - use Entertainment as default sub category
-        // The subscription card in Spending sub-Tetris will detect recurring transactions automatically
         setTimeout(() => {
           try {
             const bd = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
@@ -221,10 +259,9 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         'Save for a car': { name: 'New Car', icon: 'Car', target: 10000, mc: 150 },
         'Build emergency fund': { name: 'Emergency Fund', icon: 'ShieldCheck', target: 3000, mc: 100 },
         'Save for a vacation': { name: 'Vacation', icon: 'Plane', target: 2000, mc: 75 },
-        'Grow my money': { name: 'Investment Fund', icon: 'TrendingUp', target: 5000, mc: 100 },
-        'Start investing': { name: 'Start Investing', icon: 'LineChart', target: 1000, mc: 50 },
+        'Save for a purchase': { name: 'New Laptop', icon: 'Laptop', target: 2500, mc: 50 },
+        'Start investing': { name: 'Investment Fund', icon: 'TrendingUp', target: 5000, mc: 100 },
         'Save for retirement': { name: 'Retirement', icon: 'Sunset', target: 50000, mc: 200 },
-        'Other savings goal': { name: 'Savings Goal', icon: 'Target', target: 2000, mc: 50 },
       };
       // Append goals, skipping duplicates by name
       const existingGoals: Array<{ name: string }> = (() => {
@@ -246,11 +283,16 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         }));
       }
 
-      // Store cash reserves
+      // Store cash reserves (now includes investments)
       localStorage.setItem('jfb_cash', JSON.stringify({
         bankAccounts: Number(finalAnswers.step8?.bank) || 0,
         savingsAccounts: Number(finalAnswers.step8?.savings) || 0,
+        investments: Number(finalAnswers.step8?.investments) || 0,
       }));
+
+      // Show score breakdown BEFORE badge celebration
+      setShowScoreBreakdown(true);
+      return; // Don't go to completion yet
     }
 
     // Module0: persona assignment
@@ -306,6 +348,75 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
     );
   }
 
+  // ── Clarity Score Breakdown Screen ──
+  if (showScoreBreakdown && moduleKey === 'clarity') {
+    const finalAnswers = { ...answers, step5_freq: expenseFreq };
+    const score = calculateClarityScore(finalAnswers);
+    const pillars = [
+      { label: 'Spending', score: score.spending, max: 40, color: '#E67E22' },
+      { label: 'Saving', score: score.saving, max: 35, color: '#2980B9' },
+      { label: 'Planning', score: score.planning, max: 25, color: '#8B5CF6' },
+    ];
+    const weakest = pillars.reduce((a, b) => (a.score / a.max) < (b.score / b.max) ? a : b);
+    const insightMap: Record<string, string> = {
+      Saving: 'Building an emergency fund would significantly boost your score.',
+      Spending: 'Reviewing your expense-to-income ratio could improve your score.',
+      Planning: 'Setting more financial goals would strengthen your picture.',
+    };
+
+    return (
+      <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }}
+        className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-8"
+        style={{ background: 'linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
+        
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+          className="w-full max-w-sm space-y-6">
+          <p className="text-[16px] text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>Your Financial Clarity Score</p>
+          
+          <div className="text-center">
+            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.3, stiffness: 200 }}
+              className="inline-block text-[56px] font-bold text-white">{score.total}</motion.span>
+            <p className="text-[20px]" style={{ color: 'rgba(255,255,255,0.4)' }}>/ 100</p>
+          </div>
+
+          <div className="space-y-3">
+            {pillars.map((p, i) => (
+              <motion.div key={p.label} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + i * 0.1 }}>
+                <div className="flex justify-between mb-1">
+                  <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.6)' }}>{p.label}</span>
+                  <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{p.score}/{p.max}</span>
+                </div>
+                <div className="w-full rounded" style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.10)' }}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(p.score / p.max) * 100}%` }}
+                    transition={{ delay: 0.5 + i * 0.1, duration: 0.6, ease: 'easeOut' }}
+                    style={{ height: '100%', borderRadius: 4, background: p.color }}
+                  />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
+            className="text-[14px] text-center italic max-w-[280px] mx-auto" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            {insightMap[weakest.label]}
+          </motion.p>
+
+          <motion.button initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
+            onClick={() => { setShowScoreBreakdown(false); setShowCompletion(true); }}
+            className="w-full h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
+            style={{
+              background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
+              boxShadow: '0 4px 16px rgba(139,92,246,0.3)',
+            }}>
+            Continue <ChevronRight className="w-4 h-4" />
+          </motion.button>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
   // ── Completion Screen ──
   if (showCompletion) {
     const particles = Array.from({ length: 55 }, (_, i) => ({
@@ -324,7 +435,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         style={{
           background: 'radial-gradient(circle at 50% 40%, rgba(139,92,246,0.25) 0%, transparent 50%), linear-gradient(to bottom, #B4A6B8, #9B80B4)',
         }}>
-        {/* Confetti - 55 particles */}
+        {/* Confetti */}
         {particles.map((p, i) => (
           <motion.div key={i} className="absolute pointer-events-none"
             style={{
@@ -336,7 +447,6 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
             transition={{ duration: 3, delay: p.delay, ease: 'easeIn' }} />
         ))}
 
-        {/* Title - no duplicate icon, text IS the hero */}
         <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}
           className="text-[28px] font-bold text-white mb-1">{(() => {
             const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
@@ -346,12 +456,10 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
           className="text-[15px] text-white/40 mb-6">{node.name}</motion.p>
 
-        {/* Pixel art badge on pedestal */}
         {badgeImg && (
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
             transition={{ type: 'spring', damping: 10, stiffness: 180, delay: 0.5 }}
             className="flex flex-col items-center gap-0 mb-6">
-            {/* Badge image with float */}
             <motion.div
               animate={{ y: [0, -4, 0] }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
@@ -360,7 +468,6 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
               <img src={badgeImg} alt={badge?.name || 'Badge'}
                 className="w-20 h-20 object-contain"
                 style={{ imageRendering: 'pixelated' }} />
-              {/* Golden shimmer pass */}
               <motion.div className="absolute inset-0 overflow-hidden rounded-lg pointer-events-none"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -376,9 +483,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
                 />
               </motion.div>
             </motion.div>
-            {/* Frosted pedestal */}
             <div className="w-[100px] h-3 rounded-md mt-1" style={{ background: 'rgba(255,255,255,0.10)' }} />
-            {/* Badge name */}
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
               className="text-lg font-bold text-white mt-3">{badge?.name || 'Badge Earned'}</motion.p>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
@@ -386,7 +491,6 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
           </motion.div>
         )}
 
-        {/* Continue button */}
         <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9, duration: 0.3 }}
           onClick={handleContinue}
           className="w-[200px] h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
@@ -443,7 +547,21 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
             <p className="text-[22px] font-bold text-white/90 text-center leading-[1.4] max-w-[500px] mx-auto whitespace-pre-line">
               {currentQ?.text}
             </p>
-            {currentQ && <QuestionInput q={currentQ} value={value} onChange={(v) => setAnswer(currentQ.id, v)} expenseFreq={expenseFreq} onFreqChange={setExpenseFreq} />}
+            {currentQ && (
+              <QuestionInput
+                q={currentQ}
+                value={value}
+                onChange={(v) => {
+                  if (currentQ.type === 'single' && AUTO_ADVANCE_TYPES.has(currentQ.type)) {
+                    handleAutoAdvanceAnswer(currentQ.id, v);
+                  } else {
+                    setAnswer(currentQ.id, v);
+                  }
+                }}
+                expenseFreq={expenseFreq}
+                onFreqChange={setExpenseFreq}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -578,7 +696,6 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
     }
 
     case 'quiz': {
-      // No answer reveal — just normal selected styling like single select
       return (
         <div className="space-y-2 max-w-[460px] mx-auto">
           {(q.options || []).map((opt, i) => {
@@ -650,7 +767,6 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
 
     case 'expenses': {
       const vals: Record<string, string> = value || {};
-      // Calculate total with frequency adjustments
       const total = Object.entries(vals).reduce((s, [key, v]) => {
         let amt = Number(v) || 0;
         if (expenseFreq[key] === 'weekly') amt *= 4.33;
@@ -671,7 +787,6 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
                     {IconComp && <IconComp className="w-4 h-4 text-white/40" strokeWidth={1.5} />}
                   </div>
                   <span className="text-[13px] text-white/60 flex-1 truncate">{f.label}</span>
-                  {/* Frequency toggle */}
                   <div className="flex mr-2 rounded-md overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
                     <button onClick={() => onFreqChange({ ...expenseFreq, [f.key]: 'monthly' })}
                       className="px-1.5 py-0.5 text-[10px]"
