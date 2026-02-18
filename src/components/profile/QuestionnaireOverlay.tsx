@@ -37,7 +37,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [showCompletion, setShowCompletion] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
-  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+  
   const [direction, setDirection] = useState<1 | -1>(1);
   const [expenseFreq, setExpenseFreq] = useState<Record<string, string>>({});
   const { updateConfig, addCategory, addTransaction } = useBudget();
@@ -127,10 +127,6 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       setShowCalibration(false);
       return;
     }
-    if (showScoreBreakdown) {
-      setShowScoreBreakdown(false);
-      return;
-    }
     setDirection(-1);
     setCurrentIdx(Math.max(0, safeIdx - 1));
   };
@@ -210,23 +206,21 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       // What's actually available for variable spending:
       const flexForSpending = Math.max(0, income - totalFixed - savings - goalContributions);
       const groceries = getMonthly('groceries');
-      const foodBudget = groceries > 0 ? groceries : Math.round(flexForSpending * 0.30);
+      const foodBudget = groceries > 0 ? groceries : Math.round(flexForSpending * 0.35);
       const remainingAfterFood = Math.max(0, flexForSpending - foodBudget);
 
       // Leave ~10% unallocated as breathing room
       const allocatable = Math.round(remainingAfterFood * 0.90);
 
-      const entertainmentBudget = Math.round(allocatable * 0.22);
-      const shoppingBudget = Math.round(allocatable * 0.30);
-      const personalBudget = Math.round(allocatable * 0.25);
-      const otherBudget = allocatable - entertainmentBudget - shoppingBudget - personalBudget;
+      const entertainmentBudget = Math.round(allocatable * 0.30);
+      const shoppingBudget = Math.round(allocatable * 0.38);
+      const lifestyleBudget = allocatable - entertainmentBudget - shoppingBudget;
 
       // Only create categories with meaningful budget (> €0)
       if (foodBudget > 0) addCategory({ name: 'Food', icon: 'UtensilsCrossed', monthlyBudget: foodBudget, type: 'expense' });
       if (entertainmentBudget > 0) addCategory({ name: 'Entertainment', icon: 'Film', monthlyBudget: entertainmentBudget, type: 'expense' });
       if (shoppingBudget > 0) addCategory({ name: 'Shopping', icon: 'ShoppingBag', monthlyBudget: shoppingBudget, type: 'expense' });
-      if (personalBudget > 0) addCategory({ name: 'Personal', icon: 'Heart', monthlyBudget: personalBudget, type: 'expense' });
-      if (otherBudget > 30) addCategory({ name: 'Other', icon: 'MoreHorizontal', monthlyBudget: otherBudget, type: 'expense' });
+      if (lifestyleBudget > 0) addCategory({ name: 'Lifestyle', icon: 'Heart', monthlyBudget: lifestyleBudget, type: 'expense' });
 
       // Subscriptions as recurring expense transaction
       const subsAmount = getMonthly('subs');
@@ -290,9 +284,9 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         investments: Number(finalAnswers.step8?.investments) || 0,
       }));
 
-      // Show score breakdown BEFORE badge celebration
-      setShowScoreBreakdown(true);
-      return; // Don't go to completion yet
+      // Show combined completion screen (score + badge)
+      setShowCompletion(true);
+      return;
     }
 
     // Module0: persona assignment
@@ -348,157 +342,119 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
     );
   }
 
-  // ── Clarity Score Breakdown Screen ──
-  if (showScoreBreakdown && moduleKey === 'clarity') {
-    const finalAnswers = { ...answers, step5_freq: expenseFreq };
-    const score = calculateClarityScore(finalAnswers);
-    const pillars = [
-      { label: 'Spending', score: score.spending, max: 40, color: '#E67E22' },
-      { label: 'Saving', score: score.saving, max: 35, color: '#2980B9' },
-      { label: 'Planning', score: score.planning, max: 25, color: '#8B5CF6' },
-    ];
-    const weakest = pillars.reduce((a, b) => (a.score / a.max) < (b.score / b.max) ? a : b);
-    const insightMap: Record<string, string> = {
-      Saving: 'Building an emergency fund would significantly boost your score.',
-      Spending: 'Reviewing your expense-to-income ratio could improve your score.',
-      Planning: 'Setting more financial goals would strengthen your picture.',
-    };
-
-    return (
-      <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }}
-        className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-8"
-        style={{ background: 'linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
-        
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          className="w-full max-w-sm space-y-6">
-          <p className="text-[16px] text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>Your Financial Clarity Score</p>
-          
-          <div className="text-center">
-            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.3, stiffness: 200 }}
-              className="inline-block text-[56px] font-bold text-white">{score.total}</motion.span>
-            <p className="text-[20px]" style={{ color: 'rgba(255,255,255,0.4)' }}>/ 100</p>
-          </div>
-
-          <div className="space-y-3">
-            {pillars.map((p, i) => (
-              <motion.div key={p.label} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + i * 0.1 }}>
-                <div className="flex justify-between mb-1">
-                  <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.6)' }}>{p.label}</span>
-                  <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{p.score}/{p.max}</span>
-                </div>
-                <div className="w-full rounded" style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.10)' }}>
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(p.score / p.max) * 100}%` }}
-                    transition={{ delay: 0.5 + i * 0.1, duration: 0.6, ease: 'easeOut' }}
-                    style={{ height: '100%', borderRadius: 4, background: p.color }}
-                  />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
-            className="text-[14px] text-center italic max-w-[280px] mx-auto" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            {insightMap[weakest.label]}
-          </motion.p>
-
-          <motion.button initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
-            onClick={() => { setShowScoreBreakdown(false); setShowCompletion(true); }}
-            className="w-full h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
-            style={{
-              background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
-              boxShadow: '0 4px 16px rgba(139,92,246,0.3)',
-            }}>
-            Continue <ChevronRight className="w-4 h-4" />
-          </motion.button>
-        </motion.div>
-      </motion.div>
-    );
-  }
-
-  // ── Completion Screen ──
+  // ── Combined Completion Screen (Score + Badge) ──
   if (showCompletion) {
     const particles = Array.from({ length: 55 }, (_, i) => ({
       x: 5 + Math.random() * 90, startY: -10 - Math.random() * 20,
       color: ['#8B5CF6', '#EC4899', '#FFD700', '#34C759', '#3B82F6'][i % 5],
       delay: Math.random() * 1.2, size: i % 4 === 0 ? 6 : i % 3 === 0 ? 5 : 4,
-      drift: (Math.random() - 0.5) * 40,
-      rotation: Math.random() * 720,
-      isRect: i % 3 === 0,
+      drift: (Math.random() - 0.5) * 40, rotation: Math.random() * 720, isRect: i % 3 === 0,
     }));
     const badgeKey = node.badgeKey;
     const badgeImg = BADGE_IMAGES[badgeKey];
+    const isClarityModule = moduleKey === 'clarity';
+    const clarityData = isClarityModule ? (() => {
+      const fa = { ...answers, step5_freq: expenseFreq };
+      const score = calculateClarityScore(fa);
+      const pillars = [
+        { label: 'Spending', score: score.spending, max: 40, color: '#E67E22' },
+        { label: 'Saving', score: score.saving, max: 35, color: '#2980B9' },
+        { label: 'Planning', score: score.planning, max: 25, color: '#8B5CF6' },
+      ];
+      const weakest = pillars.reduce((a, b) => (a.score / a.max) < (b.score / b.max) ? a : b);
+      const insightMap: Record<string, string> = {
+        Saving: 'Building an emergency fund would significantly boost your score.',
+        Spending: 'Reviewing your expense-to-income ratio could improve your score.',
+        Planning: 'Setting more financial goals would strengthen your picture.',
+      };
+      return { score, pillars, insight: insightMap[weakest.label] };
+    })() : null;
+
+    const ScoreCounter = ({ target }: { target: number }) => {
+      const [val, setVal] = useState(0);
+      const started = useRef(false);
+      useEffect(() => {
+        if (started.current) return; started.current = true;
+        const startTime = performance.now();
+        const tick = (now: number) => {
+          const t = Math.min((now - startTime) / 1500, 1);
+          setVal(Math.round((1 - Math.pow(1 - t, 3)) * target));
+          if (t < 1) requestAnimationFrame(tick);
+        };
+        setTimeout(() => requestAnimationFrame(tick), 200);
+      }, [target]);
+      return <>{val}</>;
+    };
+
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-8"
-        style={{
-          background: 'radial-gradient(circle at 50% 40%, rgba(139,92,246,0.25) 0%, transparent 50%), linear-gradient(to bottom, #B4A6B8, #9B80B4)',
-        }}>
-        {/* Confetti */}
+        className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-6"
+        style={{ background: 'radial-gradient(circle at 50% 30%, rgba(139,92,246,0.2) 0%, transparent 50%), linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
         {particles.map((p, i) => (
           <motion.div key={i} className="absolute pointer-events-none"
-            style={{
-              width: p.isRect ? p.size * 2 : p.size, height: p.isRect ? p.size * 0.5 : p.size,
-              borderRadius: p.isRect ? 1 : '50%', background: p.color, left: `${p.x}%`,
-            }}
+            style={{ width: p.isRect ? p.size * 2 : p.size, height: p.isRect ? p.size * 0.5 : p.size, borderRadius: p.isRect ? 1 : '50%', background: p.color, left: `${p.x}%` }}
             initial={{ opacity: 0, y: `${p.startY}%`, x: 0, rotate: 0 }}
             animate={{ opacity: [0, 1, 1, 0], y: [`${p.startY}%`, '120%'], x: [0, p.drift], rotate: [0, p.rotation] }}
             transition={{ duration: 3, delay: p.delay, ease: 'easeIn' }} />
         ))}
 
-        <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}
-          className="text-[28px] font-bold text-white mb-1">{(() => {
-            const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
-            const p = getPersona(m0);
-            return getCelebration(node.name, p?.n || null);
-          })()}</motion.h2>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-          className="text-[15px] text-white/40 mb-6">{node.name}</motion.p>
+        {isClarityModule && clarityData ? (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-center mb-1">
+              <span className="text-[64px] font-bold text-white leading-none"><ScoreCounter target={clarityData.score.total} /></span>
+              <p className="text-[22px]" style={{ color: 'rgba(255,255,255,0.35)' }}>/ 100</p>
+              <p className="text-[16px] mt-2" style={{ color: 'rgba(255,255,255,0.5)' }}>Financial Clarity Score</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="w-full max-w-[320px] space-y-2.5 mt-6">
+              {clarityData.pillars.map((p, i) => (
+                <div key={p.label}>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.5)' }}>{p.label}</span>
+                    <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{p.score}/{p.max}</span>
+                  </div>
+                  <div className="w-full" style={{ height: 10, borderRadius: 5, background: 'rgba(255,255,255,0.08)' }}>
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${(p.score / p.max) * 100}%` }}
+                      transition={{ delay: 0.5 + i * 0.2, duration: 0.8, ease: 'easeOut' }}
+                      style={{ height: '100%', borderRadius: 5, background: p.color }} />
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
+              className="text-[14px] text-center italic max-w-[280px] mt-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              {clarityData.insight}
+            </motion.p>
+          </>
+        ) : (
+          <>
+            <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+              className="text-[28px] font-bold text-white mb-1">{(() => {
+                const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
+                const p = getPersona(m0);
+                return getCelebration(node.name, p?.n || null);
+              })()}</motion.h2>
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+              className="text-[15px] text-white/40 mb-6">{node.name}</motion.p>
+          </>
+        )}
 
         {badgeImg && (
-          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-            transition={{ type: 'spring', damping: 10, stiffness: 180, delay: 0.5 }}
-            className="flex flex-col items-center gap-0 mb-6">
-            <motion.div
-              animate={{ y: [0, -4, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              className="relative"
-            >
-              <img src={badgeImg} alt={badge?.name || 'Badge'}
-                className="w-20 h-20 object-contain"
-                style={{ imageRendering: 'pixelated' }} />
-              <motion.div className="absolute inset-0 overflow-hidden rounded-lg pointer-events-none"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.8 }}>
-                <motion.div
-                  className="absolute inset-0"
-                  style={{
-                    background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 55%, transparent 70%)',
-                  }}
-                  initial={{ x: '-100%' }}
-                  animate={{ x: '200%' }}
-                  transition={{ duration: 3, delay: 1, ease: 'easeInOut' }}
-                />
-              </motion.div>
-            </motion.div>
-            <div className="w-[100px] h-3 rounded-md mt-1" style={{ background: 'rgba(255,255,255,0.10)' }} />
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
-              className="text-lg font-bold text-white mt-3">{badge?.name || 'Badge Earned'}</motion.p>
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
-              className="text-[13px] text-white/35">Completed {node.name}</motion.p>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.3 }}
+            className="flex items-center gap-4 mt-6"
+            style={{ background: 'rgba(255,255,255,0.10)', borderRadius: 16, padding: '12px 20px', border: '1.5px solid rgba(255,215,0,0.3)' }}>
+            <img src={badgeImg} alt={badge?.name || 'Badge'} className="w-12 h-12 object-contain shrink-0" style={{ imageRendering: 'pixelated' }} />
+            <div>
+              <p className="text-[15px] font-bold text-white">{badge?.name || 'Badge Earned'}</p>
+              <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>Badge unlocked!</p>
+            </div>
           </motion.div>
         )}
 
-        <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9, duration: 0.3 }}
+        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1, duration: 0.3 }}
           onClick={handleContinue}
-          className="w-[200px] h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
-          style={{
-            background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
-            boxShadow: '0 4px 16px rgba(139,92,246,0.3)',
-          }}>
-          Continue <ChevronRight className="w-4 h-4" />
+          className="mt-6 w-[220px] h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
+          style={{ background: 'linear-gradient(135deg, #8B5CF6, #EC4899)', boxShadow: '0 4px 16px rgba(139,92,246,0.3)' }}>
+          Continue →
         </motion.button>
       </motion.div>
     );

@@ -649,6 +649,8 @@ function ProfileScreenContent() {
                   const demoGoals = [
                     { id: crypto.randomUUID(), name: 'Dream House', icon: 'Home', target: 40000, saved: 30000, monthlyContribution: 200, targetDate: '', monthIndex: -1 },
                     { id: crypto.randomUUID(), name: 'New Car', icon: 'Car', target: 10000, saved: 5000, monthlyContribution: 150, targetDate: '', monthIndex: -1 },
+                    { id: crypto.randomUUID(), name: 'Vacation', icon: 'Plane', target: 2000, saved: 1000, monthlyContribution: 75, targetDate: '', monthIndex: -1 },
+                    { id: crypto.randomUUID(), name: 'New Laptop', icon: 'Laptop', target: 2500, saved: 1875, monthlyContribution: 50, targetDate: '', monthIndex: -1 },
                   ];
                   setGoals(demoGoals);
                   // Seed mock transactions with CURRENT month dates
@@ -658,7 +660,7 @@ function ProfileScreenContent() {
                     const foodCat = cats.find((c: any) => c.name === 'Food');
                     const entCat = cats.find((c: any) => c.name === 'Entertainment');
                     const shopCat = cats.find((c: any) => c.name === 'Shopping');
-                    const persCat = cats.find((c: any) => c.name === 'Personal');
+                    const persCat = cats.find((c: any) => c.name === 'Lifestyle');
                     if (!foodCat || !entCat || !shopCat || !persCat) {
                       toast({ title: 'Complete Clarity first', description: 'Spending categories need to exist before loading demo data.' });
                       return;

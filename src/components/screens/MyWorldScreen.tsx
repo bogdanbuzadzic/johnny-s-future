@@ -5,27 +5,11 @@ import { useApp } from '@/context/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import avatarImg from '@/assets/avatar.png';
 
-// Goal assets
-import car1Img from '@/assets/world/car1.png';
+// Goal assets - only the ones we need
 import car2Img from '@/assets/world/car2.png';
-import car3Img from '@/assets/world/car3.png';
-import car4Img from '@/assets/world/car4.png';
-import vacation1Img from '@/assets/world/vacation1.png';
 import vacation2Img from '@/assets/world/vacation2.png';
-import vacation3Img from '@/assets/world/vacation3.png';
-import vacation4Img from '@/assets/world/vacation4.png';
-import education2Img from '@/assets/world/education2.png';
-import education3Img from '@/assets/world/education3.png';
-import education4Img from '@/assets/world/education4.png';
-import education1Img from '@/assets/world/education1.png';
-import laptop1Img from '@/assets/world/laptop1.png';
-import laptop2Img from '@/assets/world/laptop2.png';
 import laptop3Img from '@/assets/world/laptop3.png';
-import laptop4Img from '@/assets/world/laptop4.png';
-import house1Img from '@/assets/world/house1.png';
-import house2Img from '@/assets/world/house2.png';
 import house3Img from '@/assets/world/house3.png';
-import house4Img from '@/assets/world/house4.png';
 import generalGoal1 from '@/assets/world/general_goal_icon1.png';
 import generalGoal2 from '@/assets/world/general_goal_icon2.png';
 
@@ -47,61 +31,38 @@ const GROUND_EDGE: Record<string, string> = {
   struggling: '#9A8A5A',
 };
 
-const GOAL_ASSETS: Record<string, string> = {
-  car1: car1Img, car2: car2Img, car3: car3Img, car4: car4Img,
-  vacation1: vacation1Img, vacation2: vacation2Img, vacation3: vacation3Img, vacation4: vacation4Img,
-  education1: education1Img, education2: education2Img, education3: education3Img, education4: education4Img,
-  laptop1: laptop1Img, laptop2: laptop2Img, laptop3: laptop3Img, laptop4: laptop4Img,
-  house1: house1Img, house2: house2Img, house3: house3Img, house4: house4Img,
-};
-
-// Positions: goal objects ON THE GROUND (bottom 25% area), not floating in sky
 const POSITIONS = [
-  { x: '30%', bottom: '20%', size: 90 },
-  { x: '70%', bottom: '22%', size: 80 },
-  { x: '15%', bottom: '18%', size: 80 },
-  { x: '50%', bottom: '24%', size: 75 },
-  { x: '85%', bottom: '19%', size: 75 },
-  { x: '40%', bottom: '16%', size: 70 },
-  { x: '60%', bottom: '17%', size: 70 },
+  { x: '20%', bottom: '18%', size: 75 },
+  { x: '40%', bottom: '18%', size: 80 },
+  { x: '60%', bottom: '18%', size: 80 },
+  { x: '80%', bottom: '18%', size: 75 },
 ];
 
-function getAssetPrefix(goal: any): string {
+function getGoalImage(goal: any): string {
   const name = (goal.name || '').toLowerCase();
   const icon = goal.icon || '';
-  if (name.includes('house') || name.includes('home') || name.includes('apartment') || icon === 'Home') return 'house';
-  if (name.includes('car') || name.includes('vehicle') || icon === 'Car') return 'car';
-  if (name.includes('vacation') || name.includes('travel') || name.includes('trip') || icon === 'Plane') return 'vacation';
-  if (name.includes('laptop') || name.includes('computer') || name.includes('tech') || icon === 'Laptop') return 'laptop';
-  if (name.includes('bike') || name.includes('bicycle') || icon === 'Bike') return 'bike';
-  if (name.includes('emergency') || name.includes('safety') || icon === 'ShieldCheck') return 'shield';
-  if (name.includes('education') || name.includes('school') || name.includes('course') || icon === 'GraduationCap') return 'education';
-  if (name.includes('invest') || name.includes('grow') || icon === 'TrendingUp' || icon === 'LineChart') return 'investment';
-  return 'target';
+  if (name.includes('house') || name.includes('home') || icon === 'Home') return house3Img;
+  if (name.includes('car') || name.includes('vehicle') || icon === 'Car') return car2Img;
+  if (name.includes('vacation') || name.includes('travel') || name.includes('trip') || icon === 'Plane') return vacation2Img;
+  if (name.includes('laptop') || name.includes('computer') || name.includes('tech') || icon === 'Laptop') return laptop3Img;
+  // Fallback
+  return Math.random() > 0.5 ? generalGoal1 : generalGoal2;
 }
 
-function getProgressNumber(goal: any): number {
-  const pct = goal.target > 0 ? (goal.saved / goal.target) * 100 : 0;
-  if (pct >= 75) return 4;
-  if (pct >= 50) return 3;
-  if (pct >= 25) return 2;
-  return 1;
-}
-
-function getGoalImage(goal: any): string {
-  const prefix = getAssetPrefix(goal);
-  const num = getProgressNumber(goal);
-  const key = `${prefix}${num}`;
-  if (GOAL_ASSETS[key]) return GOAL_ASSETS[key];
-  // Fallback: alternate between the two general icons
-  return num % 2 === 0 ? generalGoal2 : generalGoal1;
-}
-
-function getDreamImage(goal: any): string {
-  const prefix = getAssetPrefix(goal);
-  const key = `${prefix}4`;
-  if (GOAL_ASSETS[key]) return GOAL_ASSETS[key];
-  return generalGoal2;
+// Cache fallback images per goal name so they don't flicker
+const fallbackCache = new Map<string, string>();
+function getGoalImageStable(goal: any): string {
+  const name = (goal.name || '').toLowerCase();
+  const icon = goal.icon || '';
+  if (name.includes('house') || name.includes('home') || icon === 'Home') return house3Img;
+  if (name.includes('car') || name.includes('vehicle') || icon === 'Car') return car2Img;
+  if (name.includes('vacation') || name.includes('travel') || name.includes('trip') || icon === 'Plane') return vacation2Img;
+  if (name.includes('laptop') || name.includes('computer') || name.includes('tech') || icon === 'Laptop') return laptop3Img;
+  const key = goal.name || goal.id || '';
+  if (!fallbackCache.has(key)) {
+    fallbackCache.set(key, Math.random() > 0.5 ? generalGoal1 : generalGoal2);
+  }
+  return fallbackCache.get(key)!;
 }
 
 type Goal = { name: string; icon: string; saved: number; target: number; monthlyContribution: number };
@@ -113,12 +74,9 @@ interface Props {
 export function MyWorldScreen({ onClose }: Props) {
   const { setActiveTab } = useApp();
   const { toast } = useToast();
-  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
-  const [dreamGoalIdx, setDreamGoalIdx] = useState<number | null>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dreamTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hoverGoalIdx, setHoverGoalIdx] = useState<number | null>(null);
+  const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Read data from localStorage
   const clarityScore = useMemo(() => {
     try { const c = JSON.parse(localStorage.getItem('jfb_clarityScore') || '{}'); return c.total || 0; } catch { return 0; }
   }, []);
@@ -127,28 +85,18 @@ export function MyWorldScreen({ onClose }: Props) {
     try { return JSON.parse(localStorage.getItem('jfb_goals') || '[]'); } catch { return []; }
   }, []);
 
-  // Health tier
   const healthTier = clarityScore > 60 ? 'healthy' : clarityScore > 30 ? 'average' : clarityScore === 0 ? 'average' : 'struggling';
 
   const sorted = useMemo(() => [...goals].sort((a, b) => b.target - a.target), [goals]);
 
-  // Long press handlers
-  const handlePointerDown = useCallback((idx: number) => {
-    longPressTimer.current = setTimeout(() => {
-      setDreamGoalIdx(idx);
-      dreamTimer.current = setTimeout(() => setDreamGoalIdx(null), 2000);
-    }, 500);
-  }, []);
-
-  const handlePointerUp = useCallback(() => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-  }, []);
-
   useEffect(() => {
-    return () => {
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
-      if (dreamTimer.current) clearTimeout(dreamTimer.current);
-    };
+    return () => { if (touchTimer.current) clearTimeout(touchTimer.current); };
+  }, []);
+
+  const handleTouchStart = useCallback((idx: number) => {
+    setHoverGoalIdx(idx);
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    touchTimer.current = setTimeout(() => setHoverGoalIdx(null), 3000);
   }, []);
 
   return (
@@ -157,26 +105,22 @@ export function MyWorldScreen({ onClose }: Props) {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Sky - CSS gradient */}
-      <div
-        className="absolute inset-0"
-        style={{ height: '75%', background: SKY_GRADIENTS[healthTier] }}
-      />
+      {/* Sky */}
+      <div className="absolute inset-0" style={{ height: '75%', background: SKY_GRADIENTS[healthTier] }} />
 
-      {/* Optional soft clouds */}
+      {/* Clouds */}
       <div className="absolute inset-0 pointer-events-none" style={{ height: '75%' }}>
         <div className="absolute rounded-full" style={{ width: 120, height: 40, top: '10%', left: '15%', background: 'rgba(255,255,255,0.4)', filter: 'blur(8px)', animation: 'cloud-drift-soft 60s linear infinite' }} />
         <div className="absolute rounded-full" style={{ width: 80, height: 30, top: '18%', right: '20%', background: 'rgba(255,255,255,0.3)', filter: 'blur(10px)', animation: 'cloud-drift-soft 45s linear infinite reverse' }} />
         <div className="absolute rounded-full" style={{ width: 100, height: 35, top: '8%', right: '40%', background: 'rgba(255,255,255,0.35)', filter: 'blur(9px)', animation: 'cloud-drift-soft 55s linear infinite' }} />
       </div>
 
-      {/* Ground - CSS gradient */}
+      {/* Ground */}
       <motion.div
         className="absolute bottom-0 w-full"
         style={{ height: '25%', background: GROUND_GRADIENTS[healthTier] }}
         initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.3 }}
       >
-        {/* Soft grass edge */}
         <div className="absolute left-0 right-0" style={{ top: -4, height: 8, background: `linear-gradient(180deg, transparent, ${GROUND_EDGE[healthTier]})` }} />
       </motion.div>
 
@@ -198,12 +142,12 @@ export function MyWorldScreen({ onClose }: Props) {
 
       {/* Goal objects */}
       {sorted.length > 0 ? (
-        sorted.slice(0, 7).map((goal, i) => {
+        sorted.slice(0, 4).map((goal, i) => {
           const pos = POSITIONS[i];
-          const isDreaming = dreamGoalIdx === i;
-          const img = isDreaming ? getDreamImage(goal) : getGoalImage(goal);
+          const img = getGoalImageStable(goal);
           const pct = goal.target > 0 ? (goal.saved / goal.target) * 100 : 0;
           const isFullyFunded = pct >= 100;
+          const isHovered = hoverGoalIdx === i;
 
           return (
             <motion.div
@@ -212,7 +156,7 @@ export function MyWorldScreen({ onClose }: Props) {
               style={{
                 left: pos.x, bottom: pos.bottom,
                 transform: 'translateX(-50%)',
-                zIndex: 10 + i,
+                zIndex: isHovered ? 25 : 10 + i,
               }}
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -221,10 +165,9 @@ export function MyWorldScreen({ onClose }: Props) {
               <div
                 className="relative cursor-pointer"
                 style={{ animation: `goal-bob 2.5s ease-in-out ${i * 0.4}s infinite` }}
-                onClick={() => { handlePointerUp(); setSelectedGoal(goal); }}
-                onPointerDown={() => handlePointerDown(i)}
-                onPointerUp={handlePointerUp}
-                onPointerLeave={handlePointerUp}
+                onMouseEnter={() => setHoverGoalIdx(i)}
+                onMouseLeave={() => setHoverGoalIdx(null)}
+                onTouchStart={() => handleTouchStart(i)}
               >
                 <img
                   src={img} alt={goal.name}
@@ -232,9 +175,12 @@ export function MyWorldScreen({ onClose }: Props) {
                     width: pos.size, height: pos.size,
                     objectFit: 'contain',
                     imageRendering: 'pixelated' as any,
-                    transition: 'opacity 0.5s ease',
                   }}
                 />
+                {/* Goal name below */}
+                <p className="text-center mt-0.5" style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+                  {goal.name}
+                </p>
                 {/* Sparkles on fully funded */}
                 {isFullyFunded && (
                   <div className="absolute inset-0">
@@ -249,12 +195,64 @@ export function MyWorldScreen({ onClose }: Props) {
                     ))}
                   </div>
                 )}
+
+                {/* Floating progress tooltip */}
+                <AnimatePresence>
+                  {isHovered && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute pointer-events-none"
+                      style={{
+                        bottom: '100%',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        marginBottom: 8,
+                        width: 180,
+                      }}
+                    >
+                      <div className="rounded-xl p-3" style={{
+                        background: 'rgba(20,15,30,0.90)',
+                        backdropFilter: 'blur(16px)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                      }}>
+                        <p className="text-[13px] font-bold text-white text-center mb-1">{goal.name}</p>
+                        <p className="text-[11px] text-white/60 text-center mb-2">
+                          €{goal.saved.toLocaleString()} / €{goal.target.toLocaleString()}
+                        </p>
+                        <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)' }}>
+                          <div style={{
+                            width: `${Math.min(pct, 100)}%`,
+                            height: '100%', borderRadius: 3,
+                            background: 'linear-gradient(90deg, #8B5CF6, #EC4899)',
+                          }} />
+                        </div>
+                        <div className="flex justify-between mt-1.5">
+                          <span className="text-[10px] text-white/40">{Math.round(pct)}% funded</span>
+                          {goal.monthlyContribution > 0 && (
+                            <span className="text-[10px] text-white/40">€{goal.monthlyContribution}/mo</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Triangle pointer */}
+                      <div className="flex justify-center">
+                        <div style={{
+                          width: 0, height: 0,
+                          borderLeft: '6px solid transparent',
+                          borderRight: '6px solid transparent',
+                          borderTop: '6px solid rgba(20,15,30,0.90)',
+                        }} />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           );
         })
       ) : (
-        /* Empty state */
         <motion.div
           className="absolute inset-0 flex flex-col items-center justify-center z-10"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
@@ -292,62 +290,6 @@ export function MyWorldScreen({ onClose }: Props) {
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
       />
 
-      {/* Goal detail sheet */}
-      <AnimatePresence>
-        {selectedGoal && (
-          <motion.div
-            className="fixed inset-0 z-40 flex items-end"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          >
-            <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedGoal(null)} />
-            <motion.div
-              className="relative w-full rounded-t-3xl p-6 pb-8"
-              style={{ background: 'rgba(30,20,40,0.85)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.1)' }}
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            >
-              <div className="flex flex-col items-center gap-3">
-                <h3 className="text-lg font-bold text-white">{selectedGoal.name}</h3>
-                <img
-                  src={getGoalImage(selectedGoal)} alt={selectedGoal.name}
-                  style={{ width: 80, height: 80, objectFit: 'contain', imageRendering: 'pixelated' as any }}
-                />
-                <div className="w-full max-w-[280px]">
-                  <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    <div className="h-full rounded-full" style={{
-                      width: `${Math.min(100, selectedGoal.target > 0 ? (selectedGoal.saved / selectedGoal.target) * 100 : 0)}%`,
-                      background: 'linear-gradient(90deg, #8B5CF6, #EC4899)',
-                    }} />
-                  </div>
-                </div>
-                <p className="text-sm text-white">
-                  €{selectedGoal.saved.toLocaleString()} / €{selectedGoal.target.toLocaleString()}
-                </p>
-                <p className="text-[13px] text-white/40">
-                  {selectedGoal.target > 0 ? Math.round((selectedGoal.saved / selectedGoal.target) * 100) : 0}% funded
-                </p>
-                {selectedGoal.monthlyContribution > 0 && (
-                  <>
-                    <p className="text-xs text-white/30">€{selectedGoal.monthlyContribution}/month</p>
-                    <p className="text-xs text-white/30">
-                      At this rate: {Math.ceil((selectedGoal.target - selectedGoal.saved) / selectedGoal.monthlyContribution)} months to go
-                    </p>
-                  </>
-                )}
-                <button
-                  onClick={() => setSelectedGoal(null)}
-                  className="mt-2 rounded-full px-6 py-2 text-sm text-white"
-                  style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* CSS animations */}
       <style>{`
         @keyframes cloud-drift-soft {
           0% { transform: translateX(0); }
