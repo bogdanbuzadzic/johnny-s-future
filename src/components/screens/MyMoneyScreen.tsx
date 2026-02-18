@@ -81,11 +81,12 @@ function getSpans(amount: number, income: number) {
 }
 
 function getSubSpans(amount: number, parentTotal: number) {
-  if (parentTotal <= 0) return { col: 1, row: 1 };
+  if (parentTotal <= 0) return { col: 1, row: 1, minH: 60 };
   const ratio = amount / parentTotal;
-  if (ratio > 0.30) return { col: 2, row: 2 };
-  if (ratio > 0.18) return { col: 1, row: 2 };
-  return { col: 1, row: 1 };
+  const minH = Math.max(60, Math.round(ratio * 200));
+  if (ratio >= 0.45) return { col: 3, row: 2, minH };
+  if (ratio >= 0.25) return { col: 2, row: 1, minH };
+  return { col: 1, row: 1, minH };
 }
 
 // Goal progress bar colors (contrasting on pink)
@@ -577,7 +578,7 @@ function MyMoneyContent() {
                   gridRow: `span ${subSpans.row}`,
                   background: tint, border: `1.5px solid ${hexToRgba(tint, 0.30)}`,
                   boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.12)',
-                  minHeight: 60, padding: 8,
+                  minHeight: subSpans.minH, padding: 8,
                 }}
                 onClick={() => handleExpandItem(cat.id, budget)}
                 whileTap={{ scale: 0.96 }}
@@ -625,7 +626,7 @@ function MyMoneyContent() {
             background: cat._color,
             border: `1.5px solid rgba(255,255,255,0.15)`,
             boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.12)',
-            minHeight: 60,
+            minHeight: subSpans.minH,
           }}>
             <div className="w-6 h-6 rounded-full flex items-center justify-center mb-1" style={{ background: 'rgba(255,255,255,0.15)' }}>
               <CatIcon size={14} style={{ color: 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
@@ -783,7 +784,7 @@ function MyMoneyContent() {
   // ── Empty state ──
   if (!clarityDone) {
     return (
-      <div className="h-full flex flex-col items-center justify-center px-8" style={{ background: 'linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
+      <div className="h-full flex flex-col items-center justify-center px-8" style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
         <motion.img src={johnnyImage} alt="Johnny" className="w-16 h-16 object-contain mb-4"
           animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
         <h2 className="text-xl font-bold text-white mb-2 text-center">Set up your finances</h2>
@@ -916,7 +917,7 @@ function MyMoneyContent() {
               </span>
             </div>
             <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(dailyAllowance)}/d</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(flexBudget / daysInMonth)}/d</span>
             <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
             <span style={{ fontSize: 11, color: paceStatus === 'on-track' ? '#90EE90' : '#FFC107' }}>
               {paceStatus === 'on-track' ? '✓' : '⚠'}
