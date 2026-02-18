@@ -44,28 +44,26 @@ export function HomeScreen() {
       <div className="flex items-center justify-between pt-12 pb-6">
         {/* Settings pill */}
         <motion.button
-          className="jfb-pill"
+          className="frosted-button rounded-full px-4 py-2 flex items-center gap-2"
           whileTap={{ scale: 0.97 }}>
-
-          <Settings size={18} strokeWidth={1.5} />
-          <MessageCircle size={18} strokeWidth={1.5} />
+          <Settings size={18} strokeWidth={1.5} style={{ color: '#2D2440' }} />
+          <MessageCircle size={18} strokeWidth={1.5} style={{ color: '#2D2440' }} />
         </motion.button>
         
         {/* Today pill */}
         <motion.button
-          className="jfb-pill text-label"
+          className="rounded-full px-4 py-2 text-label font-semibold"
+          style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#5C2D91' }}
           whileTap={{ scale: 0.97 }}
           onClick={openTodayDrawer}>
-
           Today: €1,340 left
         </motion.button>
         
         {/* Edit pill */}
         <motion.button
-          className="jfb-pill"
+          className="frosted-button rounded-full px-4 py-2 flex items-center gap-2"
           whileTap={{ scale: 0.97 }}>
-
-          <Pencil size={18} strokeWidth={1.5} />
+          <Pencil size={18} strokeWidth={1.5} style={{ color: '#2D2440' }} />
         </motion.button>
       </div>
 
@@ -79,32 +77,18 @@ export function HomeScreen() {
             repeat: Infinity,
             ease: "easeInOut"
           }}>
-
           <img
             src={johnnyImage}
             alt="Johnny the piggy bank"
             className="w-[120px] h-[120px] object-contain" />
-
         </motion.div>
         
-        <h1 className="text-xl font-bold text-white mt-4">Johnny</h1>
-         <p className="text-sm text-white/60 mt-1">Your financial buddy</p>
+        <h1 className="text-xl font-bold mt-4" style={{ color: '#2D2440' }}>Johnny</h1>
+        <p className="text-sm mt-1" style={{ color: '#5C4F6E' }}>Your financial buddy</p>
       </div>
 
       {/* Johnny's Notes Card */}
       <div className="px-4 mb-4">
-        
-
-
-
-
-
-
-
-
-
-
-
       </div>
 
       {/* Bottom Action Area */}
@@ -114,51 +98,47 @@ export function HomeScreen() {
           <motion.div
             animate={{ opacity: [0.3, 0.6, 0.3] }}
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>
-
-            <ChevronUp size={24} strokeWidth={1.5} className="text-white/30" />
+            <ChevronUp size={24} strokeWidth={1.5} style={{ color: '#8A7FA0' }} />
           </motion.div>
         </div>
 
         {/* Action chips */}
         <div className="flex gap-3 justify-center">
           <motion.button
-            className="glass rounded-full px-4 py-3 flex items-center gap-2 text-white text-sm font-medium"
+            className="frosted-button rounded-full px-4 py-3 flex items-center gap-2 text-sm font-medium"
             whileTap={{ scale: 0.97 }}
             onClick={() => openTimeline(false)}>
-
             <TrendingUp size={18} strokeWidth={1.5} />
             Plan my future
           </motion.button>
           
           <motion.button
-            className="glass rounded-full px-4 py-3 flex items-center gap-2 text-white text-sm font-medium"
+            className="frosted-button rounded-full px-4 py-3 flex items-center gap-2 text-sm font-medium"
             whileTap={{ scale: 0.97 }}
             onClick={() => openTimeline(true)}>
-
             <Sparkles size={18} strokeWidth={1.5} />
             What can I afford?
           </motion.button>
         </div>
 
         {/* Ask Johnny input */}
-        <div className="glass rounded-full flex items-center px-4 py-2">
+        <div className="frosted-input rounded-full flex items-center px-4 py-2">
           <input
             type="text"
             placeholder="Ask Johnny..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAskJohnny()}
-            className="flex-1 bg-transparent text-white placeholder:text-white/40 text-sm outline-none" />
+            className="flex-1 bg-transparent placeholder:text-[#8A7FA0] text-sm outline-none"
+            style={{ color: '#2D2440' }} />
 
           <motion.button
             className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center ml-2"
             whileTap={{ scale: 0.95 }}
             onClick={handleAskJohnny}>
-
             <ArrowRight size={16} strokeWidth={2} className="text-white" />
           </motion.button>
         </div>
       </div>
     </motion.div>);
-
 }

@@ -7,6 +7,11 @@
 
 /* JFB Design System - All colors in HSL */
 
+/* ── Text color tokens for light gradient background ── */
+/* Primary (headings, names, labels): #2D2440 */
+/* Secondary (subtitles, descriptions): #5C4F6E */
+/* Tertiary (placeholders, hints): #8A7FA0 */
+
 @layer base {
   :root {
     /* Brand Colors */
@@ -62,15 +67,17 @@
 
   /* Frosted glass surface */
   .glass {
-    background: hsl(0 0% 100% / 0.25);
+    background: rgba(255, 255, 255, 0.35);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
   }
 
   .glass-light {
-    background: hsl(0 0% 100% / 0.15);
+    background: rgba(255, 255, 255, 0.25);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
   }
 
   .glass-dark {
@@ -84,7 +91,50 @@
     background: linear-gradient(135deg, hsl(var(--jfb-purple)), hsl(var(--jfb-pink)));
   }
 
-  /* Text colors */
+  /* Frosted card */
+  .frosted-card {
+    background: rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 16px;
+  }
+
+  /* Frosted input */
+  .frosted-input {
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 12px;
+    color: #2D2440;
+  }
+
+  /* Frosted button */
+  .frosted-button {
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 12px;
+    color: #2D2440;
+    font-weight: 500;
+  }
+
+  /* Text colors for light gradient */
+  .text-primary-dark {
+    color: #2D2440;
+  }
+
+  .text-secondary-dark {
+    color: #5C4F6E;
+  }
+
+  .text-tertiary-dark {
+    color: #8A7FA0;
+  }
+
+  /* Legacy white text - only for colored/dark backgrounds */
   .text-primary-white {
     color: hsl(0 0% 100%);
   }
@@ -136,12 +186,12 @@
 
   /* Standard card styling */
   .jfb-card {
-    @apply glass rounded-3xl p-5;
+    @apply frosted-card p-5;
   }
 
   /* Pill button */
   .jfb-pill {
-    @apply glass-light rounded-full px-4 py-2 flex items-center gap-2 text-primary-white;
+    @apply glass-light rounded-full px-4 py-2 flex items-center gap-2 text-primary-dark;
   }
 
   /* Simulation indicator - pulsing dashed outline */

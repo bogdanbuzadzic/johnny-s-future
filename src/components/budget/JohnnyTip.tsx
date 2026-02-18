@@ -15,10 +15,7 @@ export function JohnnyTip({ tips }: JohnnyTipProps) {
   }, [tips.length]);
 
   return (
-    <div
-      className="rounded-2xl p-4 flex items-center gap-3"
-      style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
-    >
+    <div className="frosted-card p-4 flex items-center gap-3">
       <img src={johnnyImage} alt="Johnny" className="w-9 h-9 flex-shrink-0" />
       <AnimatePresence mode="wait">
         <motion.p
@@ -26,7 +23,8 @@ export function JohnnyTip({ tips }: JohnnyTipProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="text-[13px] text-white/60"
+          className="text-[13px]"
+          style={{ color: '#5C4F6E' }}
         >
           {tips[index]}
         </motion.p>
