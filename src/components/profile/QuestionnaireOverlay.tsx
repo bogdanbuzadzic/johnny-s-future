@@ -24,7 +24,7 @@ const QUIZ_CORRECT: Record<string, string> = {
 };
 
 // Auto-advance types
-const AUTO_ADVANCE_TYPES = new Set(['single']);
+const AUTO_ADVANCE_TYPES = new Set(['single', 'quiz', 'scale5']);
 
 interface Props {
   moduleKey: string;
@@ -198,8 +198,8 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       const goalMap_: Record<string, { mc: number }> = {
         'Save for a home': { mc: 200 }, 'Save for a car': { mc: 150 },
         'Build emergency fund': { mc: 100 }, 'Save for a vacation': { mc: 75 },
-        'Save for a purchase': { mc: 50 }, 'Start investing': { mc: 100 },
-        'Save for retirement': { mc: 200 },
+        'Save for a purchase': { mc: 50 }, 'Start investing': { mc: 75 },
+        'Save for retirement': { mc: 100 },
       };
       const goalContributions = (finalAnswers.step3 || []).reduce((s: number, g: string) => s + (goalMap_[g]?.mc || 0), 0);
 
@@ -322,7 +322,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
     return (
       <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }}
         className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-8"
-        style={{ background: 'linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
+        style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}
           className="w-full max-w-sm rounded-2xl p-6 space-y-4"
           style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)' }}>
@@ -389,7 +389,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
         className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-6"
-        style={{ background: 'radial-gradient(circle at 50% 30%, rgba(139,92,246,0.2) 0%, transparent 50%), linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
+        style={{ background: 'radial-gradient(circle at 50% 30%, rgba(139,92,246,0.2) 0%, transparent 50%), linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
         {particles.map((p, i) => (
           <motion.div key={i} className="absolute pointer-events-none"
             style={{ width: p.isRect ? p.size * 2 : p.size, height: p.isRect ? p.size * 0.5 : p.size, borderRadius: p.isRect ? 1 : '50%', background: p.color, left: `${p.x}%` }}
@@ -464,7 +464,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   return (
     <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }}
       className="fixed inset-0 z-[60] flex flex-col"
-      style={{ background: 'linear-gradient(to bottom, #B4A6B8, #9B80B4)' }}>
+        style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
 
       {/* Header bar */}
       <div className="h-[52px] flex items-center px-4 shrink-0"
@@ -508,7 +508,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
                 q={currentQ}
                 value={value}
                 onChange={(v) => {
-                  if (currentQ.type === 'single' && AUTO_ADVANCE_TYPES.has(currentQ.type)) {
+                  if (AUTO_ADVANCE_TYPES.has(currentQ.type) && !isLast) {
                     handleAutoAdvanceAnswer(currentQ.id, v);
                   } else {
                     setAnswer(currentQ.id, v);

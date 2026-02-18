@@ -55,11 +55,7 @@
 @layer components {
   /* Fixed gradient background */
   .jfb-bg {
-    background: linear-gradient(
-      to bottom,
-      hsl(var(--jfb-gradient-top)),
-      hsl(var(--jfb-gradient-bottom))
-    );
+    background: linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%);
     min-height: 100vh;
     min-height: 100dvh;
   }
