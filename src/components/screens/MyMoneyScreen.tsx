@@ -75,17 +75,16 @@ function getSpans(amount: number, income: number) {
   if (income <= 0) return { col: 1, row: 1 };
   const ratio = amount / income;
   if (ratio > 0.35) return { col: 2, row: 2 };
-  if (ratio > 0.25) return { col: 2, row: 1 };
-  if (ratio > 0.12) return { col: 1, row: 2 };
+  if (ratio > 0.25) return { col: 2, row: 2 };
+  if (ratio > 0.15) return { col: 2, row: 1 };
   return { col: 1, row: 1 };
 }
 
 function getSubSpans(amount: number, parentTotal: number) {
   if (parentTotal <= 0) return { col: 1, row: 1 };
   const ratio = amount / parentTotal;
-  if (ratio > 0.50) return { col: 3, row: 2 };
-  if (ratio > 0.30) return { col: 2, row: 1 };
-  if (ratio > 0.15) return { col: 1, row: 2 };
+  if (ratio > 0.30) return { col: 2, row: 2 };
+  if (ratio > 0.18) return { col: 1, row: 2 };
   return { col: 1, row: 1 };
 }
 
@@ -259,7 +258,7 @@ function MyMoneyContent() {
       const foodCat = expenseCategories.find(c => c.name === 'Food');
       const entCat = expenseCategories.find(c => c.name === 'Entertainment');
       const shopCat = expenseCategories.find(c => c.name === 'Shopping');
-      const persCat = expenseCategories.find(c => c.name === 'Personal');
+      const persCat = expenseCategories.find(c => c.name === 'Lifestyle');
       const mockTxs = [
         { amount: 45, categoryId: foodCat?.id, description: 'Grocery Store', date: '2026-02-10' },
         { amount: 12, categoryId: foodCat?.id, description: 'Coffee Shop', date: '2026-02-11' },
@@ -474,8 +473,9 @@ function MyMoneyContent() {
         <div className="relative z-10" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
-          gridAutoRows: 'minmax(60px, auto)',
+          gridAutoRows: 'minmax(56px, 1fr)',
           gap: 6,
+          gridAutoFlow: 'dense',
         }}>
           {/* Subscription block */}
           {subscriptions.length > 0 && (
@@ -611,8 +611,9 @@ function MyMoneyContent() {
     <div className="relative z-10" style={{
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
-      gridAutoRows: 'minmax(60px, auto)',
+      gridAutoRows: 'minmax(56px, 1fr)',
       gap: 6,
+      gridAutoFlow: 'dense',
     }}>
       {sortedFixed.map(cat => {
         const CatIcon = getIcon(cat.icon);
@@ -932,10 +933,11 @@ function MyMoneyContent() {
           {/* Parent blocks grid */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gridAutoRows: 'minmax(120px, auto)',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gridAutoRows: 'minmax(100px, 1fr)',
             gap: 8,
             marginTop: 6,
+            gridAutoFlow: 'dense',
           }}>
             {parentBlocks.map(renderParentBlock)}
           </div>
