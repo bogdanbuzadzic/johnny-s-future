@@ -13,7 +13,12 @@ export function TabBar() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40">
-      <div className="glass border-t border-white/10">
+      <div style={{
+        background: 'rgba(255, 255, 255, 0.6)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderTop: '1px solid rgba(255, 255, 255, 0.4)',
+      }}>
         <div className="flex justify-around items-center py-2 px-4 max-w-md mx-auto">
           {tabs.map((tab, index) => {
             const Icon = tab.icon;
@@ -29,12 +34,11 @@ export function TabBar() {
                 <Icon 
                   size={22} 
                   strokeWidth={1.5}
-                  className={isActive ? 'text-white' : 'text-white/40'}
+                  style={{ color: isActive ? '#8B5CF6' : '#5C4F6E' }}
                 />
                 <span 
-                  className={`text-[10px] font-medium ${
-                    isActive ? 'text-white' : 'text-white/40'
-                  }`}
+                  className="text-[10px] font-medium"
+                  style={{ color: isActive ? '#8B5CF6' : '#5C4F6E' }}
                 >
                   {tab.label}
                 </span>
@@ -44,7 +48,7 @@ export function TabBar() {
         </div>
       </div>
       {/* Safe area spacer for mobile */}
-      <div className="h-[env(safe-area-inset-bottom)] bg-black/20" />
+      <div className="h-[env(safe-area-inset-bottom)]" style={{ background: 'rgba(255, 255, 255, 0.6)' }} />
     </div>
   );
 }

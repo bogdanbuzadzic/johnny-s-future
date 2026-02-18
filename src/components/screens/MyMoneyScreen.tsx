@@ -787,11 +787,11 @@ function MyMoneyContent() {
       <div className="h-full flex flex-col items-center justify-center px-8" style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
         <motion.img src={johnnyImage} alt="Johnny" className="w-16 h-16 object-contain mb-4"
           animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
-        <h2 className="text-xl font-bold text-white mb-2 text-center">Set up your finances</h2>
-        <p className="text-sm text-white/30 text-center max-w-[260px] mb-6">Complete the Financial Clarity quest on your Profile to unlock your budget</p>
+        <h2 className="text-xl font-bold mb-2 text-center" style={{ color: '#2D2440' }}>Set up your finances</h2>
+        <p className="text-sm text-center max-w-[260px] mb-6" style={{ color: '#8A7FA0' }}>Complete the Financial Clarity quest on your Profile to unlock your budget</p>
         <button onClick={() => setActiveTab(2)}
-          className="flex items-center gap-2 px-6 rounded-2xl text-sm text-white/50 font-medium"
-          style={{ height: 48, width: 200, justifyContent: 'center', background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)', borderRadius: 16 }}>
+          className="flex items-center gap-2 px-6 rounded-2xl text-sm font-medium frosted-button"
+          style={{ height: 48, width: 200, justifyContent: 'center' }}>
           <User size={18} />
           Go to Profile
         </button>
@@ -804,17 +804,17 @@ function MyMoneyContent() {
     <div className="h-full overflow-auto pb-24">
       {/* Header */}
       <div className="px-4 pt-12 pb-2 flex items-center justify-between">
-        <span className="text-[22px] font-bold text-white">My Money</span>
-        <Sliders size={20} className="text-white/40" />
+        <span className="text-[22px] font-bold" style={{ color: '#2D2440' }}>My Money</span>
+        <Sliders size={20} style={{ color: '#8A7FA0' }} />
       </div>
 
       {/* Can I Afford */}
       <div className="px-4 mb-3">
-        <div className="flex items-center gap-2 rounded-2xl px-3" style={{ height: 48, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
-          <FlaskConical size={18} className="text-white/35 flex-shrink-0" />
+        <div className="flex items-center gap-2 rounded-2xl px-3 frosted-input" style={{ height: 48 }}>
+          <FlaskConical size={18} className="flex-shrink-0" style={{ color: '#8A7FA0' }} />
           <input type="number" inputMode="decimal" placeholder="Can I afford €..." value={affordInput}
             onChange={e => setAffordInput(e.target.value)}
-            className="flex-1 bg-transparent text-white text-[14px] placeholder:text-white/25 outline-none min-w-0" />
+            className="flex-1 bg-transparent text-[14px] placeholder:text-[#8A7FA0] outline-none min-w-0" style={{ color: '#2D2440' }} />
           <div className="relative">
             <button onClick={() => setShowCatPicker(!showCatPicker)}
               className="flex items-center gap-1 px-2 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.10)', height: 32 }}>

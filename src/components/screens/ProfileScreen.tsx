@@ -303,11 +303,11 @@ function ProfileScreenContent() {
                   const hasCompleted = s1 === 'completed' || s2 === 'completed';
                   const hasCurrent = s1 === 'current' || s2 === 'current';
 
-                  let strokeColor = 'rgba(255,255,255,0.05)';
+                  let strokeColor = 'rgba(45,36,64,0.08)';
                   let dashArray: string | undefined = '8 6';
-                  if (bothCompleted) { strokeColor = 'rgba(255,255,255,0.20)'; dashArray = undefined; }
-                  else if (hasCompleted && hasCurrent) { strokeColor = 'rgba(255,255,255,0.15)'; dashArray = undefined; }
-                  else if (hasCurrent) { strokeColor = 'rgba(255,255,255,0.08)'; }
+                  if (bothCompleted) { strokeColor = 'rgba(139,92,246,0.25)'; dashArray = undefined; }
+                  else if (hasCompleted && hasCurrent) { strokeColor = 'rgba(139,92,246,0.15)'; dashArray = undefined; }
+                  else if (hasCurrent) { strokeColor = 'rgba(45,36,64,0.12)'; }
 
                   return (
                     <path key={i}
@@ -326,8 +326,8 @@ function ProfileScreenContent() {
                 onClick={() => setWorldOpen(true)}
               >
                 <img src={avatarImg} alt="Avatar" className="w-[100px] h-[100px] object-contain" style={{ animation: 'avatar-bob 2s ease-in-out infinite' }} />
-                <span className="text-lg font-bold text-white mt-1">{userName}</span>
-                <span className="text-xs text-white/40">◆ {levelTitle} ◆</span>
+                <span className="text-lg font-bold mt-1" style={{ color: '#2D2440' }}>{userName}</span>
+                <span className="text-xs" style={{ color: '#5C4F6E' }}>◆ {levelTitle} ◆</span>
               </button>
 
               {/* Orbital nodes */}
@@ -427,10 +427,10 @@ function ProfileScreenContent() {
                           fontSize: isCompleted ? 11 : status === 'coming-soon' ? 9 : 12,
                           fontWeight: 600,
                           color: isCompleted ? 'white'
-                            : status === 'coming-soon' ? 'rgba(255,255,255,0.15)'
-                            : 'rgba(255,255,255,0.70)',
+                            : status === 'coming-soon' ? 'rgba(45,36,64,0.2)'
+                            : '#2D2440',
                           lineHeight: '1.2',
-                          textShadow: status !== 'coming-soon' ? '0 1px 3px rgba(0,0,0,0.25)' : undefined,
+                          textShadow: isCompleted ? '0 1px 3px rgba(0,0,0,0.25)' : status !== 'coming-soon' ? '0 1px 3px rgba(255,255,255,0.5)' : undefined,
                         }}>{node.name}</p>
                         {isCompleted && resultContent?.sub && (
                           <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 1, textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>{resultContent.sub}</p>
@@ -439,9 +439,9 @@ function ProfileScreenContent() {
                           <div className="flex justify-center"><ClarityMiniBar /></div>
                         )}
                         {!isCompleted && status !== 'coming-soon' && (
-                          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>{node.subtitle}</p>
+                          <p style={{ fontSize: 10, color: '#8A7FA0', marginTop: 2 }}>{node.subtitle}</p>
                         )}
-                        {status === 'coming-soon' && <p style={{ fontSize: 8, color: 'rgba(255,255,255,0.10)' }}>Coming soon</p>}
+                        {status === 'coming-soon' && <p style={{ fontSize: 8, color: 'rgba(45,36,64,0.15)' }}>Coming soon</p>}
                       </div>
                     </button>
                   </motion.div>
@@ -453,29 +453,29 @@ function ProfileScreenContent() {
 
         {/* ═══ SCORE BADGE ═══ */}
         <div className="flex justify-center -mt-2">
-          <div className="flex items-center gap-2 rounded-full px-5 h-9" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
+          <div className="flex items-center gap-2 rounded-full px-5 h-9 frosted-card" style={{ borderRadius: 999 }}>
             <Star className="w-4 h-4 text-[#FFD700]" fill="#FFD700" style={{ animation: 'star-pulse 2s ease-in-out infinite' }} />
-            <span className="text-sm font-bold text-white">Score: {animatedScore}/100</span>
+            <span className="text-sm font-bold" style={{ color: '#2D2440' }}>Score: {animatedScore}/100</span>
           </div>
         </div>
 
         {/* ═══ LEVEL PROGRESS ═══ */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="font-bold text-white">{levelTitle}</span>
-            <span className="text-white/30">{tier.next || 'Max Level'}</span>
+            <span className="font-bold" style={{ color: '#2D2440' }}>{levelTitle}</span>
+            <span style={{ color: '#8A7FA0' }}>{tier.next || 'Max Level'}</span>
           </div>
-          <div className="w-full h-2.5 rounded bg-white/[0.12] overflow-hidden">
+          <div className="w-full h-2.5 rounded overflow-hidden" style={{ background: 'rgba(255,255,255,0.3)' }}>
             <motion.div className="h-full rounded" style={{ background: 'linear-gradient(90deg, #8B5CF6, #EC4899)' }} initial={{ width: 0 }} animate={{ width: `${tierProgress}%` }} transition={{ delay: 0.3, duration: 0.6 }} />
           </div>
-          {nextQuestName && <p className="text-xs text-white/25">Next: Complete {nextQuestName} to level up</p>}
+          {nextQuestName && <p className="text-xs" style={{ color: '#8A7FA0' }}>Next: Complete {nextQuestName} to level up</p>}
         </div>
 
         {/* ═══ BADGE SHOWCASE ═══ */}
-        <div className="rounded-[20px] p-4" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
+        <div className="frosted-card p-4">
           <div className="flex items-center gap-2 mb-3">
             <Trophy className="w-4 h-4" style={{ color: '#FFD700' }} />
-            <h3 className="text-base font-bold text-white">Trophy Case</h3>
+            <h3 className="text-base font-bold" style={{ color: '#2D2440' }}>Trophy Case</h3>
           </div>
 
           {/* Featured badges - pixel art */}
@@ -509,19 +509,19 @@ function ProfileScreenContent() {
               return (
                 <div key={i} className="flex flex-col items-center gap-1.5">
                   <div className="w-[72px] h-[72px] rounded-[14px] flex items-center justify-center"
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '2px dashed rgba(255,255,255,0.10)' }}>
-                    <Sparkles className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.10)', animation: 'sparkle-pulse 3s ease-in-out infinite' }} />
+                    style={{ background: 'rgba(255,255,255,0.3)', border: '2px dashed rgba(45,36,64,0.15)' }}>
+                    <Sparkles className="w-5 h-5" style={{ color: 'rgba(45,36,64,0.15)', animation: 'sparkle-pulse 3s ease-in-out infinite' }} />
                   </div>
-                  <span className="text-[9px] text-white/[0.12]">Earn a badge!</span>
+                  <span className="text-[9px]" style={{ color: '#8A7FA0' }}>Earn a badge!</span>
                 </div>
               );
             })}
           </div>
 
-          <div className="border-t border-white/[0.06] pt-3">
+          <div className="border-t border-white/[0.15] pt-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-white/30">All Badges</span>
-              <span className="text-xs text-white/20">{totalEarned}/{BADGES.length} collected</span>
+              <span className="text-xs" style={{ color: '#5C4F6E' }}>All Badges</span>
+              <span className="text-xs" style={{ color: '#8A7FA0' }}>{totalEarned}/{BADGES.length} collected</span>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {BADGES.map((b, i) => {
@@ -533,16 +533,16 @@ function ProfileScreenContent() {
                     className="shrink-0 flex flex-col items-center gap-0.5">
                     <div className="w-11 h-11 rounded-[10px] flex items-center justify-center relative"
                       style={{
-                        background: unlocked ? b.tint + '26' : 'rgba(255,255,255,0.04)',
-                        border: unlocked ? `1.5px solid ${b.tint}4D` : '1px solid rgba(255,255,255,0.06)',
+                        background: unlocked ? b.tint + '26' : 'rgba(255,255,255,0.2)',
+                        border: unlocked ? `1.5px solid ${b.tint}4D` : '1px solid rgba(255,255,255,0.3)',
                       }}>
                       {unlocked && badgeImg ? (
                         <img src={badgeImg} alt={b.name} className="w-9 h-9 object-contain" style={{ imageRendering: 'pixelated' }} />
                       ) : (
-                        <span className="text-[18px] font-bold" style={{ color: 'rgba(255,255,255,0.08)' }}>?</span>
+                        <span className="text-[18px] font-bold" style={{ color: 'rgba(45,36,64,0.12)' }}>?</span>
                       )}
                     </div>
-                    <span className="text-[8px] w-11 text-center truncate" style={{ color: unlocked ? b.tint : 'rgba(255,255,255,0.08)', opacity: unlocked ? 0.6 : 1 }}>
+                    <span className="text-[8px] w-11 text-center truncate" style={{ color: unlocked ? b.tint : 'rgba(45,36,64,0.15)', opacity: unlocked ? 0.6 : 1 }}>
                       {unlocked ? b.name : '???'}
                     </span>
                   </motion.button>
@@ -553,11 +553,11 @@ function ProfileScreenContent() {
         </div>
 
         {/* ═══ JOHNNY'S OBSERVATIONS ═══ */}
-        <div className="rounded-[20px] p-4" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
+        <div className="frosted-card p-4">
           <div className="flex items-center gap-2 mb-3">
             <img src={johnnyImg} alt="Johnny" className="w-8 h-8" />
-            <h3 className="text-sm font-bold text-white">Johnny's Notes</h3>
-            <BookOpen className="w-3.5 h-3.5 text-white/25" />
+            <h3 className="text-sm font-bold" style={{ color: '#2D2440' }}>Johnny's Notes</h3>
+            <BookOpen className="w-3.5 h-3.5" style={{ color: '#8A7FA0' }} />
           </div>
           {(() => {
             const personaObs = persona ? getPersonaObservation(persona.n) : null;
@@ -565,13 +565,13 @@ function ProfileScreenContent() {
             if (allObs.length > 0) {
               return allObs.map((obs: any, i: number) => {
                 const ObsIcon = OBS_ICONS[obs.icon] || Star;
-                const obsColor = OBS_COLORS[obs.icon] || obs.color || '#fff';
+                const obsColor = OBS_COLORS[obs.icon] || obs.color || '#5C4F6E';
                 return (
                   <div key={i} className="flex items-start gap-3 mb-2 last:mb-0">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: `${obsColor}33` }}>
                       <ObsIcon className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: obsColor, opacity: 0.6 }} />
                     </div>
-                    <p className="text-[13px] text-white/50 leading-relaxed">{obs.text}</p>
+                    <p className="text-[13px] leading-relaxed" style={{ color: '#5C4F6E' }}>{obs.text}</p>
                   </div>
                 );
               });
@@ -579,8 +579,8 @@ function ProfileScreenContent() {
             return (
               <div className="flex flex-col items-center gap-2 py-3">
                 <img src={johnnyImg} alt="Johnny" className="w-12 h-12" />
-                <p className="text-sm text-white/30">I'm still getting to know you!</p>
-                <p className="text-xs text-white/20">Complete your first quest and I'll share what I learn.</p>
+                <p className="text-sm" style={{ color: '#5C4F6E' }}>I'm still getting to know you!</p>
+                <p className="text-xs" style={{ color: '#8A7FA0' }}>Complete your first quest and I'll share what I learn.</p>
               </div>
             );
           })()}
@@ -588,13 +588,12 @@ function ProfileScreenContent() {
 
         {/* ═══ SETTINGS BUTTON ═══ */}
         <button onClick={() => setSettingsOpen(true)}
-          className="w-full h-12 rounded-2xl flex items-center gap-3 px-4"
-          style={{ background: 'rgba(255,255,255,0.10)' }}>
-          <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)' }}>
-            <Settings className="w-4 h-4 text-white/40" strokeWidth={1.5} />
+          className="w-full h-12 rounded-2xl flex items-center gap-3 px-4 frosted-card" style={{ borderRadius: 16 }}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.3)' }}>
+            <Settings className="w-4 h-4" strokeWidth={1.5} style={{ color: '#5C4F6E' }} />
           </div>
-          <span className="flex-1 text-left text-sm text-white/40">Settings</span>
-          <ChevronRight className="w-3.5 h-3.5 text-white/15" />
+          <span className="flex-1 text-left text-sm" style={{ color: '#5C4F6E' }}>Settings</span>
+          <ChevronRight className="w-3.5 h-3.5" style={{ color: '#8A7FA0' }} />
         </button>
 
         {/* ═══ SPACER ═══ */}
@@ -606,7 +605,7 @@ function ProfileScreenContent() {
         <SheetContent side="bottom" className="rounded-t-3xl border-0 bg-transparent p-0" style={{ maxHeight: '85vh' }}>
           <div className="jfb-bg rounded-t-3xl p-5 space-y-2 overflow-y-auto" style={{ maxHeight: '85vh', paddingBottom: 40 }}>
             <SheetHeader className="pb-2">
-              <SheetTitle className="text-white text-lg">Settings</SheetTitle>
+              <SheetTitle className="text-lg" style={{ color: '#2D2440' }}>Settings</SheetTitle>
               <SheetDescription className="sr-only">App settings</SheetDescription>
             </SheetHeader>
             {[
@@ -622,28 +621,28 @@ function ProfileScreenContent() {
               return (
                 <button key={i} onClick={row.action}
                   className="w-full h-[52px] rounded-2xl flex items-center gap-3 px-4"
-                  style={{ background: 'rgba(255,255,255,0.08)' }}>
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    <RowIcon className="w-4 h-4 text-white/50" strokeWidth={1.5} />
+                  style={{ background: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.4)' }}>
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.4)' }}>
+                    <RowIcon className="w-4 h-4" strokeWidth={1.5} style={{ color: '#5C4F6E' }} />
                   </div>
-                  <span className="flex-1 text-left text-sm text-white">{row.label}</span>
-                  <ChevronRight className="w-4 h-4 text-white/20" />
+                  <span className="flex-1 text-left text-sm" style={{ color: '#2D2440' }}>{row.label}</span>
+                  <ChevronRight className="w-4 h-4" style={{ color: '#8A7FA0' }} />
                 </button>
               );
             })}
             {editingName && (
               <div className="flex gap-2 px-1 pt-2">
                 <input value={nameInput} onChange={e => setNameInput(e.target.value)} autoFocus
-                  className="flex-1 h-10 rounded-xl bg-white/10 px-3 text-white outline-none border border-white/15" />
+                  className="flex-1 h-10 rounded-xl px-3 outline-none frosted-input" />
                 <button onClick={handleSaveName} className="h-10 px-4 rounded-xl gradient-primary text-white text-sm font-semibold">Save</button>
               </div>
             )}
 
             {/* Demo Mode: Load Demo Goals */}
             {localStorage.getItem('jfb_clarity_done') === 'true' && (
-              <div className="pt-3 border-t border-white/[0.06] mt-2">
+              <div className="pt-3 border-t border-white/[0.15] mt-2">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[11px] text-white/20">🎬 Demo Mode</span>
+                  <span className="text-[11px]" style={{ color: '#8A7FA0' }}>🎬 Demo Mode</span>
                 </div>
                 <button onClick={() => {
                   const demoGoals = [
@@ -691,14 +690,14 @@ function ProfileScreenContent() {
                   setTimeout(() => window.location.reload(), 500);
                 }}
                   className="w-full h-[44px] rounded-2xl flex items-center justify-center gap-2 text-[13px] font-medium"
-                  style={{ background: 'rgba(245,158,11,0.10)', border: '1.5px solid rgba(245,158,11,0.20)', color: 'rgba(255,255,255,0.4)' }}>
+                  style={{ background: 'rgba(245,158,11,0.10)', border: '1.5px solid rgba(245,158,11,0.20)', color: '#5C4F6E' }}>
                   🎬 Load Demo Goals
                 </button>
               </div>
             )}
 
             {/* Reset button */}
-            <div className="pt-4 border-t border-white/[0.06] mt-2">
+            <div className="pt-4 border-t border-white/[0.15] mt-2">
               {!confirmReset ? (
                 <button onClick={() => setConfirmReset(true)}
                   className="w-full h-[52px] rounded-2xl flex items-center gap-3 px-4"
@@ -714,8 +713,8 @@ function ProfileScreenContent() {
                   <p className="text-sm text-red-400 text-center">This will permanently delete all your data.</p>
                   <div className="flex gap-2">
                     <button onClick={() => setConfirmReset(false)}
-                      className="flex-1 h-10 rounded-xl text-sm text-white/50"
-                      style={{ background: 'rgba(255,255,255,0.08)' }}>Cancel</button>
+                      className="flex-1 h-10 rounded-xl text-sm"
+                      style={{ background: 'rgba(255,255,255,0.35)', color: '#5C4F6E' }}>Cancel</button>
                     <button onClick={handleResetAll}
                       className="flex-1 h-10 rounded-xl text-sm font-semibold text-white"
                       style={{ background: 'rgba(239,68,68,0.5)' }}>Delete Everything</button>
@@ -732,11 +731,11 @@ function ProfileScreenContent() {
         <SheetContent side="bottom" className="rounded-t-3xl border-0 bg-transparent p-0">
           <div className="jfb-bg rounded-t-3xl p-6 space-y-3">
             <SheetHeader>
-              <SheetTitle className="text-white text-lg">Johnny F. Banks</SheetTitle>
-              <SheetDescription className="text-white/50">JFB v0.1 MVP</SheetDescription>
+              <SheetTitle className="text-lg" style={{ color: '#2D2440' }}>Johnny F. Banks</SheetTitle>
+              <SheetDescription style={{ color: '#5C4F6E' }}>JFB v0.1 MVP</SheetDescription>
             </SheetHeader>
-            <p className="text-sm text-white/60">Built with love to help you take control of your money through gamification and visual budgeting.</p>
-            <p className="text-sm text-white/40">All data stays on your device. No accounts, no tracking, no ads.</p>
+            <p className="text-sm" style={{ color: '#5C4F6E' }}>Built with love to help you take control of your money through gamification and visual budgeting.</p>
+            <p className="text-sm" style={{ color: '#8A7FA0' }}>All data stays on your device. No accounts, no tracking, no ads.</p>
           </div>
         </SheetContent>
       </Sheet>

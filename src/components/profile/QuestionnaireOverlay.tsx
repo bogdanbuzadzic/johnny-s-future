@@ -324,18 +324,16 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-8"
         style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}
-          className="w-full max-w-sm rounded-2xl p-6 space-y-4"
-          style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)' }}>
-          <p className="text-base font-bold text-white text-center">
+          className="w-full max-w-sm frosted-card p-6 space-y-4">
+          <p className="text-base font-bold text-center" style={{ color: '#2D2440' }}>
             You got {actualCorrect} out of 3 correct
           </p>
-          <p className="text-[13px] text-white/40 text-center">You estimated {estimated}</p>
+          <p className="text-[13px] text-center" style={{ color: '#8A7FA0' }}>You estimated {estimated}</p>
           <p className="text-[13px] text-center" style={{ color: messageColor }}>{message}</p>
         </motion.div>
         <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
           onClick={handleNext}
-          className="mt-6 px-8 h-10 rounded-full text-sm font-semibold text-white flex items-center gap-2"
-          style={{ background: 'rgba(255,255,255,0.12)' }}>
+          className="mt-6 px-8 h-10 rounded-full text-sm font-semibold frosted-button flex items-center gap-2">
           Continue <ChevronRight className="w-4 h-4" />
         </motion.button>
       </motion.div>
@@ -401,18 +399,18 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         {isClarityModule && clarityData ? (
           <>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-center mb-1">
-              <span className="text-[64px] font-bold text-white leading-none"><ScoreCounter target={clarityData.score.total} /></span>
-              <p className="text-[22px]" style={{ color: 'rgba(255,255,255,0.35)' }}>/ 100</p>
-              <p className="text-[16px] mt-2" style={{ color: 'rgba(255,255,255,0.5)' }}>Financial Clarity Score</p>
+              <span className="text-[64px] font-bold leading-none" style={{ color: '#2D2440' }}><ScoreCounter target={clarityData.score.total} /></span>
+              <p className="text-[22px]" style={{ color: '#8A7FA0' }}>/ 100</p>
+              <p className="text-[16px] mt-2" style={{ color: '#5C4F6E' }}>Financial Clarity Score</p>
             </motion.div>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="w-full max-w-[320px] space-y-2.5 mt-6">
               {clarityData.pillars.map((p, i) => (
                 <div key={p.label}>
                   <div className="flex justify-between mb-1">
-                    <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.5)' }}>{p.label}</span>
-                    <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{p.score}/{p.max}</span>
+                    <span className="text-[13px]" style={{ color: '#5C4F6E' }}>{p.label}</span>
+                    <span className="text-[13px]" style={{ color: '#8A7FA0' }}>{p.score}/{p.max}</span>
                   </div>
-                  <div className="w-full" style={{ height: 10, borderRadius: 5, background: 'rgba(255,255,255,0.08)' }}>
+                  <div className="w-full" style={{ height: 10, borderRadius: 5, background: 'rgba(255,255,255,0.3)' }}>
                     <motion.div initial={{ width: 0 }} animate={{ width: `${(p.score / p.max) * 100}%` }}
                       transition={{ delay: 0.5 + i * 0.2, duration: 0.8, ease: 'easeOut' }}
                       style={{ height: '100%', borderRadius: 5, background: p.color }} />
@@ -421,31 +419,31 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
               ))}
             </motion.div>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
-              className="text-[14px] text-center italic max-w-[280px] mt-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              className="text-[14px] text-center italic max-w-[280px] mt-4" style={{ color: '#5C4F6E' }}>
               {clarityData.insight}
             </motion.p>
           </>
         ) : (
           <>
             <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-              className="text-[28px] font-bold text-white mb-1">{(() => {
+              className="text-[28px] font-bold mb-1" style={{ color: '#2D2440' }}>{(() => {
                 const m0 = (() => { try { return JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null'); } catch { return null; } })();
                 const p = getPersona(m0);
                 return getCelebration(node.name, p?.n || null);
               })()}</motion.h2>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-              className="text-[15px] text-white/40 mb-6">{node.name}</motion.p>
+              className="text-[15px] mb-6" style={{ color: '#8A7FA0' }}>{node.name}</motion.p>
           </>
         )}
 
         {badgeImg && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.3 }}
-            className="flex items-center gap-4 mt-6"
-            style={{ background: 'rgba(255,255,255,0.10)', borderRadius: 16, padding: '12px 20px', border: '1.5px solid rgba(255,215,0,0.3)' }}>
+            className="flex items-center gap-4 mt-6 frosted-card"
+            style={{ padding: '12px 20px', border: '1.5px solid rgba(255,215,0,0.3)' }}>
             <img src={badgeImg} alt={badge?.name || 'Badge'} className="w-12 h-12 object-contain shrink-0" style={{ imageRendering: 'pixelated' }} />
             <div>
-              <p className="text-[15px] font-bold text-white">{badge?.name || 'Badge Earned'}</p>
-              <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>Badge unlocked!</p>
+              <p className="text-[15px] font-bold" style={{ color: '#2D2440' }}>{badge?.name || 'Badge Earned'}</p>
+              <p className="text-[11px]" style={{ color: '#8A7FA0' }}>Badge unlocked!</p>
             </div>
           </motion.div>
         )}
@@ -468,22 +466,22 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
 
       {/* Header bar */}
       <div className="h-[52px] flex items-center px-4 shrink-0"
-        style={{ background: 'rgba(255,255,255,0.10)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        style={{ background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.5)' }}>
         <div className="flex items-center gap-2 min-w-0">
-          <NodeIcon className="w-5 h-5 text-white/50 shrink-0" strokeWidth={1.5} />
-          <span className="text-base font-bold text-white truncate">{node.name}</span>
+          <NodeIcon className="w-5 h-5 shrink-0" strokeWidth={1.5} style={{ color: '#5C4F6E' }} />
+          <span className="text-base font-bold truncate" style={{ color: '#2D2440' }}>{node.name}</span>
         </div>
         <div className="flex-1 flex justify-center px-4">
-          <div className="w-[200px] h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.10)' }}>
+          <div className="w-[200px] h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.3)' }}>
             <motion.div className="h-full rounded-full gradient-primary" animate={{ width: `${progress}%` }} transition={{ duration: 0.3 }} />
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 shrink-0"><X className="w-5 h-5 text-white/40" /></button>
+        <button onClick={onClose} className="p-1.5 shrink-0"><X className="w-5 h-5" style={{ color: '#8A7FA0' }} /></button>
       </div>
 
       {/* Question counter */}
       <div className="text-center pt-4 pb-4">
-        <span className="text-[11px] text-white/40 uppercase tracking-[2px] font-medium">
+        <span className="text-[11px] uppercase tracking-[2px] font-medium" style={{ color: '#5C4F6E' }}>
           Question {safeIdx + 1} of {visibleQuestions.length}
         </span>
       </div>
@@ -500,7 +498,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="space-y-8"
           >
-            <p className="text-[22px] font-bold text-white/90 text-center leading-[1.4] max-w-[500px] mx-auto whitespace-pre-line">
+            <p className="text-[22px] font-bold text-center leading-[1.4] max-w-[500px] mx-auto whitespace-pre-line" style={{ color: '#2D2440' }}>
               {currentQ?.text}
             </p>
             {currentQ && (
@@ -527,17 +525,17 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
         <button
           onClick={handleNext}
           disabled={!canProceed}
-          className="w-full h-11 rounded-[14px] text-[15px] text-white font-semibold flex items-center justify-center gap-2 transition-all"
+          className="w-full h-11 rounded-[14px] text-[15px] font-semibold flex items-center justify-center gap-2 transition-all"
           style={{
-            background: canProceed ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.06)',
-            color: canProceed ? 'white' : 'rgba(255,255,255,0.3)',
+            background: canProceed ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.3)',
+            color: canProceed ? 'white' : '#8A7FA0',
             boxShadow: canProceed ? '0 4px 16px rgba(139,92,246,0.3)' : 'none',
             cursor: canProceed ? 'pointer' : 'default',
           }}>
           {isLast ? <><span>Complete</span> <Sparkles className="w-4 h-4" /></> : <>Next <ChevronRight className="w-4 h-4" /></>}
         </button>
         {safeIdx > 0 && (
-          <button onClick={handleBack} className="w-full text-center text-[13px] text-white/35">Back</button>
+          <button onClick={handleBack} className="w-full text-center text-[13px]" style={{ color: '#5C4F6E' }}>Back</button>
         )}
       </div>
     </motion.div>
@@ -550,11 +548,10 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
     case 'text':
       return (
         <div className="max-w-[300px] mx-auto">
-          <div className="flex items-center h-[52px] rounded-[14px] px-5"
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1.5px solid rgba(255,255,255,0.12)' }}>
+          <div className="flex items-center h-[52px] rounded-[14px] px-5 frosted-input">
             <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
               placeholder="Type here..." autoFocus
-              className="flex-1 bg-transparent text-white text-lg font-semibold outline-none placeholder:text-white/25" />
+              className="flex-1 bg-transparent text-lg font-semibold outline-none placeholder:text-[#8A7FA0]" style={{ color: '#2D2440' }} />
           </div>
         </div>
       );
@@ -562,12 +559,11 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
     case 'number':
       return (
         <div className="max-w-[300px] mx-auto">
-          <div className="flex items-center h-[52px] rounded-[14px] px-5 transition-all focus-within:shadow-[0_0_0_3px_rgba(139,92,246,0.1)]"
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1.5px solid rgba(255,255,255,0.12)' }}>
-            {q.prefix && <span className="text-white/30 text-lg mr-2">{q.prefix}</span>}
+          <div className="flex items-center h-[52px] rounded-[14px] px-5 frosted-input transition-all focus-within:shadow-[0_0_0_3px_rgba(139,92,246,0.1)]">
+            {q.prefix && <span className="text-lg mr-2" style={{ color: '#8A7FA0' }}>{q.prefix}</span>}
             <input type="text" inputMode="decimal" value={value || ''} onChange={e => onChange(e.target.value)}
               placeholder="0" autoFocus
-              className="flex-1 bg-transparent text-white text-xl font-semibold outline-none placeholder:text-white/25" />
+              className="flex-1 bg-transparent text-xl font-semibold outline-none placeholder:text-[#8A7FA0]" style={{ color: '#2D2440' }} />
           </div>
         </div>
       );
@@ -579,8 +575,8 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
       return (
         <div className="max-w-[400px] mx-auto pt-6">
           <div className="relative mb-3 h-6">
-            <div className="absolute text-xl font-bold text-white -translate-x-1/2"
-              style={{ left: `${pct}%`, transition: 'left 100ms ease' }}>
+            <div className="absolute text-xl font-bold -translate-x-1/2"
+              style={{ left: `${pct}%`, transition: 'left 100ms ease', color: '#2D2440' }}>
               {v}
             </div>
           </div>
@@ -589,10 +585,10 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
               onChange={e => onChange(Number(e.target.value))}
               className="questionnaire-slider w-full"
               style={{
-                background: `linear-gradient(to right, #8B5CF6 0%, #EC4899 ${pct}%, rgba(255,255,255,0.08) ${pct}%)`,
+                background: `linear-gradient(to right, #8B5CF6 0%, #EC4899 ${pct}%, rgba(255,255,255,0.3) ${pct}%)`,
               }} />
           </div>
-          <div className="flex justify-between mt-3 px-1" style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
+          <div className="flex justify-between mt-3 px-1" style={{ fontSize: 11, fontWeight: 600, color: '#5C4F6E', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
             <span>{q.minLabel}</span><span>{q.maxLabel}</span>
           </div>
         </div>
@@ -609,9 +605,9 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
               <button key={i} onClick={() => onChange(label)}
                 className="w-full h-11 rounded-xl px-4 flex items-center text-left text-[14px] transition-all"
                 style={{
-                  background: selected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.06)',
-                  border: `1.5px solid ${selected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.08)'}`,
-                  color: selected ? 'white' : 'rgba(255,255,255,0.7)',
+                  background: selected ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.45)',
+                  border: `1.5px solid ${selected ? '#8B5CF6' : 'rgba(255,255,255,0.6)'}`,
+                  color: '#2D2440',
                 }}>
                 <span className="flex-1">{label}</span>
                 {selected && <Check className="w-[18px] h-[18px]" style={{ color: '#8B5CF6' }} />}
@@ -632,14 +628,14 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
               <button key={i} onClick={() => onChange(isSelected ? selected.filter(x => x !== label) : [...selected, label])}
                 className="w-full h-11 rounded-xl px-4 flex items-center text-left text-[14px] transition-all"
                 style={{
-                  background: isSelected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.06)',
-                  border: `1.5px solid ${isSelected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.08)'}`,
-                  color: isSelected ? 'white' : 'rgba(255,255,255,0.7)',
+                  background: isSelected ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.45)',
+                  border: `1.5px solid ${isSelected ? '#8B5CF6' : 'rgba(255,255,255,0.6)'}`,
+                  color: '#2D2440',
                 }}>
                 <div className="w-5 h-5 rounded-md mr-3 flex items-center justify-center shrink-0"
                   style={{
                     background: isSelected ? '#8B5CF6' : 'transparent',
-                    border: `1.5px solid ${isSelected ? '#8B5CF6' : 'rgba(255,255,255,0.15)'}`,
+                    border: `1.5px solid ${isSelected ? '#8B5CF6' : '#8A7FA0'}`,
                   }}>
                   {isSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                 </div>
@@ -661,9 +657,9 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
               <button key={i} onClick={() => onChange(o.label)}
                 className="w-full h-11 rounded-xl px-4 flex items-center text-left text-[14px] transition-all"
                 style={{
-                  background: selected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.06)',
-                  border: `1.5px solid ${selected ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.08)'}`,
-                  color: selected ? 'white' : 'rgba(255,255,255,0.7)',
+                  background: selected ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.45)',
+                  border: `1.5px solid ${selected ? '#8B5CF6' : 'rgba(255,255,255,0.6)'}`,
+                  color: '#2D2440',
                 }}>
                 <span className="flex-1">{o.label}</span>
                 {selected && <Check className="w-[18px] h-[18px]" style={{ color: '#8B5CF6' }} />}
@@ -681,9 +677,9 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
             <button key={n} onClick={() => onChange(n)}
               className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all"
               style={{
-                background: value === n ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.06)',
-                border: `1.5px solid ${value === n ? 'rgba(139,92,246,0.35)' : 'rgba(255,255,255,0.08)'}`,
-                color: value === n ? 'white' : 'rgba(255,255,255,0.5)',
+                background: value === n ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.45)',
+                border: `1.5px solid ${value === n ? 'rgba(139,92,246,0.35)' : 'rgba(255,255,255,0.6)'}`,
+                color: value === n ? 'white' : '#2D2440',
                 transform: value === n ? 'scale(1.1)' : 'scale(1)',
               }}>
               {n}
@@ -698,21 +694,21 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
         <div className="space-y-5 max-w-[460px] mx-auto">
           {(q.statements || []).map((stmt, si) => (
             <div key={si} className="space-y-2">
-              <p className="text-sm text-white/60 italic">"{stmt}"</p>
+              <p className="text-sm italic" style={{ color: '#5C4F6E' }}>"{stmt}"</p>
               <div className="flex gap-2 justify-center">
                 {[1, 2, 3, 4, 5].map(n => (
                   <button key={n} onClick={() => onChange({ ...vals, [si]: n })}
                     className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold transition-all"
                     style={{
-                      background: vals[si] === n ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.06)',
-                      border: `1.5px solid ${vals[si] === n ? 'rgba(139,92,246,0.35)' : 'rgba(255,255,255,0.08)'}`,
-                      color: vals[si] === n ? 'white' : 'rgba(255,255,255,0.4)',
+                      background: vals[si] === n ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.45)',
+                      border: `1.5px solid ${vals[si] === n ? 'rgba(139,92,246,0.35)' : 'rgba(255,255,255,0.6)'}`,
+                      color: vals[si] === n ? 'white' : '#2D2440',
                     }}>
                     {n}
                   </button>
                 ))}
               </div>
-              <div className="flex justify-between px-1" style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
+              <div className="flex justify-between px-1" style={{ fontSize: 11, fontWeight: 600, color: '#5C4F6E', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
                 <span>Disagree</span><span>Agree</span>
               </div>
             </div>
@@ -729,42 +725,41 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
         return s + amt;
       }, 0);
       return (
-        <div className="max-w-[460px] mx-auto rounded-2xl overflow-hidden"
-          style={{ background: 'rgba(255,255,255,0.08)' }}>
+        <div className="max-w-[460px] mx-auto rounded-2xl overflow-hidden frosted-card" style={{ padding: 0 }}>
           <div className="max-h-[320px] overflow-auto">
             {(q.fields || []).map((f, fi) => {
               const IconComp = f.icon ? EXPENSE_ICONS[f.icon] : MoreHorizontal;
               const isWeekly = expenseFreq[f.key] === 'weekly';
               return (
                 <div key={f.key} className="flex items-center h-12 px-3"
-                  style={{ borderBottom: fi < (q.fields?.length || 0) - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                  style={{ borderBottom: fi < (q.fields?.length || 0) - 1 ? '1px solid rgba(255,255,255,0.3)' : 'none' }}>
                   <div className="w-8 h-8 rounded-[10px] flex items-center justify-center mr-2"
-                    style={{ background: 'rgba(255,255,255,0.06)' }}>
-                    {IconComp && <IconComp className="w-4 h-4 text-white/40" strokeWidth={1.5} />}
+                    style={{ background: 'rgba(255,255,255,0.3)' }}>
+                    {IconComp && <IconComp className="w-4 h-4" strokeWidth={1.5} style={{ color: '#5C4F6E' }} />}
                   </div>
-                  <span className="text-[13px] text-white/60 flex-1 truncate">{f.label}</span>
-                  <div className="flex mr-2 rounded-md overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <span className="text-[13px] flex-1 truncate" style={{ color: '#2D2440' }}>{f.label}</span>
+                  <div className="flex mr-2 rounded-md overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.4)' }}>
                     <button onClick={() => onFreqChange({ ...expenseFreq, [f.key]: 'monthly' })}
                       className="px-1.5 py-0.5 text-[10px]"
-                      style={{ background: !isWeekly ? 'rgba(139,92,246,0.2)' : 'transparent', color: !isWeekly ? 'white' : 'rgba(255,255,255,0.3)' }}>
+                      style={{ background: !isWeekly ? 'rgba(139,92,246,0.2)' : 'transparent', color: !isWeekly ? '#2D2440' : '#8A7FA0' }}>
                       mo
                     </button>
                     <button onClick={() => onFreqChange({ ...expenseFreq, [f.key]: 'weekly' })}
                       className="px-1.5 py-0.5 text-[10px]"
-                      style={{ background: isWeekly ? 'rgba(139,92,246,0.2)' : 'transparent', color: isWeekly ? 'white' : 'rgba(255,255,255,0.3)' }}>
+                      style={{ background: isWeekly ? 'rgba(139,92,246,0.2)' : 'transparent', color: isWeekly ? '#2D2440' : '#8A7FA0' }}>
                       wk
                     </button>
                   </div>
                   <input type="text" inputMode="decimal" value={vals[f.key] || ''} placeholder="0"
                     onChange={e => onChange({ ...vals, [f.key]: e.target.value })}
-                    className="w-[80px] h-9 rounded-[10px] text-white text-sm font-medium text-right px-3 outline-none placeholder:text-white/15 transition-all focus:border-[rgba(139,92,246,0.4)]"
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.08)' }} />
+                    className="w-[80px] h-9 rounded-[10px] text-sm font-medium text-right px-3 outline-none transition-all focus:border-[rgba(139,92,246,0.4)]"
+                    style={{ background: 'rgba(255,255,255,0.5)', border: '1.5px solid rgba(255,255,255,0.5)', color: '#2D2440' }} />
                 </div>
               );
             })}
           </div>
-          <div className="px-4 py-3 text-right text-sm font-bold text-white/50"
-            style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="px-4 py-3 text-right text-sm font-bold"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.3)', color: '#5C4F6E' }}>
             Total: €{Math.round(total)}/mo
           </div>
         </div>
@@ -777,13 +772,12 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
         <div className="space-y-3 max-w-[460px] mx-auto">
           {(q.fields || []).map(f => (
             <div key={f.key} className="space-y-1">
-              <label className="text-xs text-white/40 px-1">{f.label}</label>
-              <div className="flex items-center h-9 rounded-[10px] px-3 transition-all focus-within:border-[rgba(139,92,246,0.4)]"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.08)' }}>
-                {f.prefix && <span className="text-white/30 text-sm mr-2">{f.prefix}</span>}
+              <label className="text-xs px-1" style={{ color: '#5C4F6E' }}>{f.label}</label>
+              <div className="flex items-center h-9 rounded-[10px] px-3 frosted-input transition-all focus-within:border-[rgba(139,92,246,0.4)]">
+                {f.prefix && <span className="text-sm mr-2" style={{ color: '#8A7FA0' }}>{f.prefix}</span>}
                 <input type="text" inputMode="decimal" value={vals[f.key] || ''} placeholder="0"
                   onChange={e => onChange({ ...vals, [f.key]: e.target.value })}
-                  className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/15" />
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-[#8A7FA0]" style={{ color: '#2D2440' }} />
               </div>
             </div>
           ))}
