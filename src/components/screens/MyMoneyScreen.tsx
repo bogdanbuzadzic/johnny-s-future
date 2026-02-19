@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Sliders, Lock, PiggyBank, ShoppingBag, Target, Wallet, ChevronRight,
-  ArrowLeft, FlaskConical, Sparkles, RotateCcw, Check, X,
+  Plus, Sliders, Lock, PiggyBank, ShoppingBag, Target, Wallet, ChevronRight, ArrowRight,
+  Sparkles, RotateCcw, Check, X,
   UtensilsCrossed, Bus, Film, Dumbbell, CreditCard, Coffee, MoreHorizontal,
   Gift, BookOpen, Smartphone, Shirt, Wrench, Heart, Home, Zap, Landmark,
   Car, Tv, Shield, Baby, TrendingUp, LineChart, Sunset,
@@ -14,6 +14,7 @@ import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'da
 import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { useApp, Goal } from '@/context/AppContext';
 import { AddTransactionSheet } from '@/components/budget/AddTransactionSheet';
+import { PurchaseDecisionSheet } from '@/components/budget/PurchaseDecisionSheet';
 import { tipsByPersona, getImpactText, getAffordText } from '@/lib/personaMessaging';
 import { getPersona } from '@/lib/profileData';
 import johnnyImage from '@/assets/johnny.png';
@@ -207,35 +208,62 @@ function MyMoneyContent() {
   const [savingsExpanded, setSavingsExpanded] = useState(false);
   const [savingsSlider, setSavingsSlider] = useState(savingsTarget);
 
-  // Can I Afford
-  const [affordInput, setAffordInput] = useState('');
-  const [affordCatId, setAffordCatId] = useState<string | null>(null);
-  const [showCatPicker, setShowCatPicker] = useState(false);
+  // Purchase Decision Engine
+  const [purchaseAmount, setPurchaseAmount] = useState('');
+  const [purchaseDesc, setPurchaseDesc] = useState('');
+  const [showDecisionSheet, setShowDecisionSheet] = useState(false);
+  const [reminderDismissed, setReminderDismissed] = useState(false);
 
+  // Reminder banner logic
+  const [activeReminder, setActiveReminder] = useState<{ amount: number; description: string; type: string } | null>(null);
   useEffect(() => {
-    if (expenseCategories.length > 0 && !affordCatId) {
-      let best = expenseCategories[0];
-      let bestRem = best.monthlyBudget - (categorySpentMap[best.id] || 0);
-      expenseCategories.forEach(c => {
-        const rem = c.monthlyBudget - (categorySpentMap[c.id] || 0);
-        if (rem > bestRem) { best = c; bestRem = rem; }
-      });
-      setAffordCatId(best.id);
-    }
-  }, [expenseCategories, categorySpentMap, affordCatId]);
+    try {
+      const stored = localStorage.getItem('jfb_reminder');
+      if (stored) {
+        const reminder = JSON.parse(stored);
+        if (Date.now() >= reminder.date) {
+          setActiveReminder(reminder);
+        }
+      }
+    } catch {}
+  }, []);
 
-  const affordNum = parseFloat(affordInput) || 0;
-  const affordAnswer = useMemo(() => {
-    if (affordNum <= 0) return null;
-    const afterFlex = flexRemaining - affordNum;
-    const afterDaily = daysRemaining > 0 ? afterFlex / daysRemaining : 0;
-    const cat = expenseCategories.find(c => c.id === affordCatId);
-    const catName = cat?.name || '';
-    const shortage = Math.abs(Math.round(afterFlex));
-    if (afterFlex <= 0) return { text: getAffordText('over', personaName, Math.round(afterDaily), daysRemaining, shortage), color: '#FF9F0A', catName };
-    if (afterFlex > flexBudget * 0.3) return { text: getAffordText('comfortable', personaName, Math.round(afterDaily), daysRemaining, 0), color: '#34C759', catName };
-    return { text: getAffordText('tight', personaName, Math.round(afterDaily), daysRemaining, 0), color: afterFlex > flexBudget * 0.1 ? '#FFFFFF' : '#FF9F0A', catName };
-  }, [affordNum, flexRemaining, daysRemaining, flexBudget, affordCatId, expenseCategories, personaName]);
+  const handleBuyIt = useCallback((amount: number, description: string, categoryId: string) => {
+    addTransaction({ amount, type: 'expense', categoryId, description, date: new Date().toISOString().split('T')[0], isRecurring: false });
+    const cat = expenseCategories.find(c => c.id === categoryId);
+    setPurchaseAmount('');
+    setPurchaseDesc('');
+    // Show a simple alert as toast feedback
+    import('sonner').then(({ toast }) => {
+      toast(`€${amount} ${description} added to ${cat?.name || 'Spending'}`);
+    });
+  }, [addTransaction, expenseCategories]);
+
+  const handleWait24h = useCallback((amount: number, description: string, purchaseType: string) => {
+    localStorage.setItem('jfb_reminder', JSON.stringify({ amount, description, type: purchaseType, date: Date.now() + 86400000 }));
+    import('sonner').then(({ toast }) => {
+      toast("We'll check in tomorrow");
+    });
+  }, []);
+
+  const handleReminderBuy = useCallback(() => {
+    if (!activeReminder) return;
+    // Find best category
+    let best = expenseCategories[0];
+    let bestRem = best ? best.monthlyBudget - (categorySpentMap[best.id] || 0) : 0;
+    expenseCategories.forEach(c => {
+      const rem = c.monthlyBudget - (categorySpentMap[c.id] || 0);
+      if (rem > bestRem) { best = c; bestRem = rem; }
+    });
+    if (best) handleBuyIt(activeReminder.amount, activeReminder.description, best.id);
+    localStorage.removeItem('jfb_reminder');
+    setActiveReminder(null);
+  }, [activeReminder, expenseCategories, categorySpentMap, handleBuyIt]);
+
+  const handleReminderSkip = useCallback(() => {
+    localStorage.removeItem('jfb_reminder');
+    setActiveReminder(null);
+  }, []);
 
   const sortedFixed = useMemo(() =>
     [...fixedCategories].sort((a, b) => b.monthlyBudget - a.monthlyBudget).map((c, i) => ({
@@ -738,7 +766,7 @@ function MyMoneyContent() {
     const Icon = getIcon(icon);
     const spans = getSpans(Math.abs(amount * mult), totalIncome * mult);
     const displayAmount = Math.round(amount * mult);
-    const isGhosting = id === 'spending' && affordNum > 0;
+    const isGhosting = false;
     const headerColor = parentHeaderColors[id] || color;
 
     return (
@@ -830,55 +858,22 @@ function MyMoneyContent() {
         <Sliders size={20} style={{ color: '#8A7FA0' }} />
       </div>
 
-      {/* Can I Afford */}
-      <div className="px-4 mb-3">
-        <div className="flex items-center gap-2 rounded-2xl px-3 frosted-input" style={{ height: 48 }}>
-          <FlaskConical size={18} className="flex-shrink-0" style={{ color: '#8A7FA0' }} />
-          <input type="number" inputMode="decimal" placeholder="Can I afford €..." value={affordInput}
-            onChange={e => setAffordInput(e.target.value)}
-            className="flex-1 bg-transparent text-[14px] placeholder:text-[#8A7FA0] outline-none min-w-0" style={{ color: '#2D2440' }} />
-          <div className="relative">
-            <button onClick={() => setShowCatPicker(!showCatPicker)}
-              className="flex items-center gap-1 px-2 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.10)', height: 32 }}>
-              {affordCatId && (() => {
-                const c = expenseCategories.find(x => x.id === affordCatId);
-                if (!c) return null;
-                const CI = getIcon(c.icon);
-                return <><CI size={14} className="text-white/60" /><span className="text-[12px] text-white/60">{c.name}</span></>;
-              })()}
-            </button>
-            {showCatPicker && (
-              <div className="absolute right-0 top-full mt-1 z-50 rounded-xl p-2 min-w-[140px]" style={{ background: 'rgba(40,30,50,0.95)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                {expenseCategories.map(c => {
-                  const CI = getIcon(c.icon);
-                  return (
-                    <button key={c.id} onClick={() => { setAffordCatId(c.id); setShowCatPicker(false); }}
-                      className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-white/10">
-                      <CI size={14} className="text-white/60" />
-                      <span className="text-[13px] text-white/70">{c.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+      {/* Reminder Banner */}
+      {activeReminder && !reminderDismissed && (
+        <div className="px-4 mb-3">
+          <div className="rounded-[14px] p-3.5 flex items-center justify-between" style={{
+            background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)',
+          }}>
+            <span className="text-[13px] flex-1" style={{ color: '#2D2440' }}>
+              Still thinking about that €{activeReminder.amount} {activeReminder.description}?
+            </span>
+            <div className="flex items-center gap-2 ml-2">
+              <button onClick={handleReminderBuy} className="text-[13px] font-semibold" style={{ color: '#8B5CF6' }}>Yes, buy it</button>
+              <button onClick={handleReminderSkip} className="text-[13px]" style={{ color: '#8A7FA0' }}>Skip</button>
+            </div>
           </div>
         </div>
-        <AnimatePresence>
-          {affordAnswer && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-              className="px-1 mt-1.5">
-              <span className="text-[13px] font-medium" style={{ color: affordAnswer.color }}>{affordAnswer.text}</span>
-              {affordAnswer.catName && <span className="text-[10px] ml-2" style={{ color: getTint(expenseCategories.find(c => c.id === affordCatId)?.icon || '') }}>→ {affordAnswer.catName}</span>}
-              <div className="flex gap-2 mt-1.5">
-                <button onClick={() => { setPrefillAmount(affordNum); setPrefillCatId(affordCatId || undefined); setShowFab(true); }}
-                  className="px-4 py-1.5 rounded-full text-[12px] text-white font-medium" style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>Buy it</button>
-                <button onClick={() => setAffordInput('')}
-                  className="px-4 py-1.5 rounded-full text-[12px] text-white/40" style={{ background: 'rgba(255,255,255,0.10)' }}>Clear</button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      )}
 
       {/* Mode + Zoom toggles */}
       <div className="px-4 mb-2 flex items-center justify-between">
@@ -955,6 +950,37 @@ function MyMoneyContent() {
           </div>
 
           {isWhatIf && <div className="absolute top-12 right-3 z-10 flex items-center gap-1 text-[10px] text-white/30"><Sparkles size={10} /> Playground</div>}
+
+          {/* Purchase Decision Input Bar */}
+          <div className="relative z-10 mb-2 flex items-center gap-2" style={{
+            background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+            border: '1.5px solid rgba(255,255,255,0.15)', borderRadius: 14, height: 48, padding: '0 14px',
+          }}>
+            <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>EUR</span>
+            <input type="number" inputMode="decimal" placeholder="0" value={purchaseAmount}
+              onChange={e => setPurchaseAmount(e.target.value)}
+              className="bg-transparent outline-none text-[14px]"
+              style={{ width: 70, color: 'white' }}
+            />
+            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)' }} />
+            <input type="text" placeholder="What is it?" value={purchaseDesc}
+              onChange={e => setPurchaseDesc(e.target.value)}
+              className="flex-1 bg-transparent outline-none text-[14px] placeholder:text-white/30 min-w-0"
+              style={{ color: 'white' }}
+              onKeyDown={e => { if (e.key === 'Enter' && parseFloat(purchaseAmount) > 0) setShowDecisionSheet(true); }}
+            />
+            <button
+              disabled={!(parseFloat(purchaseAmount) > 0)}
+              onClick={() => setShowDecisionSheet(true)}
+              className="flex items-center justify-center rounded-full flex-shrink-0"
+              style={{
+                width: 32, height: 32,
+                background: parseFloat(purchaseAmount) > 0 ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.15)',
+                transition: 'all 200ms',
+              }}>
+              <ArrowRight size={16} className="text-white" />
+            </button>
+          </div>
 
           {/* Parent blocks grid */}
           <div style={{
@@ -1098,8 +1124,28 @@ function MyMoneyContent() {
       </button>
 
       {/* Add Transaction Sheet */}
-      <AddTransactionSheet open={showFab} onClose={() => { setShowFab(false); setFabMode(undefined); setAffordInput(''); }}
+      <AddTransactionSheet open={showFab} onClose={() => { setShowFab(false); setFabMode(undefined); }}
         prefillAmount={prefillAmount} prefillCategoryId={prefillCatId} initialMode={fabMode} />
+
+      {/* Purchase Decision Sheet */}
+      <PurchaseDecisionSheet
+        open={showDecisionSheet}
+        onClose={() => setShowDecisionSheet(false)}
+        amount={parseFloat(purchaseAmount) || 0}
+        description={purchaseDesc}
+        income={totalIncome}
+        flexBudget={flexBudget}
+        flexSpent={flexSpent}
+        flexRemaining={flexRemaining}
+        freeAmount={freeAmount}
+        daysRemaining={daysRemaining}
+        daysInMonth={daysInMonth}
+        expenseCategories={expenseCategories}
+        categorySpentMap={categorySpentMap}
+        goals={goals}
+        onBuyIt={handleBuyIt}
+        onWait24h={handleWait24h}
+      />
     </div>
   );
 }
