@@ -1,159 +1,151 @@
 
 
-# JFB Section 12 Bug Fixes + Gradient Update
+# Purchase Decision Engine v2
 
 ## Overview
-9 targeted fixes across 5 files: gradient update, spending math, Other category removal, block proportional sizing, terrain data, My World assets, combined score+badge screen, auto-advance, and daily calculation.
+Replace the existing "Can I Afford" input bar and simple answer text with a full Purchase Decision Engine featuring: dual-field input (amount + description), purchase type classification, contextual analysis per type, value-aligned suggestions, and merged goal impact + trade-off section.
 
----
+## Architecture
 
-## FIX 1: Background Gradient Update
+A new component `PurchaseDecisionSheet.tsx` will handle the entire flow (type selector, decision card, all metrics, actions). The existing "Can I Afford" section in `MyMoneyScreen.tsx` (lines 833-881) will be replaced with the new dual-input bar inside the green income container, and the sheet will be triggered on submit.
 
-**Files: `src/index.css`, `src/components/profile/QuestionnaireOverlay.tsx`, `src/components/screens/MyMoneyScreen.tsx`**
+## Files to Create
 
-Update the app-wide gradient from `#B4A6B8 -> #9B80B4` to a new lighter gradient:
-```
-background: linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%);
-```
+### `src/components/budget/PurchaseDecisionSheet.tsx` (NEW -- ~700 lines)
 
-Changes:
-- **`src/index.css`**: Update `.jfb-bg` class to use the new 5-stop gradient (replace the HSL variable approach with the direct gradient)
-- **`QuestionnaireOverlay.tsx`**: Update 4 occurrences of `linear-gradient(to bottom, #B4A6B8, #9B80B4)` (calibration screen line 325, completion screen line 392, question screen line 467)
-- **`MyMoneyScreen.tsx`**: Update the empty state background (line 786) from `#B4A6B8, #9B80B4` to the new gradient
-- My World keeps its own sky gradient (no change needed)
+Contains the full decision engine as a bottom sheet with three phases:
 
----
+**Phase 1: Purchase Type Selector**
+- Bottom sheet with 4 tappable cards in 2x2 grid (Habit, One-time, Experience, Tool/Investment)
+- Light frosted glass style (rgba(255,255,255,0.85), backdrop-filter blur(24px))
+- Tapping a type highlights it (border = type color), waits 300ms, transitions to Phase 2
 
-## FIX 2: Spending Math -- Subtract Goals Before Spending
+**Phase 2: Decision Card**
+- Replaces type selector in same sheet position
+- Handle bar at top (#D1C8E0)
+- Header: amount + description + type pill + verdict pill (Comfortable/Tight/Over)
+- Universal metrics (3 frosted cards):
+  1. Hours of Work (income/160 = hourly rate, amount/hourlyRate = hours)
+  2. Time to Recover (amount / freeMonthly, with contextual text)
+  3. What You're Giving Up (goal delays sorted by impact + category comparison)
+- Type-specific metric (4th card, varies):
+  - Habit: Payback analysis with inline habit cost input + frequency pills
+  - One-time: Reality check (1 week/1 month/1 year prompts + behavioral quote)
+  - Experience: Friend-split calculator with 1/2/3/4+ pills, recalculates metrics
+  - Tool: ROI calculator with monthly value input
 
-**File: `src/components/profile/QuestionnaireOverlay.tsx` (lines 196-223)**
+**Additional sections:**
+- Alternatives card (purple-tinted, persona + value-based suggestions, max 3)
+- Cooling period card (teal-tinted, persona-adapted text + "Remind me in 24h" button; replaced with time-sensitivity note for Experience type)
+- Mini before/after visual (two side-by-side state cards with health bars + free/daily comparison)
 
-The spending math is already correct in the current code (lines 197-223). The `goalContributions` are calculated and subtracted before computing `flexForSpending`. However, there may be a mismatch in the `goalMap_` contribution values vs the `goalMap` values. Verify and align:
+**Action buttons (sticky bottom):**
+- "Buy it" -- green gradient, creates transaction, dismisses, shows toast
+- "Wait 24h" -- subtle bordered, saves reminder to localStorage, shows toast
+- "Skip" -- text-only, dismisses everything
 
-- `'Start investing'` has `mc: 100` in `goalMap_` (line 201) but `mc: 100` in `goalMap` (line 257) -- OK
-- `'Save for retirement'` has `mc: 200` in `goalMap_` (line 202) but `mc: 200` in `goalMap` (line 258) -- OK
+**Edge case:** Amount > income shows simplified "make it a goal" card instead.
 
-The math already follows the correct order. The issue may be that `goalMap_` doesn't have entries for all goal types, so contributions aren't fully subtracted. Fix: ensure `goalMap_` matches `goalMap` exactly for all monthly contribution values.
-
-Also update allocation percentages to match the spec:
-- Entertainment: 30% of allocatable
-- Shopping: 38% of allocatable
-- Lifestyle: remainder (32%)
-
-These are already correct (lines 215-217). No math changes needed unless the actual runtime values differ.
-
----
-
-## FIX 3: Remove "Other" Category
-
-**File: `src/components/profile/QuestionnaireOverlay.tsx`**
-
-The current code (lines 219-223) already only creates Food, Entertainment, Shopping, and Lifestyle -- no "Other" category. However, the `fixedMap` on line 186 includes `{ key: 'other', name: 'Other Fixed', icon: 'MoreHorizontal' }` which creates an "Other Fixed" in the fixed categories if there's a value. This is for fixed expenses, not spending, so it's intentional.
-
-Verify there's no other code path creating an "Other" spending category. The code looks clean.
-
----
-
-## FIX 4: Block Proportional Sizing
-
-**File: `src/components/screens/MyMoneyScreen.tsx`**
-
-Current `getSubSpans` (lines 83-89) uses thresholds 0.30 and 0.18. Update to match the spec:
-- proportion >= 0.45 -> span 3 columns (full width) -- for Rent at 70%
-- proportion >= 0.25 -> span 2 columns
-- proportion < 0.25 -> span 1 column
-
-Also add proportional `minHeight`:
+**Props:**
 ```typescript
-function getSubSpans(amount: number, parentTotal: number) {
-  if (parentTotal <= 0) return { col: 1, row: 1, minH: 60 };
-  const ratio = amount / parentTotal;
-  const minH = Math.max(60, Math.round(ratio * 200));
-  if (ratio >= 0.45) return { col: 3, row: 2, minH };
-  if (ratio >= 0.25) return { col: 2, row: 1, minH };
-  return { col: 1, row: 1, minH };
+interface PurchaseDecisionSheetProps {
+  open: boolean;
+  onClose: () => void;
+  amount: number;
+  description: string;
+  // Budget data passed from parent
+  income: number;
+  flexBudget: number;
+  flexSpent: number;
+  flexRemaining: number;
+  freeAmount: number;
+  daysRemaining: number;
+  daysInMonth: number;
+  expenseCategories: Category[];
+  categorySpentMap: Record<string, number>;
+  goals: Goal[];
+  onBuyIt: (amount: number, description: string, categoryId: string) => void;
 }
 ```
 
-Update all call sites to apply `minH` as `minHeight` style. This ensures Rent (70%) gets `col: 3` (full width) while Transport (9%) gets `col: 1`.
+**Helper functions inside the component:**
+- `deriveValues()` -- reads persona from localStorage, returns value tags
+- `getVerdictInfo(amount, flexRemaining, flexBudget)` -- returns verdict pill data
+- `calculateGoalDelays(amount, goals)` -- returns sorted delay list
+- `getCategoryComparison(amount, categories)` -- returns best comparison text
+- `getCoolingText(persona)` -- returns persona-adapted cooling message
+- `getAlternatives(persona, purchaseType, values)` -- returns max 3 suggestions
 
----
+## Files to Modify
 
-## FIX 5: Terrain Data Connection
+### `src/components/screens/MyMoneyScreen.tsx`
 
-**File: `src/components/sheets/TodayDrawer.tsx`**
+**Remove (lines 210-238):** Old `affordInput`, `affordCatId`, `showCatPicker`, `affordNum`, `affordAnswer` state and logic.
 
-The terrain chart reads from localStorage via `readBudgetFromStorage()`. Need to verify it also reads Clarity data for income/fixed amounts. The terrain should:
-- Read `jfb_clarity_data` or derive values from `jfb-budget-data` config
-- Build 30-day projection with salary spike on day 1
-- Show green label for salary, bill icons for rent/utilities
-- Re-read on every drawer open (already does this via `readBudgetFromStorage()`)
+**Add new state:**
+```typescript
+const [purchaseAmount, setPurchaseAmount] = useState('');
+const [purchaseDesc, setPurchaseDesc] = useState('');
+const [showDecisionSheet, setShowDecisionSheet] = useState(false);
+const [reminderDismissed, setReminderDismissed] = useState(false);
+```
 
-Add a `useEffect` or `useMemo` that reads Clarity-derived data and passes it to `TerrainPath`. If `TerrainPath` already handles this, verify it receives the right props. If the terrain shows flat at zero, the issue is likely that `config.monthlyIncome` is 0 in the budget data.
+**Add reminder banner logic:** On mount, check `localStorage.getItem('jfb_reminder')`. If exists and 24h has passed, show banner at top of screen. "Yes, buy it" triggers transaction + dismisses. "Skip" removes reminder.
 
-The `updateConfig` call in `QuestionnaireOverlay.tsx` (line 169) sets `monthlyIncome` and `monthlySavingsTarget`, which should flow to the terrain. Need to verify `TerrainPath` reads these values.
+**Replace "Can I Afford" section (lines 833-881):** Remove the old frosted-input bar that sits above the income container. Instead, add the new dual-input bar INSIDE the green income container, below the summary bar.
 
----
+**New input bar (inside green container, after summary bar around line 957):**
+- Style: rgba(255,255,255,0.12), backdrop-filter blur(8px), 14px border-radius, 48px height
+- Left: Bell icon (white/40) + "EUR" prefix (white/50) + amount input (70px, white text, placeholder "0" in white/30)
+- Divider: 1px white/15, 20px tall
+- Description input (flex:1, white text, placeholder "What is it?" in white/30)
+- Right: ArrowRight in 32px gradient circle (#8B5CF6 to #EC4899), disabled until amount > 0
+- On submit: opens `PurchaseDecisionSheet`
 
-## FIX 6: My World Goal Assets
+**Remove ghost pulse on spending block** (line 741, `isGhosting` logic) -- the new engine replaces the ghost effect.
 
-**File: `src/components/screens/MyWorldScreen.tsx`**
+**`onBuyIt` handler:** Creates transaction via `addTransaction`, shows toast via `sonner`, clears inputs, closes sheet.
 
-The current code already imports all 4 images (lines 9-12) and maps them correctly (lines 41-66). The images were copied in a previous session. This should already work.
+**Remove old afford answer display and "Buy it" / "Clear" buttons (lines 866-880).**
 
-Verify the images exist at:
-- `src/assets/world/house3.png`
-- `src/assets/world/car2.png`
-- `src/assets/world/vacation2.png`
-- `src/assets/world/laptop3.png`
+### `src/components/budget/ghost-pulse.css`
+No changes needed -- keep the file but the ghost effect won't be triggered by the new flow.
 
-No code changes needed for this fix.
+## Design System Compliance
 
----
-
-## FIX 7: Combined Score + Badge Screen
-
-**File: `src/components/profile/QuestionnaireOverlay.tsx`**
-
-The combined screen is already implemented (lines 346-461). Score counter, pillar bars, insight text, badge card with gold border, and Continue button are all in one screen. The `showScoreBreakdown` state was already removed in a previous session.
-
-No changes needed -- already fixed.
-
----
-
-## FIX 8: Auto-Advance on Single-Select
-
-**File: `src/components/profile/QuestionnaireOverlay.tsx`**
-
-The auto-advance logic exists (lines 27, 103-122) but only handles `'single'` type. Need to also include quiz-type questions and yes/no (which are `single` type). The `AUTO_ADVANCE_TYPES` set on line 27 only has `'single'`.
-
-Add `'quiz'` and `'scale5'` to the set if those types exist. Check if the auto-advance is actually being triggered in the question rendering code.
-
-Need to verify the question input rendering calls `handleAutoAdvanceAnswer` for single-select types instead of `setAnswer`.
-
----
-
-## FIX 9: Daily Calculation
-
-**File: `src/components/screens/MyMoneyScreen.tsx`**
-
-The daily rate in the summary bar (line 919) uses `dailyAllowance` from BudgetContext. Need to verify BudgetContext calculates this as `(flexBudget - flexSpent) / daysRemaining` which should give the correct value.
-
-The summary bar should show `spendingFlex / daysInMonth` for the daily budget rate. If `dailyAllowance` is computed differently, update the display to use `Math.round(flexBudget / daysInMonth)` for the summary bar display.
-
----
+All elements follow the established design system:
+- Decision card background: rgba(255,255,255,0.88), backdrop-filter blur(24px)
+- Text colors: #2D2440 (primary), #5C4F6E (secondary), #8A7FA0 (tertiary)
+- White text ONLY inside green container input bar (dark background)
+- Metric cards: rgba(255,255,255,0.45) with white/50 border
+- Frosted inputs for habit/ROI: rgba(255,255,255,0.6) with colored borders
+- Box shadows: rgba(45,36,64,...) for warmer tones
+- No "Other" or "Personal" category references -- only Food, Entertainment, Shopping, Lifestyle
+- All persona names match: Money Avoider, Impulsive Optimist, Present Hedonist, Vigilant Saver, Confident Controller, Steady Saver
 
 ## Implementation Order
 
-1. Update `src/index.css` -- new gradient for `.jfb-bg`
-2. Update `src/components/profile/QuestionnaireOverlay.tsx` -- gradient updates (3 places), verify auto-advance wiring
-3. Update `src/components/screens/MyMoneyScreen.tsx` -- gradient update (1 place), `getSubSpans` thresholds, daily calc display
-4. Verify `src/components/screens/MyWorldScreen.tsx` -- assets already correct
-5. Verify `src/components/sheets/TodayDrawer.tsx` -- terrain data reading
+1. Create `PurchaseDecisionSheet.tsx` with all phases, metrics, and actions
+2. Modify `MyMoneyScreen.tsx`: remove old afford logic, add new input bar inside income container, wire up sheet + reminder banner
 
-## Files Modified
-1. `src/index.css` -- gradient update
-2. `src/components/profile/QuestionnaireOverlay.tsx` -- gradient + auto-advance verification
-3. `src/components/screens/MyMoneyScreen.tsx` -- gradient + proportional sizing + daily calc
-4. `src/components/sheets/TodayDrawer.tsx` -- terrain data connection (if needed)
+## Key Calculations
+
+```
+hourlyRate = income / 160
+hoursOfWork = amount / hourlyRate
+workdays = ceil(hours / 8)
+
+monthsToRecover = free > 0 ? ceil(amount / free) : Infinity
+
+goalDelay = amount / goal.monthlyContribution (per goal, sorted desc)
+
+verdict: flexRemaining - amount > 0 and > 30% of flexBudget = Comfortable
+         flexRemaining - amount > 0 = Tight
+         flexRemaining - amount <= 0 = Over
+
+beforePct = (categorySpent / categoryBudget) * 100
+afterPct = ((categorySpent + amount) / categoryBudget) * 100
+afterFree = freeAmount - amount
+afterDaily = (flexBudget - flexSpent - amount) / daysRemaining
+```
 
