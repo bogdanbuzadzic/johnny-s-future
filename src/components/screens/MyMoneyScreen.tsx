@@ -111,8 +111,8 @@ function AddBlockInline({ parentType, onAdd }: { parentType: 'spending' | 'fixed
   if (!isOpen) {
     return (
       <div onClick={() => setIsOpen(true)} className="rounded-xl flex items-center justify-center cursor-pointer"
-        style={{ border: '2px dashed rgba(255,255,255,0.15)', minHeight: 60 }}>
-        <Plus size={20} style={{ color: 'rgba(255,255,255,0.2)' }} />
+        style={{ border: '1.5px dashed rgba(255,255,255,0.2)', borderRadius: 12, minHeight: 60 }}>
+        <Plus size={20} style={{ color: 'rgba(255,255,255,0.3)' }} />
       </div>
     );
   }
@@ -647,35 +647,32 @@ function MyMoneyContent() {
 
   // ── Render Goals Parent Internals ──
   const renderGoalsChildren = () => (
-    <div className="relative z-10 space-y-1.5">
+    <div className="relative z-10 space-y-2">
       {sortedGoals.slice(0, 4).map(goal => {
         const GoalIcon = getIcon(goal.icon);
         const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
-        const barColor = goalBarColors[goal.icon] || '#8B5CF6';
         return (
-          <div key={goal.id} className="flex items-center gap-2">
-            <GoalIcon size={16} style={{ color: 'rgba(255,255,255,0.8)' }} strokeWidth={1.5} />
-            <span style={{ fontSize: 12, color: 'white', fontWeight: 700, flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{goal.name}</span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.60)' }}>€{goal.saved}/€{goal.target}</span>
+          <div key={goal.id} className="rounded-[10px] p-2.5" style={{
+            background: 'rgba(233,30,99,0.1)',
+            border: '1px solid rgba(233,30,99,0.2)',
+          }}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <GoalIcon size={16} style={{ color: 'rgba(255,255,255,0.8)' }} strokeWidth={1.5} />
+              <span style={{ fontSize: 12, color: 'white', fontWeight: 700, flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{goal.name}</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.60)' }}>€{goal.saved}/€{goal.target}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }}>
+                <div style={{ width: `${pctFunded}%`, height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, #E91E63, #FF6B9D)' }} />
+              </div>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.50)', minWidth: 28, textAlign: 'right' }}>{Math.round(pctFunded)}%</span>
+            </div>
           </div>
         );
       })}
       {sortedGoals.length > 4 && (
         <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)' }}>+{sortedGoals.length - 4} more</span>
       )}
-      {/* Progress bars below goals */}
-      {sortedGoals.slice(0, 4).map(goal => {
-        const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
-        const barColor = goalBarColors[goal.icon] || '#8B5CF6';
-        return (
-          <div key={`bar-${goal.id}`} className="flex items-center gap-2">
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)', width: 28, textAlign: 'right' }}>{Math.round(pctFunded)}%</span>
-            <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.15)' }}>
-              <div style={{ width: `${pctFunded}%`, height: '100%', borderRadius: 3, background: barColor }} />
-            </div>
-          </div>
-        );
-      })}
       {sortedGoals.length === 0 && (
         <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)' }}>Tap to add goals</span>
       )}
@@ -685,40 +682,64 @@ function MyMoneyContent() {
   // ── Render Savings Parent Internals ──
   const renderSavingsChildren = () => {
     const pctOfIncome = totalIncome > 0 ? Math.round((savingsTarget / totalIncome) * 100) : 0;
+    const targetPct = 20;
+    const barFillPct = Math.min((pctOfIncome / targetPct) * 100, 100);
     return (
-      <div className="relative z-10 flex flex-col items-center justify-center">
-        <div className="w-6 h-6 rounded-full flex items-center justify-center mb-1" style={{ background: 'rgba(255,255,255,0.15)' }}>
-          <PiggyBank size={14} className="text-white" />
+      <div className="relative z-10">
+        <div className="rounded-[10px] p-4 flex flex-col items-center" style={{
+          background: 'rgba(41,128,185,0.1)',
+          border: '1px solid rgba(41,128,185,0.2)',
+        }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2" style={{ background: 'rgba(255,255,255,0.15)' }}>
+            <PiggyBank size={18} className="text-white" />
+          </div>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>€{Math.round(savingsTarget * mult)}/mo</span>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.60)', marginTop: 2 }}>{pctOfIncome}% of income</span>
+          {pctOfIncome < targetPct && (
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)', marginTop: 2 }}>Experts recommend {targetPct}%</span>
+          )}
+          {/* Progress bar: current % vs target */}
+          <div className="w-full mt-3" style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }}>
+            <div style={{ width: `${barFillPct}%`, height: '100%', borderRadius: 3, background: '#2980B9', transition: 'width 0.4s ease' }} />
+          </div>
+          <div className="flex justify-between w-full mt-1">
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.40)' }}>{pctOfIncome}%</span>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.40)' }}>{targetPct}% target</span>
+          </div>
+          {savingsExpanded && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="w-full mt-2">
+              <input type="range" min={0} max={Math.round(savingsTarget + Math.max(freeAmount, 0))}
+                value={Math.round(savingsSlider)}
+                onChange={e => setSavingsSlider(Number(e.target.value))}
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                style={{ background: `linear-gradient(to right, rgba(41,128,185,0.5) ${(savingsSlider / Math.max(savingsTarget + Math.max(freeAmount, 0), 1)) * 100}%, rgba(255,255,255,0.10) 0)` }}
+              />
+              <div className="text-[11px] mt-1 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                €{Math.round(savingsSlider)}/mo · Daily: €{Math.round(Math.max(0, (flexBudget - (savingsSlider - savingsTarget) - flexSpent) / daysRemaining))}/day
+              </div>
+            </motion.div>
+          )}
         </div>
-        <span style={{ fontSize: 14, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>€{Math.round(savingsTarget * mult)}/mo</span>
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)' }}>{pctOfIncome}% of income</span>
-        {pctOfIncome < 20 && (
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>Experts recommend 20%</span>
-        )}
-        {savingsExpanded && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="w-full mt-2">
-            <input type="range" min={0} max={Math.round(savingsTarget + Math.max(freeAmount, 0))}
-              value={Math.round(savingsSlider)}
-              onChange={e => setSavingsSlider(Number(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-              style={{ background: `linear-gradient(to right, rgba(41,128,185,0.5) ${(savingsSlider / Math.max(savingsTarget + Math.max(freeAmount, 0), 1)) * 100}%, rgba(255,255,255,0.10) 0)` }}
-            />
-            <div className="text-[11px] mt-1 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              €{Math.round(savingsSlider)}/mo · Daily: €{Math.round(Math.max(0, (flexBudget - (savingsSlider - savingsTarget) - flexSpent) / daysRemaining))}/day
-            </div>
-          </motion.div>
-        )}
       </div>
     );
   };
 
   // ── Render Parent Block ──
+  // Parent accent colors for header text
+  const parentHeaderColors: Record<string, string> = {
+    spending: '#8E44AD',
+    fixed: '#8899AA',
+    goals: '#E91E63',
+    savings: '#2980B9',
+  };
+
   const renderParentBlock = (block: typeof parentBlocks[0]) => {
     const { id, label, icon, amount, color } = block;
     const Icon = getIcon(icon);
     const spans = getSpans(Math.abs(amount * mult), totalIncome * mult);
     const displayAmount = Math.round(amount * mult);
     const isGhosting = id === 'spending' && affordNum > 0;
+    const headerColor = parentHeaderColors[id] || color;
 
     return (
       <motion.div
@@ -728,11 +749,12 @@ function MyMoneyContent() {
         style={{
           gridColumn: `span ${spans.col}`,
           gridRow: `span ${spans.row}`,
-          background: color,
-          border: `1.5px solid rgba(255,255,255,0.15)`,
+          background: 'rgba(255,255,255,0.06)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+          border: '1px solid rgba(255,255,255,0.12)',
           padding: 8,
           minHeight: 120,
-          boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.1)',
           transition: 'all 400ms ease',
         }}
         onClick={() => {
@@ -750,7 +772,7 @@ function MyMoneyContent() {
         whileTap={{ scale: 0.97 }}
       >
         {/* Left accent stripe */}
-        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: `${color}CC`, filter: 'brightness(1.3)' }} />
+        <div className="absolute left-0 top-0 bottom-0 rounded-l-2xl" style={{ width: 4, background: color }} />
 
         {/* Ghost for Can I Afford */}
         {isGhosting && (
@@ -761,8 +783,8 @@ function MyMoneyContent() {
         {/* Parent header */}
         <div className="relative z-10 flex items-center justify-between mb-1.5 pl-2">
           <div className="flex items-center gap-1.5">
-            <Icon size={16} style={{ color: 'rgba(255,255,255,0.40)' }} strokeWidth={1.5} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.60)' }}>{label}</span>
+            <Icon size={16} style={{ color: headerColor }} strokeWidth={1.5} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: headerColor }}>{label}</span>
           </div>
           <div className="flex items-center gap-1">
             <span style={{ fontSize: 16, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>€{displayAmount.toLocaleString()}</span>
@@ -860,18 +882,21 @@ function MyMoneyContent() {
 
       {/* Mode + Zoom toggles */}
       <div className="px-4 mb-2 flex items-center justify-between">
-        <div className="flex items-center rounded-full p-0.5" style={{ background: 'rgba(255,255,255,0.08)' }}>
+        <div className="flex items-center rounded-full p-0.5 frosted-button" style={{ padding: 2 }}>
           <button onClick={() => { setIsWhatIf(false); handleWhatIfDone(); }}
-            className={`px-3 py-1 rounded-full text-[12px] font-medium ${!isWhatIf ? 'bg-white/15 text-white' : 'text-white/40'}`}>My Month</button>
+            className={`px-3 py-1 rounded-full text-[12px] font-medium ${!isWhatIf ? 'bg-white/40' : ''}`}
+            style={{ color: !isWhatIf ? '#2D2440' : '#8A7FA0' }}>My Month</button>
           <button onClick={() => setIsWhatIf(true)}
-            className={`px-3 py-1 rounded-full text-[12px] font-medium flex items-center gap-1 ${isWhatIf ? 'bg-white/15 text-white' : 'text-white/40'}`}>
+            className={`px-3 py-1 rounded-full text-[12px] font-medium flex items-center gap-1 ${isWhatIf ? 'bg-white/40' : ''}`}
+            style={{ color: isWhatIf ? '#2D2440' : '#8A7FA0' }}>
             <Sparkles size={12} />What If
           </button>
         </div>
-        <div className="flex items-center rounded-full p-0.5" style={{ background: 'rgba(255,255,255,0.08)' }}>
+        <div className="flex items-center rounded-full p-0.5 frosted-button" style={{ padding: 2 }}>
           {(['Month', 'Year', '5 Year'] as TimeZoom[]).map(z => (
             <button key={z} onClick={() => setZoom(z)}
-              className={`px-2 py-1 rounded-full text-[11px] font-medium ${zoom === z ? 'bg-white/15 text-white' : 'text-white/30'}`}>{z}</button>
+              className={`px-2 py-1 rounded-full text-[11px] font-medium ${zoom === z ? 'bg-white/40' : ''}`}
+              style={{ color: zoom === z ? '#2D2440' : '#8A7FA0' }}>{z}</button>
           ))}
         </div>
       </div>
