@@ -7,7 +7,7 @@ import {
   Gift, BookOpen, Smartphone, Shirt, Wrench, Heart, Home, Zap, Landmark,
   Car, Tv, Shield, Baby, TrendingUp, LineChart, Sunset,
   ShieldCheck, Plane, Laptop, GraduationCap, Gamepad2,
-  RefreshCw, User,
+  RefreshCw, User, BarChart2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
@@ -18,6 +18,10 @@ import { PurchaseDecisionSheet } from '@/components/budget/PurchaseDecisionSheet
 import { ScenarioPicker, type SelectedScenario } from '@/components/scenarios/ScenarioPicker';
 import { StressTestResults } from '@/components/scenarios/StressTestResults';
 import { LifeChangeResults } from '@/components/scenarios/LifeChangeResults';
+import { CompareModeSelectorSheet, type CompareMode } from '@/components/budget/CompareModeSelectorSheet';
+import { PlanVsActualView } from '@/components/budget/PlanVsActualView';
+import { MonthVsMonthView } from '@/components/budget/MonthVsMonthView';
+import { ComparePlansView } from '@/components/budget/ComparePlansView';
 import { tipsByPersona, getImpactText, getAffordText } from '@/lib/personaMessaging';
 import { getPersona } from '@/lib/profileData';
 import johnnyImage from '@/assets/johnny.png';
@@ -217,6 +221,41 @@ function MyMoneyContent() {
   const [showDecisionSheet, setShowDecisionSheet] = useState(false);
   const [reminderDismissed, setReminderDismissed] = useState(false);
   const [showScenarioPicker, setShowScenarioPicker] = useState(false);
+  // Comparison Mode
+  const [showCompareSelector, setShowCompareSelector] = useState(false);
+  const [activeCompareMode, setActiveCompareMode] = useState<CompareMode | null>(null);
+
+  // Save month snapshot on first compare open
+  const saveMonthSnapshot = useCallback(() => {
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const snapshot = {
+      month: monthKey,
+      income: totalIncome,
+      categories: expenseCategories.map(c => ({
+        id: c.id, name: c.name, icon: c.icon,
+        budget: c.monthlyBudget, spent: getCategorySpent(c.id, 'month'),
+      })),
+      fixedExpenses: fixedCategories.map(c => ({ id: c.id, name: c.name, amount: c.monthlyBudget })),
+      savings: savingsTarget,
+      goalsTotal: totalGoalContributions,
+      totalSpent: flexSpent,
+      timestamp: Date.now(),
+    };
+    const snapshots = JSON.parse(localStorage.getItem('jfb_month_snapshots') || '{}');
+    snapshots[monthKey] = snapshot;
+    localStorage.setItem('jfb_month_snapshots', JSON.stringify(snapshots));
+  }, [totalIncome, expenseCategories, fixedCategories, savingsTarget, totalGoalContributions, flexSpent, getCategorySpent]);
+
+  const handleOpenCompare = useCallback(() => {
+    saveMonthSnapshot();
+    setShowCompareSelector(true);
+  }, [saveMonthSnapshot]);
+
+  const handleSelectCompareMode = useCallback((mode: CompareMode) => {
+    setShowCompareSelector(false);
+    setActiveCompareMode(mode);
+  }, []);
   const [stressScenarios, setStressScenarios] = useState<SelectedScenario[] | null>(null);
   const [lifeChangeScenarios, setLifeChangeScenarios] = useState<SelectedScenario[] | null>(null);
 
@@ -855,6 +894,29 @@ function MyMoneyContent() {
     );
   }
 
+  // ── Compare Mode Views ──
+  if (activeCompareMode === 'plan-vs-actual') {
+    return (
+      <div className="h-full" style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
+        <PlanVsActualView onClose={() => setActiveCompareMode(null)} />
+      </div>
+    );
+  }
+  if (activeCompareMode === 'month-vs-month') {
+    return (
+      <div className="h-full" style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
+        <MonthVsMonthView onClose={() => setActiveCompareMode(null)} />
+      </div>
+    );
+  }
+  if (activeCompareMode === 'compare-plans') {
+    return (
+      <div className="h-full" style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
+        <ComparePlansView onClose={() => setActiveCompareMode(null)} />
+      </div>
+    );
+  }
+
   // ── Main Render ──
   return (
     <div className="h-full overflow-auto pb-24">
@@ -888,6 +950,16 @@ function MyMoneyContent() {
             className="flex items-center gap-1.5 rounded-xl px-3 py-2"
             style={{ background: 'rgba(139,92,246,0.1)', border: '1.5px solid rgba(139,92,246,0.2)', color: '#8B5CF6', fontSize: 13, fontWeight: 600 }}>
             <Sparkles size={14} />Life Scenarios
+          </button>
+          <button onClick={handleOpenCompare}
+            className="flex items-center gap-1.5 rounded-[10px] px-3 py-2"
+            style={{
+              background: activeCompareMode ? 'rgba(139,92,246,0.1)' : 'rgba(45,36,64,0.06)',
+              border: activeCompareMode ? '1.5px solid rgba(139,92,246,0.2)' : '1.5px solid rgba(45,36,64,0.1)',
+              color: activeCompareMode ? '#8B5CF6' : '#5C4F6E',
+              fontSize: 12, fontWeight: 600,
+            }}>
+            <BarChart2 size={14} />Compare
           </button>
         </div>
         <div className="flex items-center rounded-full p-0.5 frosted-button" style={{ padding: 2 }}>
@@ -1093,6 +1165,13 @@ function MyMoneyContent() {
         goals={goals}
         onBuyIt={handleBuyIt}
         onWait24h={handleWait24h}
+      />
+
+      {/* Compare Mode Selector */}
+      <CompareModeSelectorSheet
+        open={showCompareSelector}
+        onClose={() => setShowCompareSelector(false)}
+        onSelect={handleSelectCompareMode}
       />
     </div>
   );
