@@ -2,13 +2,15 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Sliders, Lock, PiggyBank, ShoppingBag, Target, Wallet, ChevronRight, ArrowRight,
-  Sparkles, RotateCcw, Check, X,
+  Sparkles, RotateCcw, Check, X, Coins,
   UtensilsCrossed, Bus, Film, Dumbbell, CreditCard, Coffee, MoreHorizontal,
   Gift, BookOpen, Smartphone, Shirt, Wrench, Heart, Home, Zap, Landmark,
   Car, Tv, Shield, Baby, TrendingUp, LineChart, Sunset,
   ShieldCheck, Plane, Laptop, GraduationCap, Gamepad2,
   RefreshCw, User, BarChart2,
 } from 'lucide-react';
+import { TransferSheet } from '@/components/budget/TransferSheet';
+import { toast } from 'sonner';
 import type { LucideIcon } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { BudgetProvider, useBudget } from '@/context/BudgetContext';
@@ -168,7 +170,7 @@ function MyMoneyContent() {
   const {
     config, expenseCategories, fixedCategories, flexBudget, flexSpent, flexRemaining,
     dailyAllowance, paceStatus, getCategorySpent, totalFixed, transactions,
-    updateCategory, daysRemaining, daysInMonth, dayOfMonth, addCategory, addTransaction,
+    updateCategory, updateConfig, daysRemaining, daysInMonth, dayOfMonth, addCategory, addTransaction,
     savingsTarget,
   } = useBudget();
   const { goals, addGoal, updateGoal, setActiveTab } = useApp();
@@ -258,6 +260,168 @@ function MyMoneyContent() {
   }, []);
   const [stressScenarios, setStressScenarios] = useState<SelectedScenario[] | null>(null);
   const [lifeChangeScenarios, setLifeChangeScenarios] = useState<SelectedScenario[] | null>(null);
+
+  // ── Drag-and-Drop Money Flow ──
+  type DragBlockInfo = { id: string; type: 'spending' | 'goals' | 'savings' | 'fixed'; name: string; color: string; budget: number };
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragSource, setDragSource] = useState<DragBlockInfo | null>(null);
+  const [dragTarget, setDragTarget] = useState<DragBlockInfo | null>(null);
+  const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
+  const [showTransferSheet, setShowTransferSheet] = useState(false);
+  const [showQuickTransfer, setShowQuickTransfer] = useState(false);
+  const [quickTransferPos, setQuickTransferPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [showDragTutorial, setShowDragTutorial] = useState(false);
+  const [coinTrail, setCoinTrail] = useState<Array<{ id: number; x: number; y: number }>>([]);
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragStartTimeRef = useRef(0);
+  const dragSourceRef = useRef<DragBlockInfo | null>(null);
+
+  // Build block info map for drag targets
+  const blockInfoMap = useMemo(() => {
+    const map: Record<string, DragBlockInfo> = {};
+    expenseCategories.forEach(c => {
+      const tint = iconTintMap[c.icon] || '#7F8C8D';
+      map[c.id] = { id: c.id, type: 'spending', name: c.name, color: tint, budget: c.monthlyBudget };
+    });
+    map['goals'] = { id: 'goals', type: 'goals', name: 'Goals', color: '#E91E63', budget: totalGoalContributions };
+    map['savings'] = { id: 'savings', type: 'savings', name: 'Savings', color: '#2980B9', budget: savingsTarget };
+    fixedCategories.forEach(c => {
+      map[c.id] = { id: c.id, type: 'fixed', name: c.name, color: fixedColors[c.name] || '#5D6D7E', budget: c.monthlyBudget };
+    });
+    map['fixed'] = { id: 'fixed', type: 'fixed', name: 'Fixed', color: '#5D6D7E', budget: totalFixed };
+    return map;
+  }, [expenseCategories, fixedCategories, totalGoalContributions, savingsTarget, totalFixed]);
+
+  const isValidTransfer = useCallback((sourceType: string, targetType: string, sourceId: string, targetId: string) => {
+    if (sourceType === 'fixed') return false;
+    if (targetType === 'fixed') return false;
+    if (sourceId === targetId) return false;
+    return true;
+  }, []);
+
+  const handleDragTouchStart = useCallback((e: React.TouchEvent, blockInfo: DragBlockInfo) => {
+    if (blockInfo.type === 'fixed') return;
+    const touch = e.touches[0];
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    pressTimerRef.current = setTimeout(() => {
+      setIsDragging(true);
+      setDragSource(blockInfo);
+      dragSourceRef.current = blockInfo;
+      dragStartTimeRef.current = Date.now();
+      setDragCurrent({ x: startX, y: startY });
+      navigator.vibrate?.(50);
+      // Tutorial
+      if (!localStorage.getItem('jfb_dragTutorialShown')) {
+        setShowDragTutorial(true);
+        localStorage.setItem('jfb_dragTutorialShown', 'true');
+        setTimeout(() => setShowDragTutorial(false), 3000);
+      }
+    }, 500);
+  }, []);
+
+  const handleDragTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging) {
+      // Cancel press if finger moved before 500ms
+      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+      return;
+    }
+    e.preventDefault();
+    const touch = e.touches[0];
+    setDragCurrent({ x: touch.clientX, y: touch.clientY });
+
+    // Coin trail
+    setCoinTrail(prev => [...prev.slice(-4), { id: Date.now(), x: touch.clientX, y: touch.clientY }]);
+
+    // Find target via elementsFromPoint
+    const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+    const targetEl = elements.find(el => {
+      const bid = (el as HTMLElement).dataset?.blockId;
+      return bid && bid !== dragSourceRef.current?.id;
+    });
+    if (targetEl) {
+      const bid = (targetEl as HTMLElement).dataset.blockId!;
+      setDragTarget(blockInfoMap[bid] || null);
+    } else {
+      setDragTarget(null);
+    }
+  }, [isDragging, blockInfoMap]);
+
+  const handleDragTouchEnd = useCallback(() => {
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    if (!isDragging) return;
+
+    const dragDuration = Date.now() - dragStartTimeRef.current;
+    const src = dragSourceRef.current;
+
+    if (src && dragTarget) {
+      if (isValidTransfer(src.type, dragTarget.type, src.id, dragTarget.id)) {
+        if (dragDuration < 1000) {
+          // Quick drag
+          setQuickTransferPos(dragCurrent || { x: 0, y: 0 });
+          setShowQuickTransfer(true);
+        } else {
+          setShowTransferSheet(true);
+        }
+      } else {
+        toast("Fixed costs can't be moved. Use What If to simulate changes.");
+      }
+    }
+
+    setIsDragging(false);
+    setDragCurrent(null);
+    setCoinTrail([]);
+  }, [isDragging, dragTarget, isValidTransfer, dragCurrent]);
+
+  const handleTransferApply = useCallback((sourceId: string, targetId: string, amount: number, makePermanent: boolean) => {
+    const src = blockInfoMap[sourceId];
+    const tgt = blockInfoMap[targetId];
+    if (!src || !tgt) return;
+
+    if (src.type === 'spending') {
+      const cat = expenseCategories.find(c => c.id === sourceId);
+      if (cat) updateCategory(sourceId, { monthlyBudget: Math.max(0, cat.monthlyBudget - amount) });
+    } else if (src.type === 'savings') {
+      updateConfig({ monthlySavingsTarget: Math.max(0, savingsTarget - amount) });
+    } else if (src.type === 'goals') {
+      // Reduce proportionally from all goals
+      const activeGoals = goals.filter(g => g.monthlyContribution > 0);
+      const total = activeGoals.reduce((s, g) => s + g.monthlyContribution, 0);
+      activeGoals.forEach(g => {
+        const reduction = total > 0 ? (g.monthlyContribution / total) * amount : 0;
+        updateGoal(g.id, { monthlyContribution: Math.max(0, g.monthlyContribution - reduction) });
+      });
+    }
+
+    if (tgt.type === 'spending') {
+      const cat = expenseCategories.find(c => c.id === targetId);
+      if (cat) updateCategory(targetId, { monthlyBudget: cat.monthlyBudget + amount });
+    } else if (tgt.type === 'savings') {
+      updateConfig({ monthlySavingsTarget: savingsTarget + amount });
+    } else if (tgt.type === 'goals') {
+      // Distribute proportionally
+      const activeGoals = goals.filter(g => g.monthlyContribution > 0);
+      if (activeGoals.length > 0) {
+        const perGoal = amount / activeGoals.length;
+        activeGoals.forEach(g => {
+          updateGoal(g.id, { monthlyContribution: g.monthlyContribution + perGoal });
+        });
+      }
+    }
+
+    toast(`Moved €${Math.round(amount)} from ${src.name} to ${tgt.name}`);
+    setShowTransferSheet(false);
+    setShowQuickTransfer(false);
+    setDragSource(null);
+    setDragTarget(null);
+  }, [blockInfoMap, expenseCategories, updateCategory, updateConfig, savingsTarget, goals, updateGoal]);
+
+  const handleQuickAmount = useCallback((amt: number) => {
+    if (dragSource && dragTarget) {
+      handleTransferApply(dragSource.id, dragTarget.id, amt, false);
+    }
+  }, [dragSource, dragTarget, handleTransferApply]);
+
 
   // Reminder banner logic
   const [activeReminder, setActiveReminder] = useState<{ amount: number; description: string; type: string } | null>(null);
@@ -645,16 +809,25 @@ function MyMoneyContent() {
 
             return (
               <motion.div key={cat.id} layout
+                data-block-id={cat.id}
                 className="relative rounded-xl overflow-hidden cursor-pointer"
                 style={{
                   gridColumn: `span ${subSpans.col}`,
                   gridRow: `span ${subSpans.row}`,
                   background: tint, border: `1.5px solid ${hexToRgba(tint, 0.30)}`,
-                  boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.12)',
+                  boxShadow: isDragging && dragSource?.id !== cat.id ? undefined : 'inset 0 -3px 6px rgba(0,0,0,0.12)',
                   minHeight: subSpans.minH, padding: 8,
+                  transform: isDragging && dragSource?.id === cat.id ? 'scale(1.05)' : undefined,
+                  zIndex: isDragging && dragSource?.id === cat.id ? 100 : undefined,
+                  borderStyle: isDragging && dragSource?.id !== cat.id && dragSource?.type !== 'fixed' ? 'dashed' : undefined,
+                  borderColor: isDragging && dragTarget?.id === cat.id ? 'rgba(45,36,64,0.3)' : undefined,
+                  transition: 'transform 150ms ease, border 200ms ease',
                 }}
-                onClick={() => handleExpandItem(cat.id, budget)}
-                whileTap={{ scale: 0.96 }}
+                onClick={() => { if (!isDragging) handleExpandItem(cat.id, budget); }}
+                onTouchStart={(e) => handleDragTouchStart(e, { id: cat.id, type: 'spending', name: cat.name, color: tint, budget: cat.monthlyBudget })}
+                onTouchMove={handleDragTouchMove}
+                onTouchEnd={handleDragTouchEnd}
+                whileTap={isDragging ? undefined : { scale: 0.96 }}
                 transition={{ type: 'spring', duration: 0.3 }}
               >
                 <div className="flex flex-col h-full">
@@ -693,7 +866,7 @@ function MyMoneyContent() {
         const CatIcon = getIcon(cat.icon);
         const subSpans = getSubSpans(cat.monthlyBudget, totalFixed);
         return (
-          <div key={cat.id} className="relative rounded-xl p-2 flex flex-col" style={{
+          <div key={cat.id} data-block-id={cat.id} className="relative rounded-xl p-2 flex flex-col" style={{
             gridColumn: `span ${subSpans.col}`,
             gridRow: `span ${subSpans.row}`,
             background: cat._color,
@@ -818,6 +991,7 @@ function MyMoneyContent() {
       <motion.div
         key={id}
         layout
+        data-block-id={id}
         className="relative rounded-2xl overflow-hidden cursor-pointer"
         style={{
           gridColumn: `span ${spans.col}`,
@@ -825,11 +999,23 @@ function MyMoneyContent() {
           background: 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(4px)',
           WebkitBackdropFilter: 'blur(4px)',
-          border: '1px solid rgba(255,255,255,0.12)',
+          border: isDragging && dragSource?.id !== id && id !== 'fixed' && dragSource?.type !== 'fixed'
+            ? '2px dashed rgba(45,36,64,0.15)'
+            : isDragging && dragTarget?.id === id
+              ? '2px dashed rgba(45,36,64,0.25)'
+              : '1px solid rgba(255,255,255,0.12)',
           padding: 8,
           minHeight: 120,
           transition: 'all 400ms ease',
+          transform: isDragging && dragSource?.id === id ? 'scale(1.05)' : undefined,
+          zIndex: isDragging && dragSource?.id === id ? 100 : undefined,
+          boxShadow: isDragging && dragSource?.id === id ? '0 8px 24px rgba(45,36,64,0.2)' : undefined,
         }}
+        onTouchStart={(id === 'goals' || id === 'savings') ? (e) => handleDragTouchStart(e, {
+          id, type: id as 'goals' | 'savings', name: label, color, budget: amount,
+        }) : undefined}
+        onTouchMove={(id === 'goals' || id === 'savings') ? handleDragTouchMove : undefined}
+        onTouchEnd={(id === 'goals' || id === 'savings') ? handleDragTouchEnd : undefined}
         onClick={() => {
           if (id === 'goals') {
             setActiveTab(2);
@@ -1172,6 +1358,136 @@ function MyMoneyContent() {
         open={showCompareSelector}
         onClose={() => setShowCompareSelector(false)}
         onSelect={handleSelectCompareMode}
+      />
+
+      {/* Drag-and-Drop Overlay: coin at finger + coin trail */}
+      {isDragging && dragCurrent && (
+        <div className="fixed inset-0 z-[90] pointer-events-none">
+          {/* Coin at finger */}
+          <div style={{
+            position: 'absolute',
+            left: dragCurrent.x - 8,
+            top: dragCurrent.y - 8,
+            width: 16, height: 16, borderRadius: '50%',
+            background: '#FFD700',
+            boxShadow: '0 2px 8px rgba(255,215,0,0.5)',
+          }} />
+          {/* Coin trail particles */}
+          {coinTrail.map(c => (
+            <motion.div
+              key={c.id}
+              initial={{ opacity: 0.8, scale: 1 }}
+              animate={{ opacity: 0, scale: 0.5 }}
+              transition={{ duration: 0.3 }}
+              style={{
+                position: 'absolute',
+                left: c.x - 2,
+                top: c.y - 2,
+                width: 4, height: 4, borderRadius: '50%',
+                background: '#FFD700',
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Drag Tutorial Tooltip */}
+      <AnimatePresence>
+        {showDragTutorial && dragCurrent && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="fixed z-[100] pointer-events-none"
+            style={{
+              left: dragCurrent.x - 120,
+              top: dragCurrent.y - 50,
+              background: 'rgba(45, 36, 64, 0.85)',
+              color: 'white',
+              fontSize: 12,
+              padding: '8px 14px',
+              borderRadius: 8,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Drag money between blocks! Long-press and drag to move budget.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Transfer Popup */}
+      <AnimatePresence>
+        {showQuickTransfer && dragSource && dragTarget && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50"
+              style={{ background: 'rgba(0,0,0,0.15)' }}
+              onClick={() => { setShowQuickTransfer(false); setDragSource(null); setDragTarget(null); }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="fixed z-50"
+              style={{
+                left: Math.min(quickTransferPos.x - 100, window.innerWidth - 220),
+                top: Math.max(quickTransferPos.y - 80, 80),
+                background: 'rgba(255, 255, 255, 0.88)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.6)',
+                borderRadius: 14,
+                padding: '12px 14px',
+                boxShadow: '0 4px 16px rgba(45, 36, 64, 0.12)',
+                minWidth: 200,
+              }}
+            >
+              <div style={{ fontSize: 12, color: '#5C4F6E', marginBottom: 8 }}>
+                Move from {dragSource.name} to {dragTarget.name}:
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {[25, 50, 100].map(amt => (
+                  <button
+                    key={amt}
+                    onClick={() => handleQuickAmount(Math.min(amt, dragSource.budget))}
+                    className="rounded-[10px]"
+                    style={{
+                      padding: '8px 14px',
+                      background: 'rgba(255,255,255,0.5)',
+                      border: '1.5px solid rgba(255,255,255,0.6)',
+                      color: '#2D2440',
+                      fontSize: 13, fontWeight: 500,
+                    }}
+                  >€{amt}</button>
+                ))}
+                <button
+                  onClick={() => { setShowQuickTransfer(false); setShowTransferSheet(true); }}
+                  className="rounded-[10px]"
+                  style={{
+                    padding: '8px 14px',
+                    background: 'rgba(139,92,246,0.08)',
+                    border: '1.5px solid rgba(139,92,246,0.2)',
+                    color: '#8B5CF6',
+                    fontSize: 13, fontWeight: 500,
+                  }}
+                >More...</button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Transfer Sheet */}
+      <TransferSheet
+        open={showTransferSheet}
+        source={dragSource}
+        target={dragTarget}
+        isWhatIf={isWhatIf}
+        onApply={handleTransferApply}
+        onClose={() => { setShowTransferSheet(false); setDragSource(null); setDragTarget(null); }}
       />
     </div>
   );
