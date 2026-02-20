@@ -15,6 +15,9 @@ import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { useApp, Goal } from '@/context/AppContext';
 import { AddTransactionSheet } from '@/components/budget/AddTransactionSheet';
 import { PurchaseDecisionSheet } from '@/components/budget/PurchaseDecisionSheet';
+import { ScenarioPicker, type SelectedScenario } from '@/components/scenarios/ScenarioPicker';
+import { StressTestResults } from '@/components/scenarios/StressTestResults';
+import { LifeChangeResults } from '@/components/scenarios/LifeChangeResults';
 import { tipsByPersona, getImpactText, getAffordText } from '@/lib/personaMessaging';
 import { getPersona } from '@/lib/profileData';
 import johnnyImage from '@/assets/johnny.png';
@@ -213,6 +216,9 @@ function MyMoneyContent() {
   const [purchaseDesc, setPurchaseDesc] = useState('');
   const [showDecisionSheet, setShowDecisionSheet] = useState(false);
   const [reminderDismissed, setReminderDismissed] = useState(false);
+  const [showScenarioPicker, setShowScenarioPicker] = useState(false);
+  const [stressScenarios, setStressScenarios] = useState<SelectedScenario[] | null>(null);
+  const [lifeChangeScenarios, setLifeChangeScenarios] = useState<SelectedScenario[] | null>(null);
 
   // Reminder banner logic
   const [activeReminder, setActiveReminder] = useState<{ amount: number; description: string; type: string } | null>(null);
@@ -877,14 +883,11 @@ function MyMoneyContent() {
 
       {/* Mode + Zoom toggles */}
       <div className="px-4 mb-2 flex items-center justify-between">
-        <div className="flex items-center rounded-full p-0.5 frosted-button" style={{ padding: 2 }}>
-          <button onClick={() => { setIsWhatIf(false); handleWhatIfDone(); }}
-            className={`px-3 py-1 rounded-full text-[12px] font-medium ${!isWhatIf ? 'bg-white/40' : ''}`}
-            style={{ color: !isWhatIf ? '#2D2440' : '#8A7FA0' }}>My Month</button>
-          <button onClick={() => setIsWhatIf(true)}
-            className={`px-3 py-1 rounded-full text-[12px] font-medium flex items-center gap-1 ${isWhatIf ? 'bg-white/40' : ''}`}
-            style={{ color: isWhatIf ? '#2D2440' : '#8A7FA0' }}>
-            <Sparkles size={12} />What If
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowScenarioPicker(true)}
+            className="flex items-center gap-1.5 rounded-xl px-3 py-2"
+            style={{ background: 'rgba(139,92,246,0.1)', border: '1.5px solid rgba(139,92,246,0.2)', color: '#8B5CF6', fontSize: 13, fontWeight: 600 }}>
+            <Sparkles size={14} />Life Scenarios
           </button>
         </div>
         <div className="flex items-center rounded-full p-0.5 frosted-button" style={{ padding: 2 }}>
@@ -1027,92 +1030,37 @@ function MyMoneyContent() {
         </div>
       </div>
 
-      {/* What If toolbar */}
+      {/* Scenario System */}
       <AnimatePresence>
-        {isWhatIf && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-            className="px-4 mb-3">
-            {whatIfFirstActivation && simulations.length === 0 && (
-              <div className="mb-3 rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Sparkles size={14} className="text-white/30" />
-                  <span className="text-[12px] text-white/30">Try a scenario:</span>
-                </div>
-                <div className="space-y-1.5">
-                  <button onClick={() => handleQuickScenario('rent')}
-                    className="w-full px-3 h-9 rounded-xl text-left text-[13px] text-white/60 flex items-center"
-                    style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    🏠 Cheaper rent (-€100)
-                  </button>
-                  <button onClick={() => handleQuickScenario('save')}
-                    className="w-full px-3 h-9 rounded-xl text-left text-[13px] text-white/60 flex items-center"
-                    style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    💰 Save €100 more
-                  </button>
-                  <button onClick={() => handleQuickScenario('income-drop')}
-                    className="w-full px-3 h-9 rounded-xl text-left text-[13px] text-white/60 flex items-center"
-                    style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    📉 Income drops 20%
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {scenarioImpact && (
-              <div className="mb-3 rounded-xl p-3" style={{
-                background: scenarioImpact.isNegative ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.12)',
-                backdropFilter: 'blur(8px)',
-              }}>
-                {activeScenarioLabel === 'rent' && (
-                  <>
-                    <p className="text-[14px] text-white">🏠 Rent: €{scenarioImpact.originalValue} → <span className="text-green-400">€{scenarioImpact.newValue}</span></p>
-                    <p className="text-[14px] text-green-400">Free: €{Math.round(freeAmount)} → €{Math.round(scenarioImpact.newFree)} (+€100/mo)</p>
-                    <p className="text-[13px] text-white/50">That's €{scenarioImpact.annualSaved}/year saved</p>
-                    {scenarioImpact.goalImpact && <p className="text-[13px] text-green-400/60">{scenarioImpact.goalImpact}</p>}
-                  </>
-                )}
-                {activeScenarioLabel === 'save' && (
-                  <>
-                    <p className="text-[14px] text-white">💰 Savings: €{scenarioImpact.originalValue} → <span className="text-green-400">€{scenarioImpact.newValue}</span></p>
-                    <p className="text-[14px] text-white/60">Free: €{Math.round(freeAmount)} → €{Math.round(scenarioImpact.newFree)}</p>
-                    <p className="text-[13px] text-white/50">€{scenarioImpact.annualSaved}/year more saved</p>
-                  </>
-                )}
-                {activeScenarioLabel === 'income-drop' && (
-                  <>
-                    <p className="text-[14px] text-white">⚠️ Income: <span className="line-through text-red-400/60">€{scenarioImpact.originalValue}</span> → <span className="text-amber-400">€{scenarioImpact.newValue}</span></p>
-                    {scenarioImpact.isNegative ? (
-                      <>
-                        <p className="text-[14px] text-amber-400">You'd be €{Math.abs(Math.round(scenarioImpact.newFree))}/month over-committed</p>
-                        <p className="text-[13px] text-white/50">You'd need to cut spending by €{Math.abs(Math.round(scenarioImpact.newFree))}</p>
-                      </>
-                    ) : (
-                      <p className="text-[14px] text-white/60">Free: €{Math.round(freeAmount)} → €{Math.round(scenarioImpact.newFree)}</p>
-                    )}
-                  </>
-                )}
-                <div className="flex items-center gap-2 mt-3">
-                  <button onClick={() => { handleWhatIfReset(); setActiveScenarioLabel(null); }}
-                    className="px-3 py-1.5 rounded-full text-[12px] text-white/50" style={{ background: 'rgba(255,255,255,0.10)' }}>Reset</button>
-                  <button onClick={handleWhatIfSave}
-                    className="px-3 py-1.5 rounded-full text-[12px] text-white font-medium" style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>Save All</button>
-                  <button onClick={handleTryAnother}
-                    className="px-3 py-1.5 rounded-full text-[12px] text-white/50" style={{ background: 'rgba(255,255,255,0.10)' }}>Try Another</button>
-                </div>
-              </div>
-            )}
-
-            {!scenarioImpact && !whatIfFirstActivation && (
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] text-white/40">Changes: {simulations.length}</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={handleWhatIfReset} className="px-3 py-1 rounded-full text-[12px] text-white/50" style={{ background: 'rgba(255,255,255,0.10)' }}>Reset</button>
-                  <button onClick={handleWhatIfSave} className="px-3 py-1 rounded-full text-[12px] text-white font-medium" style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>Save all</button>
-                  <button onClick={handleWhatIfDone} className="text-[12px] text-white/40">Done</button>
-                </div>
-              </div>
-            )}
-          </motion.div>
+        {showScenarioPicker && (
+          <ScenarioPicker
+            open={showScenarioPicker}
+            onClose={() => setShowScenarioPicker(false)}
+            onRunStress={(s) => { setShowScenarioPicker(false); setStressScenarios(s); }}
+            onRunLifeChange={(s) => { setShowScenarioPicker(false); setLifeChangeScenarios(s); }}
+            onRunQuick={(s) => {
+              setShowScenarioPicker(false);
+              if (s.config.id === 'income-drop-quick') handleQuickScenario('income-drop');
+              else if (s.config.id === 'cheap-rent') handleQuickScenario('rent');
+              else if (s.config.id === 'save-more') handleQuickScenario('save');
+            }}
+          />
+        )}
+        {stressScenarios && (
+          <StressTestResults
+            scenarios={stressScenarios}
+            onClose={() => setStressScenarios(null)}
+            onTryAnother={() => { setStressScenarios(null); setShowScenarioPicker(true); }}
+            onBuildSafetyNet={() => { setStressScenarios(null); /* highlight savings */ }}
+          />
+        )}
+        {lifeChangeScenarios && (
+          <LifeChangeResults
+            scenarios={lifeChangeScenarios}
+            onClose={() => setLifeChangeScenarios(null)}
+            onSave={() => { setLifeChangeScenarios(null); }}
+            onApply={() => { setLifeChangeScenarios(null); }}
+          />
         )}
       </AnimatePresence>
 
