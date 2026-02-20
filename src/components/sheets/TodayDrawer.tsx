@@ -1,31 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Sparkles, X, Home, Zap, Bus } from 'lucide-react';
+import { startOfMonth, endOfMonth, isWithinInterval, parseISO, getDate, getDaysInMonth, addMonths, format, addDays, differenceInDays } from 'date-fns';
 import johnnyImage from '@/assets/johnny.png';
-import { SimulationProvider } from '@/context/SimulationContext';
-import { TerrainPath } from '@/components/terrain/TerrainPath';
-import {
-  Home, Zap, Shield, ShoppingCart, Smartphone, Music, Dumbbell, Wallet,
-  UtensilsCrossed, ShoppingBag, Bus, Film, CreditCard, Coffee, MoreHorizontal,
-  Gift, BookOpen, Shirt, Wrench, Heart,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import { startOfMonth, endOfMonth, isWithinInterval, parseISO, getDate, getDaysInMonth } from 'date-fns';
+import { tipsByPersona } from '@/lib/personaMessaging';
 
+// ── Storage ──
 const STORAGE_KEY = 'jfb-budget-data';
 
-const iconLookup: Record<string, LucideIcon> = {
-  UtensilsCrossed, ShoppingBag, Bus, Film, Dumbbell, CreditCard, Coffee, Smartphone, MoreHorizontal,
-  Gift, BookOpen, Shirt, Wrench, Heart, Home, Zap, Shield, ShoppingCart, Music, Wallet,
-};
-
-const johnnyTips = [
-  "You're spending less on food this week. Keep it up!",
-  "Emergency fund is 40% there. Closer than you think!",
-  "At this pace, vacation goal done by December.",
-];
-
-/** Read budget data fresh from localStorage (no caching) */
 function readBudgetFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -36,9 +18,29 @@ function readBudgetFromStorage() {
       categories: (parsed.categories || []) as Array<{ id: string; name: string; icon: string; monthlyBudget: number; type: string; sortOrder: number }>,
       transactions: (parsed.transactions || []) as Array<{ id: string; amount: number; type: string; categoryId: string; description: string; date: string; isRecurring: boolean }>,
     };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
+}
+
+// ── Types ──
+type TimeRange = '1M' | '3M' | '6M' | '1Y';
+
+interface TerrainPoint {
+  date: Date;
+  balance: number;
+  isPast: boolean;
+  isToday: boolean;
+  isFuture: boolean;
+  isSalaryDay: boolean;
+  bill?: { icon: string; label: string; amount: number };
+}
+
+export interface TerrainForkData {
+  active: boolean;
+  label: string;
+  color: string;
+  points: TerrainPoint[];
+  dangerMonth?: number;
+  deltaLabel?: string;
 }
 
 interface TodayDrawerProps {
@@ -46,23 +48,197 @@ interface TodayDrawerProps {
   onClose: () => void;
 }
 
-function TodayDrawerContent({ onClose, budgetData }: TodayDrawerProps & { budgetData: ReturnType<typeof readBudgetFromStorage> }) {
-  const [currentTip, setCurrentTip] = useState(0);
+// ── Persona tips ──
+function getPersonaTip(): string {
+  const persona = localStorage.getItem('jfb_persona') || 'default';
+  const tips = tipsByPersona[persona] || tipsByPersona['default'];
+  return tips[Math.floor(Math.random() * tips.length)];
+}
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTip(prev => (prev + 1) % johnnyTips.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+// ── Data generation ──
+function generatePoints(
+  range: TimeRange,
+  income: number,
+  totalFixed: number,
+  flexBudget: number,
+  flexSpent: number,
+  bills: Array<{ day: number; icon: string; label: string; amount: number }>,
+): TerrainPoint[] {
+  const now = new Date();
+  const dayOfMonth = getDate(now);
+  const daysInCurrentMonth = getDaysInMonth(now);
 
-  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    if (info.offset.y < -50) {
-      onClose();
+  const totalMonths = range === '1M' ? 1 : range === '3M' ? 3 : range === '6M' ? 6 : 12;
+
+  // For 1M/3M: daily points. For 6M/1Y: weekly aggregated
+  const useWeekly = range === '6M' || range === '1Y';
+
+  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  let endDate: Date;
+  if (range === '1M') {
+    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else {
+    endDate = addMonths(startDate, totalMonths);
+  }
+
+  const totalDays = differenceInDays(endDate, startDate) + 1;
+  const dailyBurn = flexBudget / daysInCurrentMonth;
+
+  // Start balance: flex budget minus what's been spent
+  let balance = flexBudget - flexSpent;
+  // Reconstruct: we're at dayOfMonth, balance is current flex remaining
+  // Go back to day 1 to build full picture
+  let runningBalance = flexBudget; // day 1 start
+  const points: TerrainPoint[] = [];
+
+  if (useWeekly) {
+    // Weekly aggregated
+    let weekBalance = flexBudget;
+    let weekStart = startDate;
+    for (let w = 0; w < Math.ceil(totalDays / 7); w++) {
+      const weekDate = addDays(startDate, w * 7);
+      const weekDayOfMonth = weekDate.getDate();
+      const weekMonth = weekDate.getMonth();
+      const isPast = weekDate < now;
+      const isToday = w * 7 <= dayOfMonth && (w + 1) * 7 > dayOfMonth && weekMonth === now.getMonth();
+      const isFuture = weekDate > now;
+      const isSalaryDay = weekDayOfMonth <= 7 && (weekMonth !== now.getMonth() || w === 0);
+
+      // On month boundaries, add income
+      if (weekDayOfMonth <= 7 && (weekMonth !== now.getMonth() || w === 0)) {
+        if (w > 0) weekBalance += income;
+      }
+
+      // Subtract weekly burn
+      if (w > 0) {
+        weekBalance -= dailyBurn * 7;
+        // Subtract bills in this week
+        bills.forEach(b => {
+          if (b.day >= weekDayOfMonth && b.day < weekDayOfMonth + 7) {
+            weekBalance -= b.amount;
+          }
+        });
+      }
+
+      points.push({
+        date: weekDate,
+        balance: Math.max(0, Math.round(weekBalance)),
+        isPast: isPast && !isToday,
+        isToday: !!isToday,
+        isFuture: isFuture && !isToday,
+        isSalaryDay,
+      });
     }
+  } else {
+    // Daily points
+    let bal = flexBudget;
+    for (let d = 0; d < totalDays; d++) {
+      const date = addDays(startDate, d);
+      const dom = date.getDate();
+      const dateMonth = date.getMonth();
+      const isPast = date < now && !(dom === dayOfMonth && dateMonth === now.getMonth());
+      const isToday = dom === dayOfMonth && dateMonth === now.getMonth();
+      const isFuture = date > now;
+      const isSalaryDay = dom === 1;
+
+      // On day 1 of new months, add income and reset flex
+      if (dom === 1 && d > 0) {
+        bal += income;
+      }
+
+      if (d > 0) {
+        bal -= dailyBurn;
+      }
+
+      // Bills
+      const bill = bills.find(b => b.day === dom && (dateMonth === now.getMonth() || dom <= 28));
+
+      points.push({
+        date,
+        balance: Math.max(0, Math.round(bal)),
+        isPast: isPast && !isToday,
+        isToday,
+        isFuture: isFuture && !isToday,
+        isSalaryDay,
+        bill: bill ? { icon: bill.icon, label: bill.label, amount: bill.amount } : undefined,
+      });
+    }
+  }
+
+  return points;
+}
+
+// ── Fork point generation ──
+function generateForkPoints(
+  basePoints: TerrainPoint[],
+  scenario: {
+    modifiedIncome?: number;
+    modifiedFixed?: number;
+    modifiedSpending?: number;
+    durationMonths?: number;
+    oneTimeExpense?: number;
+  },
+  originalIncome: number,
+): TerrainPoint[] {
+  return basePoints.map((p, i) => {
+    let bal = p.balance;
+    if (scenario.oneTimeExpense && i === 0) {
+      bal -= scenario.oneTimeExpense;
+    }
+    if (scenario.modifiedIncome) {
+      const diff = scenario.modifiedIncome - originalIncome;
+      bal += diff * (i / basePoints.length);
+    }
+    return { ...p, balance: Math.max(0, Math.round(bal)) };
+  });
+}
+
+// ── SVG helpers ──
+function buildPath(points: TerrainPoint[], width: number, height: number, padding = { top: 20, bottom: 10 }): string {
+  if (points.length === 0) return '';
+  const maxBal = Math.max(...points.map(p => p.balance), 1);
+  const mapX = (i: number) => (i / (points.length - 1)) * width;
+  const mapY = (bal: number) => {
+    const norm = bal / maxBal;
+    return height - padding.bottom - norm * (height - padding.top - padding.bottom);
   };
 
-  // Compute display values from budget data
+  let path = `M ${mapX(0)} ${mapY(points[0].balance)}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = { x: mapX(i - 1), y: mapY(points[i - 1].balance) };
+    const curr = { x: mapX(i), y: mapY(points[i].balance) };
+    const dx = curr.x - prev.x;
+    path += ` C ${prev.x + dx * 0.4} ${prev.y} ${curr.x - dx * 0.4} ${curr.y} ${curr.x} ${curr.y}`;
+  }
+  return path;
+}
+
+function buildFillPath(points: TerrainPoint[], width: number, height: number, padding = { top: 20, bottom: 10 }): string {
+  const line = buildPath(points, width, height, padding);
+  if (!line) return '';
+  const maxX = (points.length - 1) / (points.length - 1) * width;
+  return `${line} L ${maxX} ${height} L 0 ${height} Z`;
+}
+
+// ── Main Component ──
+function DrawerContent({ onClose }: { onClose: () => void }) {
+  const [timeRange, setTimeRange] = useState<TimeRange>('1M');
+  const [tip] = useState(getPersonaTip);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(320);
+
+  // Fork state (dormant for now)
+  const [forkData, setForkData] = useState<TerrainForkData | null>(null);
+
+  // Read budget data fresh
+  const budgetData = useMemo(() => readBudgetFromStorage(), []);
+
+  useEffect(() => {
+    if (chartRef.current) {
+      setChartWidth(chartRef.current.offsetWidth - 24); // padding
+    }
+  }, []);
+
   const computed = useMemo(() => {
     const now = new Date();
     const dIM = getDaysInMonth(now);
@@ -71,15 +247,15 @@ function TodayDrawerContent({ onClose, budgetData }: TodayDrawerProps & { budget
     const pM = Math.round((dOM / dIM) * 100);
 
     if (!budgetData || !budgetData.config.setupComplete) {
-      return { flexRemaining: 0, dailyAllowance: 0, percentSpent: 0, percentMonth: pM, paceStatus: 'on-track' as const, daysRemaining: dR, monthlyIncome: 0, hasData: false };
+      return {
+        flexRemaining: 0, dailyAllowance: 0, percentSpent: 0, percentMonth: pM,
+        paceStatus: 'on-track' as const, daysRemaining: dR, monthlyIncome: 0,
+        flexBudget: 0, flexSpent: 0, totalFixed: 0, hasData: false,
+      };
     }
 
     const monthStart = startOfMonth(now);
     const monthEnd = endOfMonth(now);
-    const daysInMonth = dIM;
-    const dayOfMonth = dOM;
-    const daysRemaining = dR;
-
     const { config, categories, transactions } = budgetData;
     const expenseCats = categories.filter(c => c.type === 'expense');
     const fixedCats = categories.filter(c => c.type === 'fixed');
@@ -97,166 +273,537 @@ function TodayDrawerContent({ onClose, budgetData }: TodayDrawerProps & { budget
       .reduce((s, t) => s + (typeof t.amount === 'number' ? t.amount : parseFloat(String(t.amount)) || 0), 0);
 
     const flexRemaining = flexBudget - flexSpent;
-    const dailyAllowance = daysRemaining > 0 ? Math.max(0, flexRemaining / daysRemaining) : 0;
+    const dailyAllowance = dR > 0 ? Math.max(0, flexRemaining / dR) : 0;
     const percentSpent = flexBudget > 0 ? (flexSpent / flexBudget) * 100 : 0;
-    const percentMonth = (dayOfMonth / daysInMonth) * 100;
     const paceStatus: 'on-track' | 'watch' | 'slow-down' =
-      percentSpent <= percentMonth + 5 ? 'on-track' : percentSpent <= percentMonth + 15 ? 'watch' : 'slow-down';
+      percentSpent <= pM + 5 ? 'on-track' : percentSpent <= pM + 15 ? 'watch' : 'slow-down';
 
-    return { flexRemaining, dailyAllowance, percentSpent, percentMonth, paceStatus, daysRemaining, monthlyIncome: config.monthlyIncome, hasData: true };
+    return {
+      flexRemaining, dailyAllowance, percentSpent, percentMonth: pM,
+      paceStatus, daysRemaining: dR, monthlyIncome: config.monthlyIncome,
+      flexBudget, flexSpent, totalFixed, hasData: true,
+    };
   }, [budgetData]);
 
-  const PaceIcon = computed.paceStatus === 'on-track' ? CheckCircle : computed.paceStatus === 'watch' ? AlertTriangle : AlertCircle;
-  const paceLabel = computed.paceStatus === 'on-track' ? 'On track' : computed.paceStatus === 'watch' ? 'Watch it' : 'Over pace';
+  // Build bills from fixed categories
+  const bills = useMemo(() => {
+    if (!budgetData) return [];
+    const fixedCats = budgetData.categories.filter(c => c.type === 'fixed');
+    return fixedCats.map((c, i) => ({
+      day: Math.min(3 + i * 4, 28),
+      icon: c.icon || 'Home',
+      label: c.name,
+      amount: c.monthlyBudget,
+    }));
+  }, [budgetData]);
+
+  // Generate terrain points
+  const terrainPoints = useMemo(() => {
+    if (!computed.hasData) return [];
+    return generatePoints(
+      timeRange,
+      computed.monthlyIncome,
+      computed.totalFixed,
+      computed.flexBudget,
+      computed.flexSpent,
+      bills,
+    );
+  }, [timeRange, computed, bills]);
+
+  const chartHeight = 200;
+  const todayIdx = terrainPoints.findIndex(p => p.isToday);
+  const maxBal = Math.max(...terrainPoints.map(p => p.balance), 1);
+
+  const mapX = useCallback((i: number) => (i / Math.max(terrainPoints.length - 1, 1)) * chartWidth, [terrainPoints.length, chartWidth]);
+  const mapY = useCallback((bal: number) => {
+    const norm = bal / maxBal;
+    return chartHeight - 10 - norm * (chartHeight - 30);
+  }, [maxBal]);
+
+  // SVG paths
+  const fillPath = useMemo(() => buildFillPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth]);
+  const linePath = useMemo(() => buildPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth]);
+
+  // Split past/future paths at today index
+  const todayX = todayIdx >= 0 ? mapX(todayIdx) : 0;
+
+  // Y-axis labels
+  const yLabels = useMemo(() => {
+    const labels: { value: number; y: number }[] = [];
+    const step = maxBal > 5000 ? 2000 : maxBal > 2000 ? 1000 : maxBal > 1000 ? 500 : 250;
+    for (let v = step; v < maxBal; v += step) {
+      labels.push({ value: v, y: mapY(v) });
+    }
+    return labels.slice(0, 4);
+  }, [maxBal, mapY]);
+
+  // X-axis labels
+  const xLabels = useMemo(() => {
+    const labels: { x: number; text: string }[] = [];
+    if (timeRange === '1M') {
+      const interval = Math.max(1, Math.floor(terrainPoints.length / 7));
+      terrainPoints.forEach((p, i) => {
+        if (i % interval === 0 || p.isToday) {
+          labels.push({ x: mapX(i), text: p.isToday ? 'Today' : p.date.getDate().toString() });
+        }
+      });
+    } else if (timeRange === '3M') {
+      terrainPoints.forEach((p, i) => {
+        if (p.date.getDate() === 15 || p.isToday) {
+          labels.push({ x: mapX(i), text: p.isToday ? 'Today' : format(p.date, 'MMM') });
+        }
+      });
+    } else {
+      // 6M / 1Y: month abbreviations
+      let lastMonth = -1;
+      terrainPoints.forEach((p, i) => {
+        const m = p.date.getMonth();
+        if (m !== lastMonth) {
+          lastMonth = m;
+          labels.push({ x: mapX(i), text: format(p.date, 'MMM') });
+        }
+      });
+    }
+    return labels;
+  }, [timeRange, terrainPoints, mapX]);
+
+  // Daily burn label
+  const dailyBurn = computed.flexBudget > 0 ? Math.round(computed.flexBudget / getDaysInMonth(new Date())) : 0;
+
+  // Salary spike label position
+  const salaryIdx = terrainPoints.findIndex((p, i) => i > 0 && p.isSalaryDay);
+
+  // Fork paths (dormant)
+  const forkLinePath = useMemo(() => {
+    if (!forkData?.active || !forkData.points.length) return '';
+    return buildPath(forkData.points, chartWidth, chartHeight);
+  }, [forkData, chartWidth]);
+
+  const forkFillPath = useMemo(() => {
+    if (!forkData?.active || !forkData.points.length) return '';
+    // Area between main and fork
+    const mainLine = buildPath(terrainPoints, chartWidth, chartHeight);
+    const forkLine = buildPath(forkData.points, chartWidth, chartHeight);
+    // Simple: just fill beneath fork line
+    return buildFillPath(forkData.points, chartWidth, chartHeight);
+  }, [forkData, terrainPoints, chartWidth]);
+
+  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (info.offset.y > 80) onClose();
+  };
+
+  const PaceIcon = computed.paceStatus === 'on-track' ? CheckCircle : AlertTriangle;
+  const paceLabel = computed.paceStatus === 'on-track' ? 'On track' : computed.paceStatus === 'watch' ? 'Watch spending' : 'Over pace';
   const paceColor = computed.paceStatus === 'on-track' ? '#34C759' : '#FF9F0A';
 
   return (
     <>
+      {/* Backdrop */}
       <motion.div
-        className="fixed inset-0 bg-black/60 z-50"
+        className="fixed inset-0 z-50"
+        style={{ background: 'rgba(0, 0, 0, 0.4)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
       />
 
+      {/* Drawer */}
       <motion.div
-        className="fixed top-0 left-0 right-0 z-50 glass-dark rounded-b-3xl max-h-[85vh] overflow-auto"
-        initial={{ y: '-100%' }}
+        className="fixed bottom-0 left-0 right-0 z-50 overflow-y-auto"
+        style={{
+          height: '85vh',
+          background: 'linear-gradient(180deg, #1A1525 0%, #2D1F3D 100%)',
+          borderRadius: '24px 24px 0 0',
+        }}
+        initial={{ y: '100%' }}
         animate={{ y: 0 }}
-        exit={{ y: '-100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={0.2}
+        dragElastic={0.15}
         onDragEnd={handleDragEnd}
       >
-        <div className="h-[env(safe-area-inset-top)]" />
+        {/* Handle bar */}
+        <div className="flex justify-center pt-3 pb-2">
+          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
+        </div>
 
-        <div className="px-5 pt-8 pb-6">
-          {/* Month Pulse Card */}
-          <div className="glass rounded-3xl p-5 mb-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pb-4">
+          <span className="text-lg font-bold text-white">Financial Overview</span>
+
+          {/* Time range toggle */}
+          <div className="flex gap-[3px] rounded-[10px] p-[3px]" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            {(['1M', '3M', '6M', '1Y'] as TimeRange[]).map(r => (
+              <button
+                key={r}
+                className="rounded-lg transition-all duration-200"
+                style={{
+                  padding: '5px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: timeRange === r ? '#8B5CF6' : 'rgba(255,255,255,0.4)',
+                  background: timeRange === r ? 'rgba(139,92,246,0.25)' : 'transparent',
+                }}
+                onClick={() => setTimeRange(r)}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 gap-[10px] px-5 pb-4">
+          {/* Available this month */}
+          <div className="rounded-2xl p-4" style={{
+            background: 'rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}>
             <div className="flex items-start justify-between">
-              <div>
-                <p className="text-white/60 text-xs">Available this month</p>
-                <p className="text-3xl font-bold text-white mt-1">€{Math.round(computed.flexRemaining)}</p>
-              </div>
-              <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
-                style={{ background: `${paceColor}20` }}>
-                <PaceIcon size={14} strokeWidth={1.5} style={{ color: paceColor }} />
-                <span className="text-xs font-medium" style={{ color: paceColor }}>{paceLabel}</span>
-              </div>
+              <span className="text-[11px] uppercase" style={{ color: 'rgba(255,255,255,0.5)' }}>Available this month</span>
+              {/* Status badge */}
+              <span className="text-[10px] font-medium rounded-full px-1.5 py-0.5"
+                style={{ background: `${paceColor}26`, color: paceColor }}>
+                {paceLabel}
+              </span>
             </div>
-            <div className="mt-4 h-1.5 rounded-full bg-white/20 overflow-hidden">
+            <p className="text-[28px] font-bold text-white mt-1">€{Math.round(computed.flexRemaining).toLocaleString()}</p>
+            {/* Pace bar */}
+            <div className="mt-3 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
               <motion.div
-                className="h-full gradient-primary rounded-full"
+                className="h-full rounded-full"
+                style={{ background: 'linear-gradient(90deg, #8B5CF6, #EC4899)' }}
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.min(computed.percentSpent, 100)}%` }}
-                transition={{ duration: 0.8, delay: 0.3 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
               />
             </div>
-            <p className="text-white/50 text-xs mt-2">
-              {Math.round(computed.percentSpent)}% spent — {Math.round(computed.percentMonth)}% of month passed
+            <p className="text-[11px] mt-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              {Math.round(computed.percentSpent)}% spent — {computed.percentMonth}% of month passed
             </p>
           </div>
 
-          {/* Daily Allowance Card */}
-          <div className="glass rounded-3xl p-5 mb-4">
-            <p className="text-2xl font-bold text-white">
-              €{Math.round(computed.dailyAllowance)}<span className="text-lg font-normal"> / day</span>
+          {/* Daily rate */}
+          <div className="rounded-2xl p-4 relative overflow-hidden" style={{
+            background: 'rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}>
+            <span className="text-[11px] uppercase" style={{ color: 'rgba(255,255,255,0.5)' }}>Daily rate</span>
+            <p className="text-[28px] font-bold text-white mt-1">
+              €{Math.round(computed.dailyAllowance)}
+              <span className="text-lg font-normal"> / day</span>
             </p>
-            <p className="text-white/60 text-sm mt-1">remaining for the next {computed.daysRemaining} days</p>
+            <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              remaining for the next {computed.daysRemaining} days
+            </p>
+            {/* Small Johnny */}
+            <img
+              src={johnnyImage}
+              alt=""
+              className="absolute bottom-2 right-2 w-10 h-10 object-contain"
+              style={{ opacity: 0.3 }}
+            />
           </div>
         </div>
 
-        {/* Terrain Visualization */}
-        <TerrainPath />
+        {/* Terrain Chart Card */}
+        <div ref={chartRef} className="mx-5 rounded-[20px] overflow-hidden" style={{
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          padding: '16px 12px 12px',
+        }}>
+          {terrainPoints.length > 0 ? (
+            <div className="relative">
+              <svg width={chartWidth} height={chartHeight} className="block">
+                <defs>
+                  <linearGradient id="drawerTerrainGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.5} />
+                    <stop offset="50%" stopColor="#A855F7" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#2D1F3D" stopOpacity={0.1} />
+                  </linearGradient>
+                  {forkData?.active && (
+                    <linearGradient id="forkFillGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={forkData.color} stopOpacity={0.08} />
+                      <stop offset="100%" stopColor={forkData.color} stopOpacity={0.02} />
+                    </linearGradient>
+                  )}
+                  <clipPath id="drawerPastClip">
+                    <rect x="0" y="0" width={todayX} height={chartHeight} />
+                  </clipPath>
+                  <clipPath id="drawerFutureClip">
+                    <rect x={todayX} y="0" width={chartWidth - todayX} height={chartHeight} />
+                  </clipPath>
+                </defs>
 
-        {/* Johnny's Tip */}
-        <div className="px-5 mt-4 pb-6">
-          <div className="glass rounded-3xl p-4 flex items-center gap-3">
-            <img src={johnnyImage} alt="Johnny" className="w-10 h-10 object-contain" />
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={currentTip}
-                className="text-white text-sm flex-1"
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -5 }}
-                transition={{ duration: 0.3 }}
-              >
-                {johnnyTips[currentTip]}
-              </motion.p>
-            </AnimatePresence>
-          </div>
+                {/* Y-axis gridlines */}
+                {yLabels.map(l => (
+                  <line key={l.value} x1={0} y1={l.y} x2={chartWidth} y2={l.y}
+                    stroke="rgba(255,255,255,0.05)" strokeWidth={1} strokeDasharray="4 4" />
+                ))}
+
+                {/* Zero reference line */}
+                <line x1={0} y1={chartHeight - 10} x2={chartWidth} y2={chartHeight - 10}
+                  stroke="rgba(255,255,255,0.1)" strokeWidth={1} strokeDasharray="4 4" />
+
+                {/* Terrain fill */}
+                <path d={fillPath} fill="url(#drawerTerrainGrad)" />
+
+                {/* Fork fill (dormant) */}
+                {forkData?.active && forkFillPath && (
+                  <path d={forkFillPath} fill="url(#forkFillGrad)" />
+                )}
+
+                {/* Past line (solid) */}
+                <path d={linePath} fill="none"
+                  stroke="rgba(255,255,255,0.9)" strokeWidth={2.5}
+                  clipPath="url(#drawerPastClip)" />
+
+                {/* Future line (dashed) */}
+                <path d={linePath} fill="none"
+                  stroke="rgba(255,255,255,0.5)" strokeWidth={2}
+                  strokeDasharray="6 4"
+                  clipPath="url(#drawerFutureClip)" />
+
+                {/* Fork line (dormant) */}
+                {forkData?.active && forkLinePath && (
+                  <path d={forkLinePath} fill="none"
+                    stroke={forkData.color} strokeWidth={2}
+                    strokeDasharray="8 4" opacity={0.8} />
+                )}
+
+                {/* Today marker */}
+                {todayIdx >= 0 && (
+                  <line x1={todayX} y1={0} x2={todayX} y2={chartHeight}
+                    stroke="rgba(255,255,255,0.3)" strokeWidth={1} strokeDasharray="3 3" />
+                )}
+
+                {/* Y-axis labels */}
+                {yLabels.map(l => (
+                  <text key={`yl-${l.value}`} x={4} y={l.y - 4}
+                    fill="rgba(255,255,255,0.3)" fontSize={9}>
+                    €{l.value >= 1000 ? `${(l.value / 1000).toFixed(l.value % 1000 === 0 ? 0 : 1)}k` : l.value}
+                  </text>
+                ))}
+
+                {/* Salary spike label */}
+                {salaryIdx >= 0 && (timeRange === '1M' || timeRange === '3M') && (
+                  <g>
+                    <rect
+                      x={mapX(salaryIdx) - 28} y={mapY(terrainPoints[salaryIdx].balance) - 18}
+                      width={56} height={16} rx={4}
+                      fill="rgba(39,174,96,0.2)"
+                    />
+                    <text
+                      x={mapX(salaryIdx)} y={mapY(terrainPoints[salaryIdx].balance) - 7}
+                      textAnchor="middle" fill="#34C759" fontSize={10} fontWeight={600}>
+                      €{computed.monthlyIncome.toLocaleString()}
+                    </text>
+                  </g>
+                )}
+
+                {/* Bill icons (1M and 3M only) */}
+                {(timeRange === '1M' || timeRange === '3M') && terrainPoints.map((p, i) => {
+                  if (!p.bill || p.isPast) return null;
+                  const x = mapX(i);
+                  const y = mapY(p.balance);
+                  return (
+                    <g key={`bill-${i}`}>
+                      <rect x={x - 11} y={y - 24} width={22} height={22} rx={6}
+                        fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth={1} />
+                      <foreignObject x={x - 11} y={y - 24} width={22} height={22}>
+                        <div className="w-full h-full flex items-center justify-center">
+                          {p.bill.icon === 'Home' && <Home size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
+                          {p.bill.icon === 'Zap' && <Zap size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
+                          {p.bill.icon === 'Bus' && <Bus size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
+                        </div>
+                      </foreignObject>
+                    </g>
+                  );
+                })}
+
+                {/* Burn rate label near future dashed line */}
+                {todayIdx >= 0 && todayIdx < terrainPoints.length - 3 && (
+                  <g>
+                    <rect
+                      x={mapX(todayIdx + 2) - 30}
+                      y={mapY(terrainPoints[Math.min(todayIdx + 3, terrainPoints.length - 1)].balance) + 8}
+                      width={60} height={14} rx={4}
+                      fill="rgba(255,255,255,0.06)"
+                    />
+                    <text
+                      x={mapX(todayIdx + 2)}
+                      y={mapY(terrainPoints[Math.min(todayIdx + 3, terrainPoints.length - 1)].balance) + 18}
+                      textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize={10}>
+                      ~€{dailyBurn}/day
+                    </text>
+                  </g>
+                )}
+
+                {/* Today label */}
+                {todayIdx >= 0 && (
+                  <text x={todayX} y={chartHeight - 2} textAnchor="middle"
+                    fill="rgba(255,255,255,0.5)" fontSize={10}>
+                    Today
+                  </text>
+                )}
+
+                {/* Danger marker (fork) */}
+                {forkData?.active && forkData.dangerMonth !== undefined && (
+                  <g>
+                    <circle
+                      cx={mapX(forkData.dangerMonth)}
+                      cy={mapY(0)}
+                      r={12}
+                      fill="rgba(239,68,68,0.2)"
+                      stroke="rgba(239,68,68,0.4)"
+                      strokeWidth={1.5}
+                    />
+                    <text
+                      x={mapX(forkData.dangerMonth)}
+                      y={mapY(0) - 16}
+                      textAnchor="middle" fill="#EF4444" fontSize={10}>
+                      Savings depleted
+                    </text>
+                  </g>
+                )}
+              </svg>
+
+              {/* Johnny on the line at today */}
+              {todayIdx >= 0 && (
+                <motion.img
+                  src={johnnyImage}
+                  alt="Johnny"
+                  className="absolute pointer-events-none"
+                  style={{
+                    width: 36, height: 36,
+                    left: todayX - 18,
+                    top: mapY(terrainPoints[todayIdx].balance) - 33,
+                  }}
+                  animate={{ y: [0, -3, 0] }}
+                  transition={{ duration: 3, ease: 'easeInOut', repeat: Infinity }}
+                />
+              )}
+
+              {/* Ghost Johnny on fork (dormant) */}
+              {forkData?.active && todayIdx >= 0 && forkData.points[todayIdx] && (
+                <img
+                  src={johnnyImage}
+                  alt=""
+                  className="absolute pointer-events-none"
+                  style={{
+                    width: 30, height: 30,
+                    left: todayX - 15,
+                    top: mapY(forkData.points[todayIdx].balance) - 27,
+                    opacity: 0.35,
+                    filter: 'grayscale(30%)',
+                  }}
+                />
+              )}
+
+              {/* X-axis labels */}
+              <div className="flex justify-between mt-1 px-1">
+                {xLabels.map((l, i) => (
+                  <span key={i} className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                    {l.text}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center" style={{ height: chartHeight }}>
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Complete Clarity to see your financial terrain</p>
+            </div>
+          )}
         </div>
 
-        <div className="flex justify-center pb-4">
-          <div className="w-10 h-1 rounded-full bg-white/30" />
+        {/* Fork legend (dormant) */}
+        <AnimatePresence>
+          {forkData?.active && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mx-5 mt-2 flex items-center gap-2 rounded-lg px-[10px] py-[6px]"
+              style={{ background: 'rgba(255,255,255,0.06)' }}
+            >
+              <div className="w-2 h-2 rounded-full bg-white" />
+              <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>Current</span>
+              <div className="w-2 h-2 rounded-full" style={{ background: forkData.color }} />
+              <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>{forkData.label}</span>
+              <button className="ml-auto" onClick={() => setForkData(null)}>
+                <X size={12} style={{ color: 'rgba(255,255,255,0.4)' }} />
+              </button>
+
+              {forkData.deltaLabel && (
+                <span className="text-[10px] rounded px-1.5 py-0.5 ml-1" style={{
+                  background: forkData.color === '#F59E0B' ? 'rgba(239,68,68,0.15)' : 'rgba(52,199,89,0.15)',
+                  color: forkData.color === '#F59E0B' ? '#FCA5A5' : '#86EFAC',
+                }}>
+                  {forkData.deltaLabel}
+                </span>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* "What if?" button */}
+        <div className="mx-5 mt-4">
+          <button
+            className="w-full h-12 rounded-[14px] flex items-center justify-center gap-2"
+            style={{
+              background: 'rgba(139,92,246,0.15)',
+              border: '1.5px solid rgba(139,92,246,0.25)',
+              color: '#8B5CF6',
+              fontSize: 15,
+              fontWeight: 600,
+            }}
+            onClick={() => {
+              onClose();
+              // Phase 3: open Life Scenarios picker
+            }}
+          >
+            <Sparkles size={18} style={{ color: '#8B5CF6' }} />
+            What if?
+          </button>
+        </div>
+
+        {/* Johnny's Note */}
+        <div className="mx-5 mt-3 mb-8 flex items-start gap-[10px] rounded-[14px] p-3" style={{
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}>
+          <img src={johnnyImage} alt="Johnny" className="w-9 h-9 object-contain flex-shrink-0" />
+          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>{tip}</p>
         </div>
       </motion.div>
     </>
   );
 }
 
+// ── Export: activateTerrainFork API ──
+export function activateTerrainFork(_scenario: {
+  label: string;
+  type: 'shock' | 'positive';
+  modifiedIncome?: number;
+  modifiedFixed?: number;
+  modifiedSpending?: number;
+  durationMonths?: number;
+  oneTimeExpense?: number;
+}) {
+  // Phase 3: This will be called by Life Scenarios to inject fork data
+  // For now it's a no-op stub
+}
+
+// ── Wrapper ──
 export function TodayDrawer({ open, onClose }: TodayDrawerProps) {
-  // Read fresh from localStorage every time drawer opens (no caching)
-  const budgetData = useMemo(() => {
-    if (!open) return null;
-    return readBudgetFromStorage();
-  }, [open]);
-
-  const computed = useMemo(() => {
-    if (!budgetData || !budgetData.config.setupComplete) {
-      return { flexRemaining: 0, dailyAllowance: 0, daysRemaining: 0, monthlyIncome: 0, averageDailySpend: 0 };
-    }
-
-    const now = new Date();
-    const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
-    const daysInMonth = getDaysInMonth(now);
-    const dayOfMonth = getDate(now);
-    const daysRemaining = daysInMonth - dayOfMonth + 1;
-
-    const { config, categories, transactions } = budgetData;
-    const expenseCats = categories.filter(c => c.type === 'expense');
-    const fixedCats = categories.filter(c => c.type === 'fixed');
-    const totalFixed = fixedCats.reduce((s, c) => s + c.monthlyBudget, 0);
-    const flexBudget = config.monthlyIncome - totalFixed - config.monthlySavingsTarget;
-
-    const expenseCatIds = new Set(expenseCats.map(c => c.id));
-    const flexSpent = transactions
-      .filter(t => {
-        if (t.type !== 'expense') return false;
-        if (!expenseCatIds.has(t.categoryId)) return false;
-        const d = parseISO(t.date);
-        return isWithinInterval(d, { start: monthStart, end: monthEnd });
-      })
-      .reduce((s, t) => s + (typeof t.amount === 'number' ? t.amount : parseFloat(String(t.amount)) || 0), 0);
-
-    const flexRemaining = flexBudget - flexSpent;
-    const dailyAllowance = daysRemaining > 0 ? Math.max(0, flexRemaining / daysRemaining) : 0;
-
-    // Average daily spend from past transactions this month
-    const pastDays = Math.max(dayOfMonth - 1, 1);
-    const averageDailySpend = flexSpent > 0 ? flexSpent / pastDays : dailyAllowance * 0.85;
-
-    return { flexRemaining, dailyAllowance, daysRemaining, monthlyIncome: config.monthlyIncome, averageDailySpend };
-  }, [budgetData]);
-
   return (
     <AnimatePresence>
-      {open && (
-        <SimulationProvider
-          flexRemaining={computed.flexRemaining}
-          dailyAllowance={computed.dailyAllowance}
-          daysRemaining={computed.daysRemaining}
-          monthlyIncome={computed.monthlyIncome}
-          averageDailySpend={computed.averageDailySpend}
-        >
-          <TodayDrawerContent open={open} onClose={onClose} budgetData={budgetData} />
-        </SimulationProvider>
-      )}
+      {open && <DrawerContent onClose={onClose} />}
     </AnimatePresence>
   );
 }
