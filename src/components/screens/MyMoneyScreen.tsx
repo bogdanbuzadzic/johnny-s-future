@@ -16,14 +16,9 @@ import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'da
 import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { useApp, Goal } from '@/context/AppContext';
 import { AddTransactionSheet } from '@/components/budget/AddTransactionSheet';
-import { PurchaseDecisionSheet } from '@/components/budget/PurchaseDecisionSheet';
-import { ScenarioPicker, type SelectedScenario } from '@/components/scenarios/ScenarioPicker';
-import { StressTestResults } from '@/components/scenarios/StressTestResults';
-import { LifeChangeResults } from '@/components/scenarios/LifeChangeResults';
-import { CompareModeSelectorSheet, type CompareMode } from '@/components/budget/CompareModeSelectorSheet';
-import { PlanVsActualView } from '@/components/budget/PlanVsActualView';
-import { MonthVsMonthView } from '@/components/budget/MonthVsMonthView';
-import { ComparePlansView } from '@/components/budget/ComparePlansView';
+import { CanIAffordSheet } from '@/components/budget/CanIAffordSheet';
+import { WhatIfSheet } from '@/components/budget/WhatIfSheet';
+import { CompareSheet } from '@/components/budget/CompareSheet';
 import { tipsByPersona, getImpactText, getAffordText } from '@/lib/personaMessaging';
 import { getPersona } from '@/lib/profileData';
 import johnnyImage from '@/assets/johnny.png';
@@ -199,8 +194,6 @@ function MyMoneyContent() {
   // State
   const [zoom, setZoom] = useState<TimeZoom>('Month');
   const mult = zoomMult[zoom];
-  const [isWhatIf, setIsWhatIf] = useState(false);
-  const [simulations, setSimulations] = useState<Array<{ id: string; field: string; value: number; original: number }>>([]);
   const [expandedParent, setExpandedParent] = useState<string | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [sliderVal, setSliderVal] = useState(0);
@@ -213,7 +206,6 @@ function MyMoneyContent() {
   const [cancellingSubName, setCancellingSubName] = useState<string | null>(null);
   const [importShown, setImportShown] = useState(() => localStorage.getItem('jfb_import_shown') === 'true');
   const [importing, setImporting] = useState(false);
-  const [whatIfFirstActivation, setWhatIfFirstActivation] = useState(true);
   const [savingsExpanded, setSavingsExpanded] = useState(false);
   const [savingsSlider, setSavingsSlider] = useState(savingsTarget);
 
@@ -222,44 +214,8 @@ function MyMoneyContent() {
   const [purchaseDesc, setPurchaseDesc] = useState('');
   const [showDecisionSheet, setShowDecisionSheet] = useState(false);
   const [reminderDismissed, setReminderDismissed] = useState(false);
-  const [showScenarioPicker, setShowScenarioPicker] = useState(false);
-  // Comparison Mode
-  const [showCompareSelector, setShowCompareSelector] = useState(false);
-  const [activeCompareMode, setActiveCompareMode] = useState<CompareMode | null>(null);
-
-  // Save month snapshot on first compare open
-  const saveMonthSnapshot = useCallback(() => {
-    const now = new Date();
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const snapshot = {
-      month: monthKey,
-      income: totalIncome,
-      categories: expenseCategories.map(c => ({
-        id: c.id, name: c.name, icon: c.icon,
-        budget: c.monthlyBudget, spent: getCategorySpent(c.id, 'month'),
-      })),
-      fixedExpenses: fixedCategories.map(c => ({ id: c.id, name: c.name, amount: c.monthlyBudget })),
-      savings: savingsTarget,
-      goalsTotal: totalGoalContributions,
-      totalSpent: flexSpent,
-      timestamp: Date.now(),
-    };
-    const snapshots = JSON.parse(localStorage.getItem('jfb_month_snapshots') || '{}');
-    snapshots[monthKey] = snapshot;
-    localStorage.setItem('jfb_month_snapshots', JSON.stringify(snapshots));
-  }, [totalIncome, expenseCategories, fixedCategories, savingsTarget, totalGoalContributions, flexSpent, getCategorySpent]);
-
-  const handleOpenCompare = useCallback(() => {
-    saveMonthSnapshot();
-    setShowCompareSelector(true);
-  }, [saveMonthSnapshot]);
-
-  const handleSelectCompareMode = useCallback((mode: CompareMode) => {
-    setShowCompareSelector(false);
-    setActiveCompareMode(mode);
-  }, []);
-  const [stressScenarios, setStressScenarios] = useState<SelectedScenario[] | null>(null);
-  const [lifeChangeScenarios, setLifeChangeScenarios] = useState<SelectedScenario[] | null>(null);
+  const [showWhatIf, setShowWhatIf] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
 
   // ── Drag-and-Drop Money Flow ──
   type DragBlockInfo = { id: string; type: 'spending' | 'goals' | 'savings' | 'fixed'; name: string; color: string; budget: number };
@@ -1080,29 +1036,7 @@ function MyMoneyContent() {
     );
   }
 
-  // ── Compare Mode Views ──
-  // Plan vs. Actual now renders in the terrain drawer
-  useEffect(() => {
-    if (activeCompareMode === 'plan-vs-actual') {
-      // Open terrain drawer with plan vs actual mode
-      const { openTodayDrawer } = require('@/context/AppContext');
-      // We'll dispatch via event instead
-      window.dispatchEvent(new CustomEvent('openPlanVsActual'));
-      setActiveCompareMode(null);
-    }
-  }, [activeCompareMode]);
-
-  // Listen for drawer close to clear compare mode
-  if (activeCompareMode === 'month-vs-month') {
-    // Month vs Month now renders as overlay on existing Tetris (handled inline below)
-  }
-  if (activeCompareMode === 'compare-plans') {
-    return (
-      <div className="h-full" style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
-        <ComparePlansView onClose={() => setActiveCompareMode(null)} />
-      </div>
-    );
-  }
+  // Compare and What If are now handled by their own sheets
 
   // ── Main Render ──
   return (
@@ -1133,19 +1067,12 @@ function MyMoneyContent() {
       {/* Mode + Zoom toggles */}
       <div className="px-4 mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowScenarioPicker(true)}
-            className="flex items-center gap-1.5 rounded-xl px-3 py-2"
-            style={{ background: 'rgba(139,92,246,0.1)', border: '1.5px solid rgba(139,92,246,0.2)', color: '#8B5CF6', fontSize: 13, fontWeight: 600 }}>
-            <Sparkles size={14} />Life Scenarios
+          <button onClick={() => setShowWhatIf(true)}
+            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Sparkles size={14} />What if?
           </button>
-          <button onClick={handleOpenCompare}
-            className="flex items-center gap-1.5 rounded-[10px] px-3 py-2"
-            style={{
-              background: activeCompareMode ? 'rgba(139,92,246,0.1)' : 'rgba(45,36,64,0.06)',
-              border: activeCompareMode ? '1.5px solid rgba(139,92,246,0.2)' : '1.5px solid rgba(45,36,64,0.1)',
-              color: activeCompareMode ? '#8B5CF6' : '#5C4F6E',
-              fontSize: 12, fontWeight: 600,
-            }}>
+          <button onClick={() => setShowCompare(true)}
+            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
             <BarChart2 size={14} />Compare
           </button>
         </div>
@@ -1289,53 +1216,14 @@ function MyMoneyContent() {
         </div>
       </div>
 
-      {/* Scenario System */}
-      <AnimatePresence>
-        {showScenarioPicker && (
-          <ScenarioPicker
-            open={showScenarioPicker}
-            onClose={() => setShowScenarioPicker(false)}
-            onRunStress={(s) => { setShowScenarioPicker(false); setStressScenarios(s); }}
-            onRunLifeChange={(s) => { setShowScenarioPicker(false); setLifeChangeScenarios(s); }}
-            onRunQuick={(s) => {
-              setShowScenarioPicker(false);
-              if (s.config.id === 'income-drop-quick') handleQuickScenario('income-drop');
-              else if (s.config.id === 'cheap-rent') handleQuickScenario('rent');
-              else if (s.config.id === 'save-more') handleQuickScenario('save');
-            }}
-          />
-        )}
-        {stressScenarios && (
-          <StressTestResults
-            scenarios={stressScenarios}
-            onClose={() => setStressScenarios(null)}
-            onTryAnother={() => { setStressScenarios(null); setShowScenarioPicker(true); }}
-            onBuildSafetyNet={() => { setStressScenarios(null); /* highlight savings */ }}
-          />
-        )}
-        {lifeChangeScenarios && (
-          <LifeChangeResults
-            scenarios={lifeChangeScenarios}
-            onClose={() => setLifeChangeScenarios(null)}
-            onSave={() => { setLifeChangeScenarios(null); }}
-            onApply={() => { setLifeChangeScenarios(null); }}
-          />
-        )}
-      </AnimatePresence>
+      {/* What If Sheet */}
+      <WhatIfSheet open={showWhatIf} onClose={() => setShowWhatIf(false)} />
 
-      {/* FAB */}
-      <button onClick={() => { setPrefillAmount(undefined); setPrefillCatId(undefined); setFabMode(undefined); setShowFab(true); }}
-        className="fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
-        style={{ background: 'linear-gradient(135deg, #8B5CF6, #FF6B9D)' }}>
-        <Plus size={24} className="text-white" />
-      </button>
+      {/* Compare Sheet */}
+      <CompareSheet open={showCompare} onClose={() => setShowCompare(false)} />
 
-      {/* Add Transaction Sheet */}
-      <AddTransactionSheet open={showFab} onClose={() => { setShowFab(false); setFabMode(undefined); }}
-        prefillAmount={prefillAmount} prefillCategoryId={prefillCatId} initialMode={fabMode} />
-
-      {/* Purchase Decision Sheet */}
-      <PurchaseDecisionSheet
+      {/* Can I Afford Sheet */}
+      <CanIAffordSheet
         open={showDecisionSheet}
         onClose={() => setShowDecisionSheet(false)}
         amount={parseFloat(purchaseAmount) || 0}
@@ -1352,13 +1240,6 @@ function MyMoneyContent() {
         goals={goals}
         onBuyIt={handleBuyIt}
         onWait24h={handleWait24h}
-      />
-
-      {/* Compare Mode Selector */}
-      <CompareModeSelectorSheet
-        open={showCompareSelector}
-        onClose={() => setShowCompareSelector(false)}
-        onSelect={handleSelectCompareMode}
       />
 
       {/* Drag-and-Drop Overlay: coin at finger + coin trail */}
