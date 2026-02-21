@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, CalendarRange, GitCompare, X } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 export type CompareMode = 'plan-vs-actual' | 'month-vs-month' | 'compare-plans';
 
@@ -9,28 +9,10 @@ interface CompareModeSelectorSheetProps {
   onSelect: (mode: CompareMode) => void;
 }
 
-const modes = [
-  {
-    id: 'plan-vs-actual' as CompareMode,
-    Icon: Target,
-    color: '#8B5CF6',
-    title: 'Plan vs. Actual',
-    desc: 'See where you followed your budget',
-  },
-  {
-    id: 'month-vs-month' as CompareMode,
-    Icon: CalendarRange,
-    color: '#EC4899',
-    title: 'Month vs. Month',
-    desc: 'Compare spending between two months',
-  },
-  {
-    id: 'compare-plans' as CompareMode,
-    Icon: GitCompare,
-    color: '#14B8A6',
-    title: 'Compare Plans',
-    desc: 'Build a new plan and see the difference',
-  },
+const modes: { id: CompareMode; label: string; desc: string }[] = [
+  { id: 'plan-vs-actual', label: 'Plan vs. Actual', desc: 'How this month is tracking' },
+  { id: 'month-vs-month', label: 'Month vs. Month', desc: 'Compare two months' },
+  { id: 'compare-plans', label: 'Compare Plans', desc: 'Build and compare a new plan' },
 ];
 
 export function CompareModeSelectorSheet({ open, onClose, onSelect }: CompareModeSelectorSheetProps) {
@@ -43,7 +25,7 @@ export function CompareModeSelectorSheet({ open, onClose, onSelect }: CompareMod
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50"
-            style={{ background: 'rgba(0,0,0,0.3)' }}
+            style={{ background: 'rgba(0,0,0,0.4)' }}
             onClick={onClose}
           />
           <motion.div
@@ -53,56 +35,36 @@ export function CompareModeSelectorSheet({ open, onClose, onSelect }: CompareMod
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
             className="fixed bottom-0 left-0 right-0 z-50"
             style={{
-              background: 'rgba(255, 255, 255, 0.88)',
+              background: 'rgba(20, 15, 30, 0.95)',
               backdropFilter: 'blur(24px)',
               WebkitBackdropFilter: 'blur(24px)',
-              borderRadius: '24px 24px 0 0',
-              borderTop: '1px solid rgba(255, 255, 255, 0.6)',
-              padding: '24px 20px 40px',
-              boxShadow: '0 -8px 32px rgba(45, 36, 64, 0.12)',
+              borderRadius: '20px 20px 0 0',
+              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+              padding: '20px',
             }}
           >
             {/* Handle bar */}
             <div className="flex justify-center mb-5">
-              <div style={{ width: 40, height: 4, borderRadius: 2, background: '#D1C8E0' }} />
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
             </div>
 
-            <div className="flex items-center justify-between mb-4">
-              <span style={{ fontSize: 18, fontWeight: 700, color: '#2D2440' }}>Compare</span>
-              <button onClick={onClose}>
-                <X size={20} style={{ color: '#8A7FA0' }} />
-              </button>
-            </div>
-
-            <div className="space-y-3 mb-6">
-              {modes.map(mode => (
-                <button
-                  key={mode.id}
-                  onClick={() => onSelect(mode.id)}
-                  className="w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-colors"
-                  style={{
-                    background: 'rgba(255,255,255,0.6)',
-                    border: '1.5px solid rgba(255,255,255,0.6)',
-                  }}
-                >
-                  <div
-                    className="flex items-center justify-center flex-shrink-0"
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      background: `${mode.color}15`,
-                    }}
-                  >
-                    <mode.Icon size={24} style={{ color: mode.color }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#2D2440' }}>{mode.title}</div>
-                    <div style={{ fontSize: 12, color: '#5C4F6E' }}>{mode.desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
+            {modes.map((mode, i) => (
+              <div
+                key={mode.id}
+                className="flex items-center justify-between cursor-pointer"
+                style={{
+                  padding: '14px 0',
+                  borderBottom: i < modes.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                }}
+                onClick={() => { onSelect(mode.id); onClose(); }}
+              >
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: 'white' }}>{mode.label}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{mode.desc}</div>
+                </div>
+                <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.15)' }} />
+              </div>
+            ))}
           </motion.div>
         </>
       )}

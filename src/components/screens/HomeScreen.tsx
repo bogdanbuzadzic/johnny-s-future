@@ -59,7 +59,7 @@ export function HomeScreen() {
           className="rounded-full px-4 py-2 text-label font-semibold"
           style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#5C2D91' }}
           whileTap={{ scale: 0.97 }}
-          onClick={openTodayDrawer}>
+          onClick={() => openTodayDrawer()}>
           Today: €1,340 left
         </motion.button>
         

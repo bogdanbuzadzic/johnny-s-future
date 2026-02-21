@@ -1081,19 +1081,20 @@ function MyMoneyContent() {
   }
 
   // ── Compare Mode Views ──
-  if (activeCompareMode === 'plan-vs-actual') {
-    return (
-      <div className="h-full" style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
-        <PlanVsActualView onClose={() => setActiveCompareMode(null)} />
-      </div>
-    );
-  }
+  // Plan vs. Actual now renders in the terrain drawer
+  useEffect(() => {
+    if (activeCompareMode === 'plan-vs-actual') {
+      // Open terrain drawer with plan vs actual mode
+      const { openTodayDrawer } = require('@/context/AppContext');
+      // We'll dispatch via event instead
+      window.dispatchEvent(new CustomEvent('openPlanVsActual'));
+      setActiveCompareMode(null);
+    }
+  }, [activeCompareMode]);
+
+  // Listen for drawer close to clear compare mode
   if (activeCompareMode === 'month-vs-month') {
-    return (
-      <div className="h-full" style={{ background: 'linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
-        <MonthVsMonthView onClose={() => setActiveCompareMode(null)} />
-      </div>
-    );
+    // Month vs Month now renders as overlay on existing Tetris (handled inline below)
   }
   if (activeCompareMode === 'compare-plans') {
     return (
