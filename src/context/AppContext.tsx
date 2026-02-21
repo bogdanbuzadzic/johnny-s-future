@@ -34,6 +34,7 @@ interface AppState {
   timelineOpen: boolean;
   todayDrawerOpen: boolean;
   whatIfFocused: boolean;
+  planVsActualMode: boolean;
   selectedTimeRange: '1Y' | '3Y' | '5Y';
   baselineData: DataPoint[];
   simulatedData: DataPoint[] | null;
@@ -48,8 +49,9 @@ interface AppContextType extends AppState {
   setActiveTab: (tab: number) => void;
   openTimeline: (focusWhatIf?: boolean) => void;
   closeTimeline: () => void;
-  openTodayDrawer: () => void;
+  openTodayDrawer: (planVsActual?: boolean) => void;
   closeTodayDrawer: () => void;
+  setPlanVsActualMode: (v: boolean) => void;
   setTimeRange: (range: '1Y' | '3Y' | '5Y') => void;
   setScrubberIndex: (index: number) => void;
   addScenario: (scenario: Omit<Scenario, 'id'>) => void;
@@ -191,6 +193,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     timelineOpen: false,
     todayDrawerOpen: false,
     whatIfFocused: false,
+    planVsActualMode: false,
     selectedTimeRange: '3Y',
     baselineData,
     simulatedData: null,
@@ -213,12 +216,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(s => ({ ...s, timelineOpen: false, whatIfFocused: false, highlightedGoalId: null }));
   };
 
-  const openTodayDrawer = () => {
-    setState(s => ({ ...s, todayDrawerOpen: true, timelineOpen: false }));
+  const openTodayDrawer = (planVsActual = false) => {
+    setState(s => ({ ...s, todayDrawerOpen: true, timelineOpen: false, planVsActualMode: planVsActual }));
   };
 
   const closeTodayDrawer = () => {
-    setState(s => ({ ...s, todayDrawerOpen: false }));
+    setState(s => ({ ...s, todayDrawerOpen: false, planVsActualMode: false }));
+  };
+
+  const setPlanVsActualMode = (v: boolean) => {
+    setState(s => ({ ...s, planVsActualMode: v }));
   };
 
   const setTimeRange = (range: '1Y' | '3Y' | '5Y') => {
@@ -312,6 +319,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     closeTimeline,
     openTodayDrawer,
     closeTodayDrawer,
+    setPlanVsActualMode,
     setTimeRange,
     setScrubberIndex,
     addScenario,

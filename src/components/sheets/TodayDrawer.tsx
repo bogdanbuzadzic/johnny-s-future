@@ -5,6 +5,9 @@ import { startOfMonth, endOfMonth, isWithinInterval, parseISO, getDate, getDaysI
 import johnnyImage from '@/assets/johnny.png';
 import { tipsByPersona } from '@/lib/personaMessaging';
 import { WhatIfPanel, scenariosToForkConfig, type ActiveScenario, type ForkConfig } from './WhatIfPanel';
+import { useApp } from '@/context/AppContext';
+import { BudgetProvider } from '@/context/BudgetContext';
+import { PlanVsActualOverlay } from '@/components/budget/PlanVsActualView';
 
 // ── Storage ──
 const STORAGE_KEY = 'jfb-budget-data';
@@ -285,6 +288,7 @@ function buildFillPath(points: TerrainPoint[], width: number, height: number, pa
 
 // ── Main Component ──
 function DrawerContent({ onClose }: { onClose: () => void }) {
+  const { planVsActualMode, setPlanVsActualMode } = useApp();
   const [timeRange, setTimeRange] = useState<TimeRange>('1M');
   const [tip] = useState(getPersonaTip);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -421,6 +425,41 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
   // SVG paths
   const fillPath = useMemo(() => buildFillPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth, chartHeight]);
   const linePath = useMemo(() => buildPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth, chartHeight]);
+
+  // Plan line (planned spending, no actuals) for Plan vs. Actual
+  const planPoints = useMemo(() => {
+    if (!planVsActualMode || !computed.hasData) return [];
+    // Generate ideal cash flow using budget amounts only
+    return generateCashFlowPoints(timeRange, computed.monthlyIncome, computed.totalFixed, computed.flexBudget, 0, bills);
+  }, [planVsActualMode, timeRange, computed, bills]);
+  const planLinePath = useMemo(() => {
+    if (planPoints.length === 0) return '';
+    return buildPath(planPoints, chartWidth, chartHeight);
+  }, [planPoints, chartWidth, chartHeight]);
+
+  // Plan vs Actual deviation fill
+  const deviationFillPath = useMemo(() => {
+    if (!planVsActualMode || planPoints.length === 0 || terrainPoints.length === 0) return '';
+    const padding = { top: 20, bottom: 10 };
+    const allMax = Math.max(...terrainPoints.map(p => p.balance), ...planPoints.map(p => p.balance), 1);
+    const mY = (bal: number) => {
+      const norm = bal / allMax;
+      return chartHeight - padding.bottom - norm * (chartHeight - padding.top - padding.bottom);
+    };
+    const mX = (i: number) => (i / Math.max(terrainPoints.length - 1, 1)) * chartWidth;
+    let path = `M ${mX(0)} ${mY(terrainPoints[0].balance)}`;
+    for (let i = 1; i < terrainPoints.length; i++) path += ` L ${mX(i)} ${mY(terrainPoints[i].balance)}`;
+    const len = Math.min(terrainPoints.length, planPoints.length);
+    for (let i = len - 1; i >= 0; i--) path += ` L ${mX(i)} ${mY(planPoints[i].balance)}`;
+    path += ' Z';
+    return path;
+  }, [planVsActualMode, planPoints, terrainPoints, chartWidth, chartHeight]);
+
+  // Determine if actual is above or below plan at today
+  const actualAbovePlan = useMemo(() => {
+    if (todayIdx < 0 || !planPoints[todayIdx]) return true;
+    return terrainPoints[todayIdx]?.balance >= planPoints[todayIdx]?.balance;
+  }, [todayIdx, terrainPoints, planPoints]);
 
   // Split past/future paths at today index
   const todayX = todayIdx >= 0 ? mapX(todayIdx) : 0;
@@ -795,6 +834,17 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
                   strokeDasharray="6 4"
                   clipPath="url(#drawerFutureClip)" />
 
+                {/* Plan vs Actual: deviation fill */}
+                {planVsActualMode && deviationFillPath && (
+                  <path d={deviationFillPath} fill={actualAbovePlan ? 'rgba(52,199,89,0.06)' : 'rgba(251,191,36,0.06)'} />
+                )}
+                {/* Plan vs Actual: plan line (dashed purple) */}
+                {planVsActualMode && planLinePath && (
+                  <path d={planLinePath} fill="none"
+                    stroke="rgba(139,92,246,0.5)" strokeWidth={1.5}
+                    strokeDasharray="4 4" />
+                )}
+
                 {/* Fork line */}
                 {forkData?.active && forkLinePath && (
                   <path d={forkLinePath} fill="none"
@@ -968,6 +1018,21 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </div>
+
+        {/* Plan vs Actual overlay section */}
+        {planVsActualMode && computed.hasData && (
+          <div className="mx-5 mt-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[13px] font-semibold text-white">Plan vs. Actual</span>
+              <button onClick={() => setPlanVsActualMode(false)}>
+                <X size={14} style={{ color: 'rgba(255,255,255,0.4)' }} />
+              </button>
+            </div>
+            <BudgetProvider>
+              <PlanVsActualOverlay onClose={() => setPlanVsActualMode(false)} />
+            </BudgetProvider>
+          </div>
+        )}
 
         {/* Fork legend */}
         <AnimatePresence>
