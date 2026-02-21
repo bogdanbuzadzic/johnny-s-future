@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Settings, MessageCircle, Pencil, ChevronUp, TrendingUp, Sparkles, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { Settings, MessageCircle, Pencil, ChevronUp, Sparkles, Coins, ArrowRight } from 'lucide-react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { useApp } from '@/context/AppContext';
 import { useToast } from '@/hooks/use-toast';
@@ -8,7 +8,7 @@ import { getPersona } from '@/lib/profileData';
 import johnnyImage from '@/assets/johnny.png';
 
 export function HomeScreen() {
-  const { openTimeline, openTodayDrawer } = useApp();
+  const { openTimeline, openTodayDrawer, setActiveTab } = useApp();
   const { toast } = useToast();
   const [inputValue, setInputValue] = useState('');
 
@@ -21,6 +21,10 @@ export function HomeScreen() {
     } else if (info.offset.y > 50) {
       openTodayDrawer();
     }
+  };
+
+  const handleCanIAfford = () => {
+    setActiveTab(1); // Navigate to My Money tab
   };
 
   const handleAskJohnny = () => {
@@ -108,16 +112,16 @@ export function HomeScreen() {
             className="frosted-button rounded-full px-4 py-3 flex items-center gap-2 text-sm font-medium"
             whileTap={{ scale: 0.97 }}
             onClick={() => openTimeline(false)}>
-            <TrendingUp size={18} strokeWidth={1.5} />
-            Plan my future
+            <Sparkles size={18} strokeWidth={1.5} />
+            What if?
           </motion.button>
           
           <motion.button
             className="frosted-button rounded-full px-4 py-3 flex items-center gap-2 text-sm font-medium"
             whileTap={{ scale: 0.97 }}
-            onClick={() => openTimeline(true)}>
-            <Sparkles size={18} strokeWidth={1.5} />
-            What can I afford?
+            onClick={handleCanIAfford}>
+            <Coins size={18} strokeWidth={1.5} />
+            Can I afford?
           </motion.button>
         </div>
 

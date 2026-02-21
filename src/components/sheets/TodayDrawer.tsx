@@ -56,7 +56,7 @@ function getPersonaTip(): string {
 }
 
 // ── Data generation ──
-function generatePoints(
+function generateCashFlowPoints(
   range: TimeRange,
   income: number,
   totalFixed: number,
@@ -69,60 +69,54 @@ function generatePoints(
   const daysInCurrentMonth = getDaysInMonth(now);
 
   const totalMonths = range === '1M' ? 1 : range === '3M' ? 3 : range === '6M' ? 6 : 12;
-
-  // For 1M/3M: daily points. For 6M/1Y: weekly aggregated
-  const useWeekly = range === '6M' || range === '1Y';
-
   const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-  let endDate: Date;
-  if (range === '1M') {
-    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  } else {
-    endDate = addMonths(startDate, totalMonths);
-  }
-
+  const endDate = range === '1M'
+    ? new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    : addMonths(startDate, totalMonths);
   const totalDays = differenceInDays(endDate, startDate) + 1;
-  const dailyBurn = flexBudget / daysInCurrentMonth;
 
-  // Start balance: flex budget minus what's been spent
-  let balance = flexBudget - flexSpent;
-  // Reconstruct: we're at dayOfMonth, balance is current flex remaining
-  // Go back to day 1 to build full picture
-  let runningBalance = flexBudget; // day 1 start
+  // Daily discretionary spending rate
+  const dailySpend = flexBudget / daysInCurrentMonth;
+
+  // Estimate current balance using cash flow model
+  // On the 1st, balance = income. Then bills and spending subtract through month.
+  let startBalance = income;
+  // Subtract bills that already occurred this month
+  bills.forEach(b => {
+    if (b.day <= dayOfMonth) startBalance -= b.amount;
+  });
+  // Subtract daily spending for days passed
+  startBalance -= dailySpend * Math.max(0, dayOfMonth - 1);
+
+  // For weekly aggregation (6M/1Y)
+  const useWeekly = range === '6M' || range === '1Y';
   const points: TerrainPoint[] = [];
 
   if (useWeekly) {
-    // Weekly aggregated
-    let weekBalance = flexBudget;
-    let weekStart = startDate;
+    let bal = startBalance;
     for (let w = 0; w < Math.ceil(totalDays / 7); w++) {
       const weekDate = addDays(startDate, w * 7);
-      const weekDayOfMonth = weekDate.getDate();
+      const weekDom = weekDate.getDate();
       const weekMonth = weekDate.getMonth();
       const isPast = weekDate < now;
       const isToday = w * 7 <= dayOfMonth && (w + 1) * 7 > dayOfMonth && weekMonth === now.getMonth();
       const isFuture = weekDate > now;
-      const isSalaryDay = weekDayOfMonth <= 7 && (weekMonth !== now.getMonth() || w === 0);
+      const isSalaryDay = weekDom <= 7 && (weekMonth !== now.getMonth() || w === 0);
 
-      // On month boundaries, add income
-      if (weekDayOfMonth <= 7 && (weekMonth !== now.getMonth() || w === 0)) {
-        if (w > 0) weekBalance += income;
-      }
-
-      // Subtract weekly burn
       if (w > 0) {
-        weekBalance -= dailyBurn * 7;
-        // Subtract bills in this week
+        // Check if salary day falls in this week
+        if (weekDom <= 7 && weekMonth !== startDate.getMonth()) {
+          bal += income; // Salary spike
+        }
+        bal -= dailySpend * 7;
         bills.forEach(b => {
-          if (b.day >= weekDayOfMonth && b.day < weekDayOfMonth + 7) {
-            weekBalance -= b.amount;
-          }
+          if (b.day >= weekDom && b.day < weekDom + 7) bal -= b.amount;
         });
       }
 
       points.push({
         date: weekDate,
-        balance: Math.max(0, Math.round(weekBalance)),
+        balance: Math.max(0, Math.round(bal)),
         isPast: isPast && !isToday,
         isToday: !!isToday,
         isFuture: isFuture && !isToday,
@@ -130,8 +124,8 @@ function generatePoints(
       });
     }
   } else {
-    // Daily points
-    let bal = flexBudget;
+    // Daily cash flow: sawtooth pattern
+    let bal = income; // Day 1 of month 1 starts with salary
     for (let d = 0; d < totalDays; d++) {
       const date = addDays(startDate, d);
       const dom = date.getDate();
@@ -141,17 +135,23 @@ function generatePoints(
       const isFuture = date > now;
       const isSalaryDay = dom === 1;
 
-      // On day 1 of new months, add income and reset flex
+      // On the 1st of each NEW month, salary arrives (spike UP)
       if (dom === 1 && d > 0) {
         bal += income;
       }
 
+      // Subtract daily discretionary spending
       if (d > 0) {
-        bal -= dailyBurn;
+        bal -= dailySpend;
       }
 
-      // Bills
-      const bill = bills.find(b => b.day === dom && (dateMonth === now.getMonth() || dom <= 28));
+      // Check for bills due today (step DOWN)
+      const dueBills = bills.filter(b => b.day === dom);
+      let billForDisplay: { icon: string; label: string; amount: number } | undefined;
+      if (dueBills.length > 0) {
+        dueBills.forEach(b => { bal -= b.amount; });
+        billForDisplay = dueBills[0]; // Show first bill icon
+      }
 
       points.push({
         date,
@@ -160,7 +160,7 @@ function generatePoints(
         isToday,
         isFuture: isFuture && !isToday,
         isSalaryDay,
-        bill: bill ? { icon: bill.icon, label: bill.label, amount: bill.amount } : undefined,
+        bill: billForDisplay,
       });
     }
   }
@@ -300,7 +300,7 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
   // Generate terrain points
   const terrainPoints = useMemo(() => {
     if (!computed.hasData) return [];
-    return generatePoints(
+    return generateCashFlowPoints(
       timeRange,
       computed.monthlyIncome,
       computed.totalFixed,
@@ -522,9 +522,10 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
               <svg width={chartWidth} height={chartHeight} className="block">
                 <defs>
                   <linearGradient id="drawerTerrainGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.5} />
-                    <stop offset="50%" stopColor="#A855F7" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#2D1F3D" stopOpacity={0.1} />
+                    <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.45} />
+                    <stop offset="40%" stopColor="#A855F7" stopOpacity={0.25} />
+                    <stop offset="70%" stopColor="#EC4899" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="#F97316" stopOpacity={0.08} />
                   </linearGradient>
                   {forkData?.active && (
                     <linearGradient id="forkFillGrad" x1="0" y1="0" x2="0" y2="1">
@@ -582,10 +583,11 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
                     stroke="rgba(255,255,255,0.3)" strokeWidth={1} strokeDasharray="3 3" />
                 )}
 
-                {/* Y-axis labels */}
+                {/* Y-axis labels (right side) */}
                 {yLabels.map(l => (
-                  <text key={`yl-${l.value}`} x={4} y={l.y - 4}
-                    fill="rgba(255,255,255,0.3)" fontSize={9}>
+                  <text key={`yl-${l.value}`} x={chartWidth - 4} y={l.y - 4}
+                    textAnchor="end"
+                    fill="rgba(255,255,255,0.25)" fontSize={9}>
                     €{l.value >= 1000 ? `${(l.value / 1000).toFixed(l.value % 1000 === 0 ? 0 : 1)}k` : l.value}
                   </text>
                 ))}

@@ -663,14 +663,16 @@ export function TerrainPath() {
           >
             <defs>
               <linearGradient id="terrainGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgba(139, 92, 246, 0.4)" />
-                <stop offset="50%" stopColor="rgba(236, 72, 153, 0.3)" />
-                <stop offset="100%" stopColor="rgba(249, 115, 22, 0.1)" />
+                <stop offset="0%" stopColor="rgba(139, 92, 246, 0.45)" />
+                <stop offset="40%" stopColor="rgba(168, 85, 247, 0.25)" />
+                <stop offset="70%" stopColor="rgba(236, 72, 153, 0.15)" />
+                <stop offset="100%" stopColor="rgba(249, 115, 22, 0.08)" />
               </linearGradient>
               <linearGradient id="terrainGradientDim" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="rgba(139, 92, 246, 0.25)" />
-                <stop offset="50%" stopColor="rgba(236, 72, 153, 0.18)" />
-                <stop offset="100%" stopColor="rgba(249, 115, 22, 0.06)" />
+                <stop offset="40%" stopColor="rgba(168, 85, 247, 0.15)" />
+                <stop offset="70%" stopColor="rgba(236, 72, 153, 0.08)" />
+                <stop offset="100%" stopColor="rgba(249, 115, 22, 0.04)" />
               </linearGradient>
               <linearGradient id="terrainGradientProjected" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="rgba(139, 92, 246, 0.24)" />
