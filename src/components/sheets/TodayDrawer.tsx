@@ -7,7 +7,7 @@ import { tipsByPersona } from '@/lib/personaMessaging';
 import { WhatIfPanel, scenariosToForkConfig, type ActiveScenario, type ForkConfig } from './WhatIfPanel';
 import { useApp } from '@/context/AppContext';
 import { BudgetProvider } from '@/context/BudgetContext';
-import { PlanVsActualOverlay } from '@/components/budget/PlanVsActualView';
+// PlanVsActualOverlay removed - now in CompareSheet
 
 // ── Storage ──
 const STORAGE_KEY = 'jfb-budget-data';
@@ -1028,9 +1028,9 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
                 <X size={14} style={{ color: 'rgba(255,255,255,0.4)' }} />
               </button>
             </div>
-            <BudgetProvider>
-              <PlanVsActualOverlay onClose={() => setPlanVsActualMode(false)} />
-            </BudgetProvider>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', padding: '8px 0' }}>
+                Plan vs. Actual is now in Compare on My Money.
+              </div>
           </div>
         )}
 
