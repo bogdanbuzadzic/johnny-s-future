@@ -88,7 +88,7 @@ export function HomeScreen() {
         </motion.div>
         
         <h1 className="text-xl font-bold mt-4" style={{ color: '#2D2440' }}>Johnny</h1>
-        <p className="text-sm mt-1" style={{ color: '#5C4F6E' }}>Your financial buddy</p>
+        <p className="text-sm mt-1" style={{ color: '#5C4F6E' }}>Your Best Financial Friend</p>
       </div>
 
       {/* Johnny's Notes Card */}
