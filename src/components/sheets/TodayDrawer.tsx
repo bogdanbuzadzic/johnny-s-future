@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { CheckCircle, AlertTriangle, Sparkles, X, Home, Zap, Bus } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Sparkles, X, Home, Zap, Bus, ArrowUp, ArrowDown, CircleCheck } from 'lucide-react';
 import { startOfMonth, endOfMonth, isWithinInterval, parseISO, getDate, getDaysInMonth, addMonths, format, addDays, differenceInDays } from 'date-fns';
 import johnnyImage from '@/assets/johnny.png';
 import { tipsByPersona } from '@/lib/personaMessaging';
+import { WhatIfPanel, scenariosToForkConfig, type ActiveScenario, type ForkConfig } from './WhatIfPanel';
 
 // ── Storage ──
 const STORAGE_KEY = 'jfb-budget-data';
@@ -168,29 +169,91 @@ function generateCashFlowPoints(
   return points;
 }
 
-// ── Fork point generation ──
+// ── Fork point generation (proper cash flow fork) ──
 function generateForkPoints(
   basePoints: TerrainPoint[],
-  scenario: {
-    modifiedIncome?: number;
-    modifiedFixed?: number;
-    modifiedSpending?: number;
-    durationMonths?: number;
-    oneTimeExpense?: number;
-  },
+  forkCfg: ForkConfig,
   originalIncome: number,
+  dailySpend: number,
+  bills: Array<{ day: number; amount: number }>,
 ): TerrainPoint[] {
-  return basePoints.map((p, i) => {
-    let bal = p.balance;
-    if (scenario.oneTimeExpense && i === 0) {
-      bal -= scenario.oneTimeExpense;
+  const modifiedIncome = originalIncome * forkCfg.incomeMultiplier + forkCfg.extraMonthlyIncome;
+  const extraDaily = forkCfg.extraMonthlyExpense / 30.4;
+  const modifiedDailySpend = dailySpend + extraDaily;
+  const daysInMonth = getDaysInMonth(new Date());
+
+  // Rebuild cash flow with modified params
+  const startDate = basePoints[0]?.date || new Date();
+  let bal = basePoints[0]?.balance || 0;
+
+  // Apply one-time expense immediately
+  bal -= forkCfg.oneTimeExpense;
+
+  const result: TerrainPoint[] = [];
+  for (let i = 0; i < basePoints.length; i++) {
+    const bp = basePoints[i];
+    const dom = bp.date.getDate();
+    const monthsSinceStart = Math.floor(i / 30);
+    const withinDuration = forkCfg.durationMonths === 0 || monthsSinceStart < forkCfg.durationMonths;
+
+    if (i === 0) {
+      result.push({ ...bp, balance: Math.round(bal) });
+      continue;
     }
-    if (scenario.modifiedIncome) {
-      const diff = scenario.modifiedIncome - originalIncome;
-      bal += diff * (i / basePoints.length);
+
+    // Salary on 1st
+    if (dom === 1) {
+      const inc = withinDuration ? modifiedIncome : originalIncome;
+      bal += inc;
     }
-    return { ...p, balance: Math.max(0, Math.round(bal)) };
-  });
+
+    // Bills
+    const dueBills = bills.filter(b => b.day === dom);
+    dueBills.forEach(b => { bal -= b.amount; });
+
+    // Daily spend
+    bal -= withinDuration ? modifiedDailySpend : dailySpend;
+
+    result.push({ ...bp, balance: Math.round(bal) });
+  }
+
+  return result;
+}
+
+// ── Prepared fork (with 6-month emergency fund) ──
+function generatePreparedForkPoints(
+  basePoints: TerrainPoint[],
+  forkCfg: ForkConfig,
+  originalIncome: number,
+  dailySpend: number,
+  bills: Array<{ day: number; amount: number }>,
+  monthlyExpenses: number,
+): TerrainPoint[] {
+  const emergencyFund = monthlyExpenses * 6;
+  const modifiedCfg = { ...forkCfg };
+  // Add emergency fund as starting balance boost (reduce one-time expense impact)
+  const boostedPoints = generateForkPoints(basePoints, modifiedCfg, originalIncome, dailySpend, bills);
+  return boostedPoints.map(p => ({ ...p, balance: Math.round(p.balance + emergencyFund) }));
+}
+
+// ── Custom events ──
+interface CustomEvent {
+  id: string;
+  date: string; // ISO
+  type: 'income' | 'expense';
+  amount: number;
+  label: string;
+  recurring: boolean;
+}
+
+function readCustomEvents(): CustomEvent[] {
+  try {
+    return JSON.parse(localStorage.getItem('jfb_custom_events') || '[]');
+  } catch { return []; }
+}
+
+function saveCustomEvents(events: CustomEvent[]) {
+  localStorage.setItem('jfb_custom_events', JSON.stringify(events));
 }
 
 // ── SVG helpers ──
@@ -227,7 +290,22 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
   const chartRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(320);
 
-  // Fork state (dormant for now)
+  // What If panel state
+  const [showWhatIfPanel, setShowWhatIfPanel] = useState(false);
+  const [activeScenarios, setActiveScenarios] = useState<ActiveScenario[]>([]);
+  const [showPrepared, setShowPrepared] = useState(false);
+
+  // Custom events for direct terrain editing
+  const [customEvents, setCustomEvents] = useState<CustomEvent[]>(() => readCustomEvents());
+  const [eventPicker, setEventPicker] = useState<{ x: number; y: number; dayIdx: number } | null>(null);
+  const [eventMode, setEventMode] = useState<'pick' | 'configure' | null>(null);
+  const [eventType, setEventType] = useState<'income' | 'expense'>('expense');
+  const [eventAmount, setEventAmount] = useState('');
+  const [eventLabel, setEventLabel] = useState('');
+  const [eventRecurring, setEventRecurring] = useState(false);
+  const [undoAction, setUndoAction] = useState<{ event: CustomEvent; action: 'add' | 'delete' } | null>(null);
+
+  // Fork state
   const [forkData, setForkData] = useState<TerrainForkData | null>(null);
 
   // Read budget data fresh
@@ -297,10 +375,10 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
     }));
   }, [budgetData]);
 
-  // Generate terrain points
+  // Generate terrain points (incorporating custom events)
   const terrainPoints = useMemo(() => {
     if (!computed.hasData) return [];
-    return generateCashFlowPoints(
+    const basePoints = generateCashFlowPoints(
       timeRange,
       computed.monthlyIncome,
       computed.totalFixed,
@@ -308,24 +386,140 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
       computed.flexSpent,
       bills,
     );
-  }, [timeRange, computed, bills]);
+    // Apply custom events to terrain
+    if (customEvents.length === 0) return basePoints;
+    return basePoints.map(p => {
+      let bal = p.balance;
+      customEvents.forEach(ev => {
+        const evDate = new Date(ev.date);
+        const sameDay = evDate.toDateString() === p.date.toDateString();
+        const isRecurringMatch = ev.recurring && evDate.getDate() === p.date.getDate() && p.date >= evDate;
+        if (sameDay || isRecurringMatch) {
+          if (ev.type === 'income') bal += ev.amount;
+          else bal -= ev.amount;
+        }
+      });
+      return { ...p, balance: Math.round(bal) };
+    });
+  }, [timeRange, computed, bills, customEvents]);
 
-  const chartHeight = 200;
+  const chartHeight = showWhatIfPanel ? 140 : 200;
   const todayIdx = terrainPoints.findIndex(p => p.isToday);
-  const maxBal = Math.max(...terrainPoints.map(p => p.balance), 1);
+  const allBalances = useMemo(() => {
+    const bals = terrainPoints.map(p => p.balance);
+    if (forkData?.active) bals.push(...forkData.points.map(p => p.balance));
+    return bals;
+  }, [terrainPoints, forkData]);
+  const maxBal = Math.max(...allBalances, 1);
 
   const mapX = useCallback((i: number) => (i / Math.max(terrainPoints.length - 1, 1)) * chartWidth, [terrainPoints.length, chartWidth]);
   const mapY = useCallback((bal: number) => {
     const norm = bal / maxBal;
     return chartHeight - 10 - norm * (chartHeight - 30);
-  }, [maxBal]);
+  }, [maxBal, chartHeight]);
 
   // SVG paths
-  const fillPath = useMemo(() => buildFillPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth]);
-  const linePath = useMemo(() => buildPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth]);
+  const fillPath = useMemo(() => buildFillPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth, chartHeight]);
+  const linePath = useMemo(() => buildPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth, chartHeight]);
 
   // Split past/future paths at today index
   const todayX = todayIdx >= 0 ? mapX(todayIdx) : 0;
+
+  // ── Compute fork from active scenarios ──
+  const forkConfig = useMemo<ForkConfig | null>(() => {
+    if (activeScenarios.length === 0) return null;
+    return scenariosToForkConfig(activeScenarios, computed.monthlyIncome, computed.totalFixed);
+  }, [activeScenarios, computed.monthlyIncome, computed.totalFixed]);
+
+  // Update fork data when scenarios change
+  useEffect(() => {
+    if (!forkConfig || terrainPoints.length === 0) {
+      if (activeScenarios.length === 0) setForkData(null);
+      return;
+    }
+    const dailySpend = computed.flexBudget / getDaysInMonth(new Date());
+    const billDays = bills.map(b => ({ day: b.day, amount: b.amount }));
+    const forkPts = generateForkPoints(terrainPoints, forkConfig, computed.monthlyIncome, dailySpend, billDays);
+    const dangerIdx = forkPts.findIndex(p => p.balance <= 0);
+
+    setForkData({
+      active: true,
+      label: forkConfig.label,
+      color: forkConfig.type === 'shock' ? '#FBBF24' : '#34C759',
+      points: forkPts,
+      dangerMonth: dangerIdx >= 0 ? dangerIdx : undefined,
+      deltaLabel: forkConfig.type === 'shock'
+        ? (dangerIdx >= 0 ? `Broke month ${Math.ceil(dangerIdx / 30)}` : 'Survives')
+        : `+€${Math.round(forkConfig.extraMonthlyIncome + (forkConfig.incomeMultiplier - 1) * computed.monthlyIncome)}/mo`,
+    });
+  }, [forkConfig, terrainPoints, computed, bills, activeScenarios.length]);
+
+  // Prepared fork (emergency fund)
+  const preparedForkPoints = useMemo(() => {
+    if (!showPrepared || !forkConfig || terrainPoints.length === 0) return null;
+    const dailySpend = computed.flexBudget / getDaysInMonth(new Date());
+    const billDays = bills.map(b => ({ day: b.day, amount: b.amount }));
+    const monthlyExpenses = computed.totalFixed + computed.flexBudget;
+    return generatePreparedForkPoints(terrainPoints, forkConfig, computed.monthlyIncome, dailySpend, billDays, monthlyExpenses);
+  }, [showPrepared, forkConfig, terrainPoints, computed, bills]);
+
+  const preparedForkPath = useMemo(() => {
+    if (!preparedForkPoints) return '';
+    return buildPath(preparedForkPoints, chartWidth, chartHeight);
+  }, [preparedForkPoints, chartWidth, chartHeight]);
+
+  // ── Terrain direct editing handlers ──
+  const handleChartClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!showWhatIfPanel) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+    // Find closest point index
+    const idx = Math.round((clickX / chartWidth) * (terrainPoints.length - 1));
+    if (idx <= todayIdx || idx >= terrainPoints.length) return; // only future
+    setEventPicker({ x: e.clientX, y: e.clientY, dayIdx: idx });
+    setEventMode('pick');
+    setEventAmount('');
+    setEventLabel('');
+    setEventRecurring(false);
+  }, [showWhatIfPanel, chartWidth, terrainPoints.length, todayIdx]);
+
+  const addCustomEvent = useCallback(() => {
+    if (!eventPicker || !eventAmount) return;
+    const amt = parseFloat(eventAmount);
+    if (isNaN(amt) || amt <= 0) return;
+    const point = terrainPoints[eventPicker.dayIdx];
+    if (!point) return;
+    const newEvent: CustomEvent = {
+      id: Date.now().toString(),
+      date: point.date.toISOString(),
+      type: eventType,
+      amount: amt,
+      label: eventLabel || (eventType === 'income' ? 'Income' : 'Expense'),
+      recurring: eventRecurring,
+    };
+    const updated = [...customEvents, newEvent];
+    setCustomEvents(updated);
+    saveCustomEvents(updated);
+    setEventPicker(null);
+    setEventMode(null);
+    setUndoAction({ event: newEvent, action: 'add' });
+    setTimeout(() => setUndoAction(null), 5000);
+  }, [eventPicker, eventAmount, eventType, eventLabel, eventRecurring, customEvents, terrainPoints]);
+
+  const handleUndo = useCallback(() => {
+    if (!undoAction) return;
+    if (undoAction.action === 'add') {
+      const updated = customEvents.filter(e => e.id !== undoAction.event.id);
+      setCustomEvents(updated);
+      saveCustomEvents(updated);
+    } else {
+      const updated = [...customEvents, undoAction.event];
+      setCustomEvents(updated);
+      saveCustomEvents(updated);
+    }
+    setUndoAction(null);
+  }, [undoAction, customEvents]);
 
   // Y-axis labels
   const yLabels = useMemo(() => {
@@ -373,20 +567,39 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
   // Salary spike label position
   const salaryIdx = terrainPoints.findIndex((p, i) => i > 0 && p.isSalaryDay);
 
-  // Fork paths (dormant)
+  // Fork paths
   const forkLinePath = useMemo(() => {
     if (!forkData?.active || !forkData.points.length) return '';
     return buildPath(forkData.points, chartWidth, chartHeight);
-  }, [forkData, chartWidth]);
+  }, [forkData, chartWidth, chartHeight]);
 
   const forkFillPath = useMemo(() => {
     if (!forkData?.active || !forkData.points.length) return '';
-    // Area between main and fork
-    const mainLine = buildPath(terrainPoints, chartWidth, chartHeight);
-    const forkLine = buildPath(forkData.points, chartWidth, chartHeight);
-    // Simple: just fill beneath fork line
     return buildFillPath(forkData.points, chartWidth, chartHeight);
-  }, [forkData, terrainPoints, chartWidth]);
+  }, [forkData, chartWidth, chartHeight]);
+
+  // Between-area fill (area between main and fork)
+  const betweenFillPath = useMemo(() => {
+    if (!forkData?.active || !forkData.points.length || terrainPoints.length === 0) return '';
+    const padding = { top: 20, bottom: 10 };
+    const allMax = Math.max(...terrainPoints.map(p => p.balance), ...forkData.points.map(p => p.balance), 1);
+    const mY = (bal: number) => {
+      const norm = bal / allMax;
+      return chartHeight - padding.bottom - norm * (chartHeight - padding.top - padding.bottom);
+    };
+    const mX = (i: number) => (i / Math.max(terrainPoints.length - 1, 1)) * chartWidth;
+
+    // Forward along main line, backward along fork line
+    let path = `M ${mX(0)} ${mY(terrainPoints[0].balance)}`;
+    for (let i = 1; i < terrainPoints.length; i++) {
+      path += ` L ${mX(i)} ${mY(terrainPoints[i].balance)}`;
+    }
+    for (let i = forkData.points.length - 1; i >= 0; i--) {
+      path += ` L ${mX(i)} ${mY(forkData.points[i].balance)}`;
+    }
+    path += ' Z';
+    return path;
+  }, [forkData, terrainPoints, chartWidth, chartHeight]);
 
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.y > 80) onClose();
@@ -512,14 +725,26 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Terrain Chart Card */}
-        <div ref={chartRef} className="mx-5 rounded-[20px] overflow-hidden" style={{
+        <div ref={chartRef} className="mx-5 rounded-[20px] overflow-hidden transition-all duration-300" style={{
           background: 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.08)',
           padding: '16px 12px 12px',
         }}>
+          {/* Tap hint when panel is open */}
+          {showWhatIfPanel && (
+            <p className="text-[10px] mb-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              Tap the timeline to add events
+            </p>
+          )}
           {terrainPoints.length > 0 ? (
             <div className="relative">
-              <svg width={chartWidth} height={chartHeight} className="block">
+              <svg
+                width={chartWidth}
+                height={chartHeight}
+                className="block"
+                style={{ cursor: showWhatIfPanel ? 'crosshair' : undefined }}
+                onClick={handleChartClick}
+              >
                 <defs>
                   <linearGradient id="drawerTerrainGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.45} />
@@ -554,9 +779,9 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
                 {/* Terrain fill */}
                 <path d={fillPath} fill="url(#drawerTerrainGrad)" />
 
-                {/* Fork fill (dormant) */}
-                {forkData?.active && forkFillPath && (
-                  <path d={forkFillPath} fill="url(#forkFillGrad)" />
+                {/* Between-area fill (main vs fork) */}
+                {forkData?.active && betweenFillPath && (
+                  <path d={betweenFillPath} fill={forkData.color === '#FBBF24' ? 'rgba(251,191,36,0.06)' : 'rgba(52,199,89,0.06)'} />
                 )}
 
                 {/* Past line (solid) */}
@@ -570,11 +795,18 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
                   strokeDasharray="6 4"
                   clipPath="url(#drawerFutureClip)" />
 
-                {/* Fork line (dormant) */}
+                {/* Fork line */}
                 {forkData?.active && forkLinePath && (
                   <path d={forkLinePath} fill="none"
                     stroke={forkData.color} strokeWidth={2}
                     strokeDasharray="8 4" opacity={0.8} />
+                )}
+
+                {/* Prepared fork line (green dashed) */}
+                {preparedForkPath && (
+                  <path d={preparedForkPath} fill="none"
+                    stroke="#34C759" strokeWidth={2}
+                    strokeDasharray="8 4" opacity={0.6} />
                 )}
 
                 {/* Today marker */}
@@ -660,19 +892,33 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
                     <circle
                       cx={mapX(forkData.dangerMonth)}
                       cy={mapY(0)}
-                      r={12}
-                      fill="rgba(239,68,68,0.2)"
-                      stroke="rgba(239,68,68,0.4)"
-                      strokeWidth={1.5}
+                      r={4}
+                      fill="#EF4444"
+                      style={{ filter: 'drop-shadow(0 0 4px rgba(239,68,68,0.5))' }}
                     />
                     <text
                       x={mapX(forkData.dangerMonth)}
-                      y={mapY(0) - 16}
-                      textAnchor="middle" fill="#EF4444" fontSize={10}>
-                      Savings depleted
+                      y={mapY(0) + 14}
+                      textAnchor="middle" fill="#EF4444" fontSize={9}>
+                      Broke
                     </text>
                   </g>
                 )}
+
+                {/* Recovery marker */}
+                {forkData?.active && forkData.dangerMonth !== undefined && (() => {
+                  const recoveryIdx = forkData.points.findIndex((p, i) => i > forkData.dangerMonth! && p.balance > 0);
+                  if (recoveryIdx < 0) return null;
+                  return (
+                    <g>
+                      <circle cx={mapX(recoveryIdx)} cy={mapY(forkData.points[recoveryIdx].balance)} r={4} fill="#34C759" />
+                      <text x={mapX(recoveryIdx)} y={mapY(forkData.points[recoveryIdx].balance) - 8}
+                        textAnchor="middle" fill="#34C759" fontSize={9}>
+                        Recovers
+                      </text>
+                    </g>
+                  );
+                })()}
               </svg>
 
               {/* Johnny on the line at today */}
@@ -691,7 +937,7 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
                 />
               )}
 
-              {/* Ghost Johnny on fork (dormant) */}
+              {/* Ghost Johnny on fork */}
               {forkData?.active && todayIdx >= 0 && forkData.points[todayIdx] && (
                 <img
                   src={johnnyImage}
@@ -723,56 +969,226 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {/* Fork legend (dormant) */}
+        {/* Fork legend */}
         <AnimatePresence>
           {forkData?.active && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mx-5 mt-2 flex items-center gap-2 rounded-lg px-[10px] py-[6px]"
+              className="mx-5 mt-2 flex items-center gap-2 rounded-lg px-[10px] py-[6px] flex-wrap"
               style={{ background: 'rgba(255,255,255,0.06)' }}
             >
               <div className="w-2 h-2 rounded-full bg-white" />
-              <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>Current</span>
+              <span className="text-[9px] font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>Current</span>
               <div className="w-2 h-2 rounded-full" style={{ background: forkData.color }} />
-              <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>{forkData.label}</span>
-              <button className="ml-auto" onClick={() => setForkData(null)}>
-                <X size={12} style={{ color: 'rgba(255,255,255,0.4)' }} />
-              </button>
-
+              <span className="text-[9px] font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>{forkData.label}</span>
+              {showPrepared && (
+                <>
+                  <div className="w-2 h-2 rounded-full" style={{ background: '#34C759' }} />
+                  <span className="text-[9px] font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>Prepared</span>
+                </>
+              )}
               {forkData.deltaLabel && (
-                <span className="text-[10px] rounded px-1.5 py-0.5 ml-1" style={{
-                  background: forkData.color === '#F59E0B' ? 'rgba(239,68,68,0.15)' : 'rgba(52,199,89,0.15)',
-                  color: forkData.color === '#F59E0B' ? '#FCA5A5' : '#86EFAC',
+                <span className="text-[10px] rounded px-1.5 py-0.5 ml-auto" style={{
+                  background: forkData.color === '#FBBF24' ? 'rgba(239,68,68,0.15)' : 'rgba(52,199,89,0.15)',
+                  color: forkData.color === '#FBBF24' ? '#FCA5A5' : '#86EFAC',
                 }}>
                   {forkData.deltaLabel}
                 </span>
               )}
+              <button onClick={() => { setForkData(null); setActiveScenarios([]); setShowPrepared(false); }}>
+                <X size={12} style={{ color: 'rgba(255,255,255,0.4)' }} />
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* "What if?" button */}
+        {/* Event picker popup (terrain direct editing) */}
+        <AnimatePresence>
+          {eventPicker && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              className="fixed z-[60]"
+              style={{
+                left: Math.min(eventPicker.x - 80, window.innerWidth - 180),
+                top: eventPicker.y - (eventMode === 'configure' ? 200 : 120),
+              }}
+            >
+              <div style={{
+                background: 'rgba(20, 15, 30, 0.95)',
+                backdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 12,
+                padding: 10,
+                minWidth: 160,
+              }}>
+                {eventMode === 'pick' ? (
+                  <>
+                    <button
+                      className="flex items-center gap-2.5 w-full px-2 py-2 rounded-lg"
+                      style={{ color: 'white' }}
+                      onClick={() => { setEventType('income'); setEventMode('configure'); }}
+                    >
+                      <ArrowUp size={16} style={{ color: '#34C759' }} />
+                      <div>
+                        <p className="text-[13px] text-white text-left">Income</p>
+                        <p className="text-[10px] text-left" style={{ color: 'rgba(255,255,255,0.25)' }}>One-time or recurring</p>
+                      </div>
+                    </button>
+                    <button
+                      className="flex items-center gap-2.5 w-full px-2 py-2 rounded-lg"
+                      onClick={() => { setEventType('expense'); setEventMode('configure'); }}
+                    >
+                      <ArrowDown size={16} style={{ color: '#EF4444' }} />
+                      <div>
+                        <p className="text-[13px] text-white text-left">Expense</p>
+                        <p className="text-[10px] text-left" style={{ color: 'rgba(255,255,255,0.25)' }}>One-time or recurring</p>
+                      </div>
+                    </button>
+                    <button
+                      className="flex items-center gap-2.5 w-full px-2 py-2 rounded-lg"
+                      onClick={() => { setEventPicker(null); setEventMode(null); }}
+                    >
+                      <X size={16} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                      <p className="text-[13px]" style={{ color: 'rgba(255,255,255,0.4)' }}>Cancel</p>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="€ Amount"
+                      value={eventAmount}
+                      onChange={e => setEventAmount(e.target.value)}
+                      autoFocus
+                      className="w-full h-9 rounded-lg px-3 text-[13px] outline-none mb-1.5"
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
+                    />
+                    <input
+                      placeholder="Label (optional)"
+                      value={eventLabel}
+                      onChange={e => setEventLabel(e.target.value)}
+                      className="w-full h-9 rounded-lg px-3 text-[13px] outline-none mb-1.5"
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
+                    />
+                    {/* One-time / Monthly toggle */}
+                    <div className="flex gap-1 mb-2">
+                      <button
+                        className="flex-1 py-1.5 rounded-lg text-[11px] font-medium"
+                        style={{
+                          background: !eventRecurring ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.06)',
+                          color: !eventRecurring ? '#8B5CF6' : 'rgba(255,255,255,0.4)',
+                        }}
+                        onClick={() => setEventRecurring(false)}
+                      >One-time</button>
+                      <button
+                        className="flex-1 py-1.5 rounded-lg text-[11px] font-medium"
+                        style={{
+                          background: eventRecurring ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.06)',
+                          color: eventRecurring ? '#8B5CF6' : 'rgba(255,255,255,0.4)',
+                        }}
+                        onClick={() => setEventRecurring(true)}
+                      >Monthly</button>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        className="flex-1 h-9 rounded-lg text-[12px] font-semibold"
+                        style={{ background: 'rgba(139,92,246,0.2)', color: '#8B5CF6' }}
+                        onClick={addCustomEvent}
+                      >Add</button>
+                      <button
+                        className="h-9 px-3 rounded-lg text-[12px]"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}
+                        onClick={() => { setEventPicker(null); setEventMode(null); }}
+                      >Cancel</button>
+                    </div>
+                  </>
+                )}
+              </div>
+              {/* Arrow pointer */}
+              <div className="flex justify-center">
+                <div style={{
+                  width: 0, height: 0,
+                  borderLeft: '6px solid transparent',
+                  borderRight: '6px solid transparent',
+                  borderTop: '6px solid rgba(20, 15, 30, 0.95)',
+                }} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* "What if?" button / Panel */}
         <div className="mx-5 mt-4">
-          <button
-            className="w-full h-12 rounded-[14px] flex items-center justify-center gap-2"
-            style={{
-              background: 'rgba(139,92,246,0.15)',
-              border: '1.5px solid rgba(139,92,246,0.25)',
-              color: '#8B5CF6',
-              fontSize: 15,
-              fontWeight: 600,
-            }}
-            onClick={() => {
-              onClose();
-              // Phase 3: open Life Scenarios picker
-            }}
-          >
-            <Sparkles size={18} style={{ color: '#8B5CF6' }} />
-            What if?
-          </button>
+          <AnimatePresence mode="wait">
+            {!showWhatIfPanel ? (
+              <motion.button
+                key="whatif-btn"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="w-full h-12 rounded-[14px] flex items-center justify-center gap-2"
+                style={{
+                  background: 'rgba(139,92,246,0.15)',
+                  border: '1.5px solid rgba(139,92,246,0.25)',
+                  color: '#8B5CF6',
+                  fontSize: 15,
+                  fontWeight: 600,
+                }}
+                onClick={() => setShowWhatIfPanel(true)}
+              >
+                <Sparkles size={18} style={{ color: '#8B5CF6' }} />
+                What if?
+              </motion.button>
+            ) : (
+              <WhatIfPanel
+                key="whatif-panel"
+                onClose={() => {
+                  setShowWhatIfPanel(false);
+                  setEventPicker(null);
+                  setEventMode(null);
+                }}
+                activeScenarios={activeScenarios}
+                setActiveScenarios={setActiveScenarios}
+                showPrepared={showPrepared}
+                setShowPrepared={setShowPrepared}
+                forkConfig={forkConfig}
+              />
+            )}
+          </AnimatePresence>
         </div>
+
+        {/* Undo toast */}
+        <AnimatePresence>
+          {undoAction && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2.5"
+              style={{
+                background: 'rgba(20, 15, 30, 0.9)',
+                backdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 10,
+                padding: '10px 16px',
+              }}
+            >
+              <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                Event {undoAction.action === 'add' ? 'added' : 'removed'}
+              </span>
+              <button
+                className="text-[12px] font-bold"
+                style={{ color: '#8B5CF6' }}
+                onClick={handleUndo}
+              >Undo</button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Johnny's Note */}
         <div className="mx-5 mt-3 mb-8 flex items-start gap-[10px] rounded-[14px] p-3" style={{
@@ -797,8 +1213,7 @@ export function activateTerrainFork(_scenario: {
   durationMonths?: number;
   oneTimeExpense?: number;
 }) {
-  // Phase 3: This will be called by Life Scenarios to inject fork data
-  // For now it's a no-op stub
+  // Stub - fork activation now handled via WhatIfPanel within the drawer
 }
 
 // ── Wrapper ──

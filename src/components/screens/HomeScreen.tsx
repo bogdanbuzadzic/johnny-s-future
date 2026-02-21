@@ -111,7 +111,7 @@ export function HomeScreen() {
           <motion.button
             className="frosted-button rounded-full px-4 py-3 flex items-center gap-2 text-sm font-medium"
             whileTap={{ scale: 0.97 }}
-            onClick={() => openTimeline(false)}>
+            onClick={() => openTodayDrawer()}>
             <Sparkles size={18} strokeWidth={1.5} />
             What if?
           </motion.button>
