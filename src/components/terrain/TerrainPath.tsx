@@ -142,75 +142,101 @@ function getMarkerSize(amount: number) {
   return { w: 30, h: 30, icon: 14, font: 10 };
 }
 
-// --- Helper: Build terrain data (1 point per day) ---
+// --- Helper: Build terrain data with SAWTOOTH cash flow (1 point per day) ---
+// Balance spikes UP on salary day (1st), declines daily from spending,
+// step-drops at bill due dates. This repeats each month.
 function buildTerrainData(
-  flexBudget: number,
-  dailySpendRate: number,
-  bills: BillEvent[],
-  incomeEvents: IncomeEvent[],
+  budgetData: BudgetTerrainData,
   simulations: TerrainSimulation[],
 ): TerrainPoint[] {
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const endDate = addDays(now, 30);
-  const monthStart = startOfMonth(now);
-  const totalDays = differenceInDays(endDate, monthStart) + 1;
+  const { monthlyIncome, dailySpendRate, bills, income: incomeEvents, savings } = budgetData;
 
-  // Calculate how much has been spent so far (approximate from daily rate)
-  const spentSoFar = dailySpendRate * (dayOfMonth - 1);
-  let balance = flexBudget - spentSoFar;
+  if (monthlyIncome <= 0) return [];
+
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const totalDays = 60; // ~2 months for clear sawtooth pattern
+
+  // Map bills by day-of-month (they recur monthly)
+  const billsByDom = new Map<number, BillEvent[]>();
+  bills.forEach(b => {
+    const d = b.date.getDate();
+    if (!billsByDom.has(d)) billsByDom.set(d, []);
+    billsByDom.get(d)!.push(b);
+  });
+
+  // Read goals total
+  const goalsTotal = (() => {
+    try {
+      const goals = JSON.parse(localStorage.getItem('jfb_goals') || '[]');
+      return goals.reduce((s: number, g: any) => s + (Number(g.monthlyContribution) || 0), 0);
+    } catch { return 0; }
+  })();
+
+  let balance = 0;
   const points: TerrainPoint[] = [];
 
   for (let i = 0; i < totalDays; i++) {
     const date = addDays(monthStart, i);
+    const dom = date.getDate();
     const isPast = date < now && !isSameDay(date, now);
     const isToday = isSameDay(date, now);
     const isFuture = date > now;
+    const isMonthStart = dom === 1;
 
-    const dayBills = bills.filter(b => isSameDay(b.date, date));
-    const dayIncome = incomeEvents.filter(inc => isSameDay(inc.date, date));
+    let dayIncome = 0;
+    let dayExpenses = 0;
+    let dayBills: BillEvent[] = [];
+    let dayIncomeItems: IncomeEvent[] = [];
 
-    const daySims = simulations.filter(s => s.dayIndex === i);
-    const simExpenses = daySims.filter(s => s.type === 'add-expense').reduce((s, x) => s + x.amount, 0);
-    const simIncome = daySims.filter(s => s.type === 'add-income').reduce((s, x) => s + x.amount, 0);
-    const cancelledBills = daySims.filter(s => s.type === 'cancel-bill');
+    // SALARY on 1st of each month — creates the upward SPIKE
+    if (isMonthStart) {
+      if (i > 0) balance += monthlyIncome;
+      else balance = monthlyIncome; // First day starts at income
+      dayIncome = monthlyIncome;
+      dayIncomeItems = incomeEvents;
+      // Auto-deductions on salary day
+      balance -= savings + goalsTotal;
+    }
 
-    // Add income for salary day (1st of any future month)
-    const isNewMonth = date.getDate() === 1 && date.getMonth() !== monthStart.getMonth();
-    const incomeAmount = (isFuture || isToday) && isNewMonth
-      ? dayIncome.reduce((s, x) => s + x.amount, 0) + simIncome
-      : simIncome;
+    // BILLS due today — creates step-DROP
+    const dueBills = billsByDom.get(dom) || [];
+    dueBills.forEach(b => {
+      balance -= b.amount;
+      dayExpenses += b.amount;
+    });
+    dayBills = [...dueBills];
 
-    let expenseAmount = dayBills
-      .filter(b => !cancelledBills.some(c => c.description === b.name))
-      .reduce((s, x) => s + x.amount, 0) + simExpenses;
-
-    // Only subtract bills for future days (past bills already in spentSoFar)
-    if (isFuture) {
-      balance -= expenseAmount;
-      balance -= dailySpendRate;
-    } else if (isToday) {
-      // Today: just show current balance
-    } else {
-      // Past: reconstruct approximate balance
+    // DAILY discretionary spending — creates gradual DECLINE
+    if (i > 0) {
       balance -= dailySpendRate;
     }
 
-    balance += incomeAmount;
+    // SIMULATIONS (playground mode)
+    const daySims = simulations.filter(s => s.dayIndex === i);
+    const simExp = daySims.filter(s => s.type === 'add-expense').reduce((s, x) => s + x.amount, 0);
+    const simInc = daySims.filter(s => s.type === 'add-income').reduce((s, x) => s + x.amount, 0);
+    const cancelled = daySims.filter(s => s.type === 'cancel-bill');
+
+    balance -= simExp;
+    balance += simInc;
+    cancelled.forEach(c => { balance += c.amount; });
+    dayExpenses += simExp;
+    dayIncome += simInc;
+    dayBills = dayBills.filter(b => !cancelled.some(c => c.description === b.name));
 
     points.push({
       dayIndex: i,
       date,
       balance: Math.max(0, Math.round(balance)),
-      income: incomeAmount,
-      expenses: isFuture ? expenseAmount : 0,
+      income: dayIncome,
+      expenses: dayExpenses,
       dailySpend: dailySpendRate,
       isPast,
       isToday,
       isFuture,
-      bills: dayBills.filter(b => !cancelledBills.some(c => c.description === b.name)),
-      incomeItems: isNewMonth && (isFuture || isToday) ? dayIncome : [],
+      bills: dayBills,
+      incomeItems: dayIncomeItems,
     });
   }
 
@@ -429,14 +455,10 @@ export function TerrainPath() {
   const terrainIncome = budgetTerrain.isEmpty ? [] : budgetTerrain.income;
   const isProjection = budgetTerrain.isProjection;
 
-  // Use localStorage values (not context) for base terrain to avoid stale/zero values
-  const effectiveFlexBudget = budgetTerrain.flexBudget || monthlyIncome;
-  const effectiveDailySpend = budgetTerrain.dailySpendRate || averageDailySpend;
-
-  // Build terrain data
+  // Build terrain data with sawtooth cash flow model
   const points = useMemo(() =>
-    buildTerrainData(effectiveFlexBudget, effectiveDailySpend, terrainBills, terrainIncome, terrainSimulations),
-    [effectiveFlexBudget, effectiveDailySpend, terrainSimulations, terrainBills, terrainIncome]
+    buildTerrainData(budgetTerrain, terrainSimulations),
+    [budgetTerrain, terrainSimulations]
   );
 
   const todayIndex = useMemo(() => points.findIndex(p => p.isToday), [points]);
