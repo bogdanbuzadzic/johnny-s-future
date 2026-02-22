@@ -440,10 +440,7 @@ function MyMoneyContent() {
       ...g, _color: goalIconColors[g.icon] || '#8B5CF6'
     })), [goals]);
 
-  // What If handlers
-  const handleWhatIfReset = () => setSimulations([]);
-  const handleWhatIfSave = () => { setSimulations([]); setIsWhatIf(false); };
-  const handleWhatIfDone = () => { setSimulations([]); setIsWhatIf(false); };
+  // (What If handlers moved to WhatIfSheet)
 
   // Mock bank import
   const handleMockImport = useCallback(() => {
@@ -475,47 +472,7 @@ function MyMoneyContent() {
     }, 2000);
   }, [expenseCategories, addTransaction]);
 
-  // What If quick scenarios
-  const [activeScenarioLabel, setActiveScenarioLabel] = useState<string | null>(null);
-  const handleQuickScenario = useCallback((scenario: string) => {
-    if (scenario === 'rent') {
-      const rent = fixedCategories.find(c => c.name === 'Rent');
-      if (rent) setSimulations([{ id: 'rent-sim', field: 'fixed', value: rent.monthlyBudget - 100, original: rent.monthlyBudget }]);
-      setActiveScenarioLabel('rent');
-    } else if (scenario === 'save') {
-      setSimulations([{ id: 'save-sim', field: 'savings', value: savingsTarget + 100, original: savingsTarget }]);
-      setActiveScenarioLabel('save');
-    } else if (scenario === 'income-drop') {
-      setSimulations([{ id: 'income-sim', field: 'income', value: Math.round(totalIncome * 0.8), original: totalIncome }]);
-      setActiveScenarioLabel('income-drop');
-    }
-    setWhatIfFirstActivation(false);
-  }, [fixedCategories, savingsTarget, totalIncome]);
-
-  const handleTryAnother = useCallback(() => {
-    setSimulations([]);
-    setActiveScenarioLabel(null);
-    setWhatIfFirstActivation(true);
-  }, []);
-
-  const scenarioImpact = useMemo(() => {
-    if (!activeScenarioLabel || simulations.length === 0) return null;
-    const sim = simulations[0];
-    const diff = sim.value - sim.original;
-    const newFree = freeAmount + (sim.field === 'fixed' ? -diff : sim.field === 'savings' ? -diff : sim.field === 'income' ? diff : 0);
-    const annualSaved = Math.abs(diff) * 12;
-    const nearestGoal = goals[0];
-    let goalImpact = '';
-    if (nearestGoal && nearestGoal.monthlyContribution > 0) {
-      const remaining = nearestGoal.target - nearestGoal.saved;
-      const monthsNow = Math.ceil(remaining / nearestGoal.monthlyContribution);
-      const extra = diff < 0 ? Math.abs(diff) : 0;
-      const monthsNew = extra > 0 ? Math.ceil(remaining / (nearestGoal.monthlyContribution + extra * 0.5)) : monthsNow;
-      const diff2 = monthsNow - monthsNew;
-      if (diff2 > 0) goalImpact = `${nearestGoal.name}: ${diff2} months sooner`;
-    }
-    return { diff, newFree, annualSaved, goalImpact, isNegative: newFree < 0, originalField: sim.field, originalValue: sim.original, newValue: sim.value };
-  }, [activeScenarioLabel, simulations, freeAmount, goals]);
+  // (Quick scenarios moved to WhatIfSheet)
 
   // Expand item
   const handleExpandItem = (id: string, budget: number) => {
@@ -526,16 +483,7 @@ function MyMoneyContent() {
   };
 
   const handleSliderSave = (catId: string) => {
-    if (isWhatIf) {
-      setSimulations(prev => {
-        const existing = prev.findIndex(s => s.id === catId);
-        const entry = { id: catId, field: 'spending', value: Math.round(sliderVal), original: sliderOriginal };
-        if (existing >= 0) { const u = [...prev]; u[existing] = entry; return u; }
-        return [...prev, entry];
-      });
-    } else {
-      updateCategory(catId, { monthlyBudget: Math.round(sliderVal) });
-    }
+    updateCategory(catId, { monthlyBudget: Math.round(sliderVal) });
     setExpandedItemId(null);
   };
 
@@ -1089,15 +1037,11 @@ function MyMoneyContent() {
       <div className="px-4 mb-3">
         <div className="relative rounded-[20px] overflow-hidden" style={{
           background: '#27AE60',
-          border: isWhatIf ? '2px dashed rgba(255,255,255,0.25)'
-            : activeScenarioLabel === 'income-drop' && scenarioImpact ? '2px solid rgba(245,158,11,0.5)'
-            : freeAmount < 0 ? '2px solid rgba(245,158,11,0.4)'
-            : 'none',
+          border: freeAmount < 0 ? '2px solid rgba(245,158,11,0.4)' : 'none',
           minHeight: '58vh',
           padding: 10,
           paddingTop: 52,
           paddingBottom: 10,
-          animation: isWhatIf ? 'ghostPulse 3s ease-in-out infinite' : undefined,
           boxShadow: freeAmount < 0 ? '0 0 24px rgba(245,158,11,0.2)' : undefined,
         }}>
           {/* Summary bar at TOP */}
@@ -1138,7 +1082,7 @@ function MyMoneyContent() {
             <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 2 }}>INCOME</span>
           </div>
 
-          {isWhatIf && <div className="absolute top-12 right-3 z-10 flex items-center gap-1 text-[10px] text-white/30"><Sparkles size={10} /> Playground</div>}
+          {/* Playground label removed - now in WhatIfSheet */}
 
           {/* Purchase Decision Input Bar */}
           <div className="relative z-10 mb-2 flex items-center gap-2" style={{
@@ -1367,7 +1311,7 @@ function MyMoneyContent() {
         open={showTransferSheet}
         source={dragSource}
         target={dragTarget}
-        isWhatIf={isWhatIf}
+        isWhatIf={false}
         onApply={handleTransferApply}
         onClose={() => { setShowTransferSheet(false); setDragSource(null); setDragTarget(null); }}
       />
