@@ -82,58 +82,95 @@ function readBudgetData() {
   } catch { return null; }
 }
 
-// ── Stress simulation ──
-function simulateStress(scenarioId: ScenarioId, pill: string, budget: ReturnType<typeof readBudgetData>) {
-  if (!budget) return [];
-  const results: Array<{ month: number; reserves: number; isBroke: boolean }> = [];
-  let reserves = budget.bankBalance + budget.savingsBalance;
-  let monthlyIncome = budget.income;
-  const monthlyBurn = budget.totalFixed + budget.foodBudget;
-  let emergencyHit = 0;
-  let durationMonths = 24;
-
-  if (scenarioId === 'job-loss') {
-    monthlyIncome = 0;
-    durationMonths = pill === '1 mo' ? 1 : pill === '3 mo' ? 3 : 6;
-  } else if (scenarioId === 'income-cut') {
-    const pct = parseInt(pill.replace(/[^0-9]/g, '')) || 20;
-    monthlyIncome *= (1 - pct / 100);
-  } else if (scenarioId === 'emergency') {
-    emergencyHit = pill === '€500' ? 500 : pill === '€1k' ? 1000 : pill === '€2.5k' ? 2500 : 5000;
-  } else if (scenarioId === 'inflation') {
-    const rate = parseInt(pill) || 8;
-    // Increase burn
-    const inflated = monthlyBurn * (1 + rate / 100);
-    reserves -= emergencyHit;
-    for (let m = 0; m <= 24; m++) {
-      results.push({ month: m, reserves: Math.round(reserves), isBroke: reserves < 0 });
-      reserves += monthlyIncome - inflated;
+// ── Daily cash flow generator (sawtooth pattern) ──
+function generateDailyFlow(
+  income: number, fixed: number, savings: number, goals: number,
+  dailyFlex: number, initialReserves: number, totalDays: number,
+): number[] {
+  let bal = initialReserves;
+  const points: number[] = [];
+  for (let d = 0; d < totalDays; d++) {
+    const dom = (d % 30) + 1;
+    // Salary on 1st — creates upward SPIKE
+    if (dom === 1) {
+      bal += income;
+      bal -= fixed + savings + goals; // auto-deductions
     }
-    return results;
-  } else if (scenarioId === 'perfect-storm') {
-    monthlyIncome *= 0.7;
-    emergencyHit = 2000;
+    // Daily spending — creates gradual DECLINE
+    bal -= dailyFlex;
+    points.push(Math.round(bal));
   }
-
-  reserves -= emergencyHit;
-
-  for (let m = 0; m <= 24; m++) {
-    const net = monthlyIncome - monthlyBurn;
-    results.push({ month: m, reserves: Math.round(reserves), isBroke: reserves < 0 });
-    reserves += net;
-    if (durationMonths < 24 && m >= durationMonths) monthlyIncome = budget.income;
-  }
-  return results;
+  return points;
 }
 
-function simulateWithFund(scenarioId: ScenarioId, pill: string, budget: ReturnType<typeof readBudgetData>) {
+// ── Stress simulation using daily sawtooth model ──
+function simulateStress(scenarioId: ScenarioId, pill: string, budget: ReturnType<typeof readBudgetData>) {
+  if (!budget) return { base: [] as number[], scenario: [] as number[], brokeDay: -1, recoveryDay: -1, survivalMonths: 0 };
+
+  const dailyFlex = budget.totalSpending / 30;
+  const reserves = budget.bankBalance + budget.savingsBalance;
+  const totalDays = 24 * 30;
+
+  // Base trajectory (current plan — sawtooth with normal income)
+  const base = generateDailyFlow(budget.income, budget.totalFixed, budget.savings, budget.goalsTotal, dailyFlex, reserves, totalDays);
+
+  let scenario: number[];
+
+  if (scenarioId === 'job-loss') {
+    // Two phases: no income for N months, then recovery
+    const mo = pill === '1 mo' ? 1 : pill === '3 mo' ? 3 : 6;
+    const lossDays = mo * 30;
+    const essentialDaily = budget.foodBudget / 30;
+    const phase1 = generateDailyFlow(0, budget.totalFixed, 0, 0, essentialDaily, reserves, lossDays);
+    const lastBal = phase1[phase1.length - 1];
+    const phase2 = totalDays - lossDays > 0
+      ? generateDailyFlow(budget.income, budget.totalFixed, budget.savings, budget.goalsTotal, dailyFlex, lastBal, totalDays - lossDays)
+      : [];
+    scenario = [...phase1, ...phase2];
+  } else {
+    let modIncome = budget.income;
+    let modFixed = budget.totalFixed;
+    let modFlex = dailyFlex;
+    let startHit = 0;
+
+    switch (scenarioId) {
+      case 'income-cut': case 'income-drop-quick': {
+        const pct = scenarioId === 'income-drop-quick' ? 20 : parseInt(pill.replace(/[^0-9]/g, '')) || 20;
+        modIncome *= (1 - pct / 100);
+        break;
+      }
+      case 'emergency':
+        startHit = pill === '€500' ? 500 : pill === '€1k' ? 1000 : pill === '€2.5k' ? 2500 : 5000;
+        break;
+      case 'inflation': {
+        const rate = parseInt(pill) || 8;
+        modFixed = Math.round(budget.totalFixed * (1 + rate / 100));
+        modFlex = dailyFlex * (1 + rate / 100);
+        break;
+      }
+      case 'perfect-storm':
+        modIncome *= 0.7;
+        startHit = 2000;
+        modFixed = Math.round(budget.totalFixed * 1.08);
+        modFlex = dailyFlex * 1.08;
+        break;
+    }
+
+    scenario = generateDailyFlow(modIncome, modFixed, budget.savings, budget.goalsTotal, modFlex, reserves - startHit, totalDays);
+  }
+
+  const brokeDay = scenario.findIndex(v => v < 0);
+  const recoveryDay = brokeDay >= 0 ? scenario.findIndex((v, i) => i > brokeDay && v >= 0) : -1;
+  const survivalMonths = brokeDay >= 0 ? Math.round(brokeDay / 30 * 10) / 10 : 24;
+
+  return { base, scenario, brokeDay, recoveryDay, survivalMonths };
+}
+
+function simulateWithFund(scenarioId: ScenarioId, pill: string, budget: ReturnType<typeof readBudgetData>): number[] {
   if (!budget) return [];
-  const preparedBudget = {
-    ...budget,
-    bankBalance: 6 * (budget.totalFixed + budget.foodBudget),
-    savingsBalance: 0,
-  };
-  return simulateStress(scenarioId, pill, preparedBudget);
+  const emergencyFund = 6 * (budget.totalFixed + budget.foodBudget);
+  const preparedBudget = { ...budget, bankBalance: emergencyFund, savingsBalance: 0 };
+  return simulateStress(scenarioId, pill, preparedBudget).scenario;
 }
 
 // ── Props ──
@@ -202,18 +239,12 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
     runScenario(expandedId, pill);
   }, [expandedId, selectedPill, euroVal, runScenario]);
 
-  // Stress results data
+  // Stress results data (daily sawtooth cash flow)
   const stressData = useMemo(() => {
     if (!activeScenario || view !== 'stress-results' || !budget) return null;
-    const results = simulateStress(activeScenario.id, activeScenario.pill, budget);
-    const preparedResults = showPrepared ? simulateWithFund(activeScenario.id, activeScenario.pill, budget) : null;
-    const brokeIdx = results.findIndex(r => r.isBroke);
-    const recoveryIdx = brokeIdx >= 0 ? results.findIndex((r, i) => i > brokeIdx && !r.isBroke) : -1;
-    const maxReserves = Math.max(...results.map(r => r.reserves), 0);
-    const minReserves = Math.min(...results.map(r => r.reserves));
-    const survivalMonths = brokeIdx >= 0 ? brokeIdx : results.length;
-
-    return { results, preparedResults, brokeIdx, recoveryIdx, maxReserves, minReserves, survivalMonths };
+    const result = simulateStress(activeScenario.id, activeScenario.pill, budget);
+    const prepared = showPrepared ? simulateWithFund(activeScenario.id, activeScenario.pill, budget) : [];
+    return { ...result, prepared };
   }, [activeScenario, view, budget, showPrepared]);
 
   // Life change results
@@ -253,14 +284,17 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
     }
 
     // Budget blocks
+    const freeAmount = budget.freeAmount;
+    const afterFree = freeAmount + extraMonthly;
     const blocks = [
-      { label: 'Spending', amount: budget.totalSpending, color: '#8E44AD' },
-      { label: 'Fixed', amount: budget.totalFixed, newAmount: id === 'cheap-rent' || id === 'cheaper-housing' ? budget.totalFixed - Math.max(0, extraMonthly) : budget.totalFixed, color: '#5D6D7E' },
-      { label: 'Savings', amount: budget.savings, color: '#2980B9' },
-      { label: 'Goals', amount: budget.goalsTotal, color: '#E91E63' },
-    ].filter(b => b.amount > 0);
+      { label: 'Spending', amount: budget.totalSpending, newAmount: budget.totalSpending, color: '#8E44AD' },
+      { label: 'Fixed', amount: budget.totalFixed, newAmount: (id === 'cheap-rent' || id === 'cheaper-housing') ? budget.totalFixed - Math.max(0, extraMonthly) : budget.totalFixed, color: '#5D6D7E' },
+      { label: 'Savings', amount: budget.savings, newAmount: budget.savings, color: '#2980B9' },
+      { label: 'Goals', amount: budget.goalsTotal, newAmount: budget.goalsTotal, color: '#E91E63' },
+      { label: 'Free', amount: Math.max(0, freeAmount), newAmount: Math.max(0, afterFree), color: 'rgba(255,255,255,0.15)' },
+    ].filter(b => b.amount > 0 || b.newAmount > 0);
 
-    return { extraMonthly, newSavingsRate, goalAccel, blocks, isPositive: extraMonthly >= 0 };
+    return { extraMonthly, newSavingsRate, goalAccel, blocks, isPositive: extraMonthly >= 0, freeAmount, afterFree };
   }, [activeScenario, view, budget]);
 
   if (!open) return null;
@@ -269,71 +303,117 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
     ? (scenarios.find(s => s.id === activeScenario.id)?.label || '') + (activeScenario.pill ? ` (${activeScenario.pill})` : '')
     : '';
 
-  // ── Chart renderer for stress ──
+  // ── Sawtooth chart renderer for stress ──
   const renderStressChart = () => {
     if (!stressData) return null;
-    const { results, preparedResults, brokeIdx, recoveryIdx, maxReserves, minReserves } = stressData;
-    const W = 340, H = 160, PAD = 30;
-    const chartW = W - PAD * 2, chartH = H - 30;
-    const yMax = Math.max(maxReserves, preparedResults ? Math.max(...preparedResults.map(r => r.reserves)) : 0, 100);
-    const yMin = Math.min(minReserves, 0);
+    const { base, scenario, prepared, brokeDay, recoveryDay } = stressData;
+    if (base.length === 0 || scenario.length === 0) return null;
+
+    const W = 340, H = 180;
+    const PAD = { top: 15, bottom: 25, left: 40, right: 10 };
+    const chartW = W - PAD.left - PAD.right;
+    const chartH = H - PAD.top - PAD.bottom;
+
+    // Downsample every 3rd day for clean chart
+    const step = 3;
+    const baseDS = base.filter((_, i) => i % step === 0);
+    const scenDS = scenario.filter((_, i) => i % step === 0);
+    const prepDS = prepared.length > 0 ? prepared.filter((_, i) => i % step === 0) : [];
+
+    const allVals = [...baseDS, ...scenDS, ...prepDS];
+    const yMax = Math.max(...allVals, 100);
+    const yMin = Math.min(...allVals, 0);
     const yRange = yMax - yMin || 1;
 
-    const toX = (i: number) => PAD + (i / (results.length - 1)) * chartW;
-    const toY = (v: number) => 10 + chartH - ((v - yMin) / yRange) * chartH;
+    const toX = (i: number) => PAD.left + (i / Math.max(baseDS.length - 1, 1)) * chartW;
+    const toY = (v: number) => PAD.top + chartH - ((v - yMin) / yRange) * chartH;
 
-    const path = results.map((r, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(r.reserves)}`).join(' ');
-    const areaPath = `${path} L${toX(results.length - 1)},${toY(yMin)} L${toX(0)},${toY(yMin)} Z`;
-    const prepPath = preparedResults?.map((r, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(r.reserves)}`).join(' ');
+    const makePath = (pts: number[]) =>
+      pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
+
+    const basePath = makePath(baseDS);
+    const scenPath = makePath(scenDS);
+    const prepPath = prepDS.length > 0 ? makePath(prepDS) : '';
+
+    // Area fill under scenario line
+    const scenArea = `${scenPath} L${toX(scenDS.length - 1).toFixed(1)},${toY(yMin).toFixed(1)} L${toX(0).toFixed(1)},${toY(yMin).toFixed(1)} Z`;
 
     const now = new Date();
     const monthLabels = [0, 6, 12, 18, 24].map(m => {
-      const d = new Date(now);
-      d.setMonth(d.getMonth() + m);
-      return { m, label: d.toLocaleString('en', { month: 'short', year: '2-digit' }) };
+      const d = new Date(now); d.setMonth(d.getMonth() + m);
+      return { x: toX(Math.min(Math.floor(m * 30 / step), baseDS.length - 1)), label: d.toLocaleString('en', { month: 'short', year: '2-digit' }) };
     });
 
+    const brokeIdx = brokeDay >= 0 ? Math.floor(brokeDay / step) : -1;
+    const recovIdx = recoveryDay >= 0 ? Math.floor(recoveryDay / step) : -1;
+
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 180 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 200 }}>
         <defs>
-          <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(139,92,246,0.4)" />
-            <stop offset="50%" stopColor="rgba(236,72,153,0.3)" />
-            <stop offset="100%" stopColor="rgba(231,76,60,0.4)" />
+          <linearGradient id="stressSawtoothGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(139,92,246,0.3)" />
+            <stop offset="50%" stopColor="rgba(236,72,153,0.2)" />
+            <stop offset="100%" stopColor="rgba(249,115,22,0.08)" />
           </linearGradient>
         </defs>
+
         {/* Zero line */}
-        <line x1={PAD} y1={toY(0)} x2={W - PAD} y2={toY(0)} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-        {/* Area */}
-        <path d={areaPath} fill="url(#stressGrad)" opacity="0.5" />
-        {/* Main line */}
-        <path d={path} fill="none" stroke="white" strokeWidth="2" />
-        {/* Prepared line */}
+        {yMin < 0 && <line x1={PAD.left} y1={toY(0)} x2={W - PAD.right} y2={toY(0)}
+          stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="3,3" />}
+
+        {/* Scenario area fill */}
+        <path d={scenArea} fill="url(#stressSawtoothGrad)" opacity="0.4" />
+
+        {/* Base line (current plan — white solid) */}
+        <path d={basePath} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
+
+        {/* Scenario line (stress — amber dashed) */}
+        <path d={scenPath} fill="none" stroke="#FBBF24" strokeWidth="2" strokeDasharray="6,3" />
+
+        {/* Prepared line (green dashed) */}
         {prepPath && <path d={prepPath} fill="none" stroke="#86EFAC" strokeWidth="1.5" strokeDasharray="4,3" />}
+
         {/* Broke marker */}
-        {brokeIdx >= 0 && (
+        {brokeIdx >= 0 && brokeIdx < scenDS.length && (
           <g>
-            <line x1={toX(brokeIdx)} y1={10} x2={toX(brokeIdx)} y2={H - 20} stroke="#EF4444" strokeWidth="1" strokeDasharray="3,3" />
-            <circle cx={toX(brokeIdx)} cy={toY(results[brokeIdx].reserves)} r="3" fill="#EF4444" />
-            <text x={toX(brokeIdx)} y={8} fill="#EF4444" fontSize="9" textAnchor="middle" fontWeight="600">Broke</text>
+            <line x1={toX(brokeIdx)} y1={PAD.top} x2={toX(brokeIdx)} y2={H - PAD.bottom}
+              stroke="#EF4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
+            <circle cx={toX(brokeIdx)} cy={toY(scenDS[brokeIdx])} r="3.5" fill="#EF4444" />
+            <text x={toX(brokeIdx)} y={PAD.top - 3} fill="#EF4444" fontSize="9" textAnchor="middle" fontWeight="600">Broke</text>
           </g>
         )}
+
         {/* Recovery marker */}
-        {recoveryIdx >= 0 && (
+        {recovIdx >= 0 && recovIdx < scenDS.length && (
           <g>
-            <line x1={toX(recoveryIdx)} y1={10} x2={toX(recoveryIdx)} y2={H - 20} stroke="#86EFAC" strokeWidth="1" strokeDasharray="3,3" />
-            <circle cx={toX(recoveryIdx)} cy={toY(results[recoveryIdx].reserves)} r="3" fill="#86EFAC" />
-            <text x={toX(recoveryIdx)} y={8} fill="#86EFAC" fontSize="9" textAnchor="middle" fontWeight="600">Recovers</text>
+            <circle cx={toX(recovIdx)} cy={toY(scenDS[recovIdx])} r="3.5" fill="#86EFAC" />
+            <text x={toX(recovIdx)} y={toY(scenDS[recovIdx]) - 8} fill="#86EFAC" fontSize="9" textAnchor="middle" fontWeight="600">Recovers</text>
           </g>
         )}
+
+        {/* Y-axis labels */}
+        {[yMin < 0 ? yMin : 0, Math.round(yMax / 2), yMax].map(v => (
+          <text key={v} x={PAD.left - 4} y={toY(v) + 3} fill="rgba(255,255,255,0.25)" fontSize="8" textAnchor="end">
+            €{Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}
+          </text>
+        ))}
+
         {/* Month labels */}
-        {monthLabels.map(ml => (
-          <text key={ml.m} x={toX(ml.m)} y={H - 4} fill="rgba(255,255,255,0.35)" fontSize="9" textAnchor="middle">{ml.label}</text>
+        {monthLabels.map((ml, i) => (
+          <text key={i} x={ml.x} y={H - 4} fill="rgba(255,255,255,0.35)" fontSize="9" textAnchor="middle">{ml.label}</text>
         ))}
-        {/* Y labels */}
-        {[0, Math.round(yMax / 2), yMax].map(v => (
-          <text key={v} x={PAD - 4} y={toY(v) + 3} fill="rgba(255,255,255,0.25)" fontSize="8" textAnchor="end">€{v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}</text>
-        ))}
+
+        {/* Legend */}
+        <g transform={`translate(${PAD.left + 4}, ${PAD.top + 4})`}>
+          <line x1="0" y1="0" x2="14" y2="0" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
+          <text x="18" y="3" fill="rgba(255,255,255,0.4)" fontSize="8">Current</text>
+          <line x1="0" y1="12" x2="14" y2="12" stroke="#FBBF24" strokeWidth="2" strokeDasharray="4,2" />
+          <text x="18" y="15" fill="rgba(255,255,255,0.4)" fontSize="8">Scenario</text>
+          {prepPath && <>
+            <line x1="0" y1="24" x2="14" y2="24" stroke="#86EFAC" strokeWidth="1.5" strokeDasharray="4,2" />
+            <text x="18" y="27" fill="rgba(255,255,255,0.4)" fontSize="8">Prepared</text>
+          </>}
+        </g>
       </svg>
     );
   };
@@ -463,9 +543,9 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
                 {/* Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                   {[
-                    { label: 'SURVIVAL', value: stressData.brokeIdx < 0 ? 'Indefinitely' : `${stressData.survivalMonths} mo`, color: stressData.brokeIdx < 0 ? '#86EFAC' : 'white' },
-                    { label: 'BROKE AFTER', value: stressData.brokeIdx < 0 ? 'Never' : `Month ${stressData.brokeIdx}`, color: stressData.brokeIdx < 0 ? '#86EFAC' : '#EF4444' },
-                    { label: 'RECOVERY', value: stressData.recoveryIdx < 0 ? (stressData.brokeIdx < 0 ? 'N/A' : 'No') : `Month ${stressData.recoveryIdx}`, color: 'white' },
+                    { label: 'SURVIVAL', value: stressData.brokeDay < 0 ? 'Indefinitely' : `${stressData.survivalMonths} mo`, color: stressData.brokeDay < 0 ? '#86EFAC' : 'white' },
+                    { label: 'BROKE AFTER', value: stressData.brokeDay < 0 ? 'Never' : `Month ${Math.ceil(stressData.brokeDay / 30)}`, color: stressData.brokeDay < 0 ? '#86EFAC' : '#EF4444' },
+                    { label: 'RECOVERY', value: stressData.recoveryDay < 0 ? (stressData.brokeDay < 0 ? 'N/A' : 'No') : `Month ${Math.ceil(stressData.recoveryDay / 30)}`, color: 'white' },
                   ].map((s, i) => (
                     <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14 }}>
                       <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</div>
@@ -534,40 +614,62 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
                   ))}
                 </div>
 
-                {/* Budget impact bar */}
+                {/* Before / After budget bars */}
                 <div className="mt-4" style={{
                   background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
                   borderRadius: 12, padding: 14,
                 }}>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 8 }}>Budget Impact</div>
-                  <div className="flex rounded-lg overflow-hidden" style={{ height: 32 }}>
+                  {/* CURRENT bar */}
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 4 }}>Current</div>
+                  <div className="flex rounded-md overflow-hidden" style={{ height: 28 }}>
                     {lifeData.blocks.map((b, i) => {
-                      const total = lifeData.blocks.reduce((s, bl) => s + bl.amount, 0);
-                      const pct = total > 0 ? (b.amount / total) * 100 : 25;
+                      const total = budget ? budget.income : lifeData.blocks.reduce((s, bl) => s + bl.amount, 0);
+                      const pct = total > 0 ? (b.amount / total) * 100 : 20;
                       return (
-                        <div key={i} className="flex items-center justify-center" style={{ width: `${pct}%`, background: b.color, minWidth: 24 }}>
-                          <span style={{ fontSize: 8, fontWeight: 700, color: 'white' }}>{b.label}</span>
+                        <div key={`curr-${i}`} className="flex items-center justify-center" style={{
+                          width: `${Math.max(pct, 3)}%`, background: b.color, minWidth: 2,
+                        }}>
+                          {pct > 10 && <span style={{ fontSize: 8, fontWeight: 700, color: 'white' }}>{b.label}</span>}
                         </div>
                       );
                     })}
-                    {lifeData.extraMonthly > 0 && budget && (
-                      <div className="flex items-center justify-center" style={{
-                        width: `${Math.round(lifeData.extraMonthly / budget.income * 100)}%`,
-                        background: 'rgba(134,239,172,0.3)', minWidth: 16,
-                      }}>
-                        <span style={{ fontSize: 8, fontWeight: 700, color: '#86EFAC' }}>+</span>
-                      </div>
-                    )}
                   </div>
-                  {/* Delta text */}
+
+                  {/* AFTER bar */}
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginTop: 10, marginBottom: 4 }}>
+                    After {scenarioLabel}
+                  </div>
+                  <div className="flex rounded-md overflow-hidden" style={{ height: 28 }}>
+                    {lifeData.blocks.map((b, i) => {
+                      const newAmt = b.newAmount ?? b.amount;
+                      const totalAfter = budget ? budget.income + lifeData.extraMonthly : lifeData.blocks.reduce((s, bl) => s + (bl.newAmount ?? bl.amount), 0);
+                      const pct = totalAfter > 0 ? (newAmt / totalAfter) * 100 : 20;
+                      const changed = newAmt !== b.amount;
+                      return (
+                        <div key={`new-${i}`} className="flex items-center justify-center" style={{
+                          width: `${Math.max(pct, 3)}%`, background: b.color, minWidth: 2,
+                          outline: changed ? '1px solid rgba(134,239,172,0.4)' : 'none',
+                        }}>
+                          {pct > 10 && <span style={{ fontSize: 8, fontWeight: 700, color: changed ? '#86EFAC' : 'white' }}>{b.label}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Delta summary */}
+                  <div style={{ fontSize: 13, fontWeight: 600, marginTop: 10, color: lifeData.extraMonthly >= 0 ? '#86EFAC' : '#FBBF24' }}>
+                    {lifeData.extraMonthly >= 0 ? '+' : ''}€{Math.abs(lifeData.extraMonthly)}/month {lifeData.extraMonthly >= 0 ? 'extra free cash' : 'less free cash'}
+                  </div>
+
+                  {/* Per-category deltas */}
                   {lifeData.blocks.map((b, i) => {
-                    const newAmt = (b as any).newAmount;
+                    const newAmt = b.newAmount;
                     if (newAmt === undefined || newAmt === b.amount) return null;
                     const delta = newAmt - b.amount;
                     return (
-                      <div key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 6 }}>
+                      <div key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
                         {b.label}: €{b.amount} → €{newAmt}{' '}
-                        <span style={{ color: delta < 0 ? '#86EFAC' : '#FBBF24', fontWeight: 600 }}>
+                        <span style={{ color: delta > 0 ? '#86EFAC' : '#FBBF24', fontWeight: 600 }}>
                           ({delta > 0 ? '+' : ''}€{delta})
                         </span>
                       </div>
