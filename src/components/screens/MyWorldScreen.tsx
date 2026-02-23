@@ -6,13 +6,69 @@ import { useToast } from '@/hooks/use-toast';
 import avatarImg from '@/assets/avatar.png';
 import { AddGoalSheet } from '@/components/sheets/AddGoalSheet';
 
-// Goal assets
+// Goal assets — 4 stages each
+import car1Img from '@/assets/world/car1.png';
 import car2Img from '@/assets/world/car2.png';
+import car3Img from '@/assets/world/car3.png';
+import car4Img from '@/assets/world/car4.png';
+import vacation1Img from '@/assets/world/vacation1.png';
 import vacation2Img from '@/assets/world/vacation2.png';
+import vacation3Img from '@/assets/world/vacation3.png';
+import vacation4Img from '@/assets/world/vacation4.png';
+import laptop1Img from '@/assets/world/laptop1.png';
+import laptop2Img from '@/assets/world/laptop2.png';
 import laptop3Img from '@/assets/world/laptop3.png';
+import laptop4Img from '@/assets/world/laptop4.png';
+import house1Img from '@/assets/world/house1.png';
+import house2Img from '@/assets/world/house2.png';
 import house3Img from '@/assets/world/house3.png';
+import house4Img from '@/assets/world/house4.png';
+import education1Img from '@/assets/world/education1.png';
+import education2Img from '@/assets/world/education2.png';
+import education3Img from '@/assets/world/education3.png';
+import education4Img from '@/assets/world/education4.png';
 import generalGoal1 from '@/assets/world/general_goal_icon1.png';
 import generalGoal2 from '@/assets/world/general_goal_icon2.png';
+
+// ── Stage mappings ──
+const stageImages: Record<string, string[]> = {
+  house: [house1Img, house2Img, house3Img, house4Img],
+  car: [car1Img, car2Img, car3Img, car4Img],
+  vacation: [vacation1Img, vacation2Img, vacation3Img, vacation4Img],
+  laptop: [laptop1Img, laptop2Img, laptop3Img, laptop4Img],
+  education: [education1Img, education2Img, education3Img, education4Img],
+};
+
+function getGoalCategory(goal: GoalType): string {
+  const name = (goal.name || '').toLowerCase();
+  const icon = goal.icon || '';
+  if (name.includes('house') || name.includes('home') || icon === 'Home') return 'house';
+  if (name.includes('car') || name.includes('vehicle') || icon === 'Car') return 'car';
+  if (name.includes('vacation') || name.includes('travel') || name.includes('trip') || icon === 'Plane') return 'vacation';
+  if (name.includes('laptop') || name.includes('computer') || name.includes('tech') || icon === 'Laptop') return 'laptop';
+  if (name.includes('education') || name.includes('study') || name.includes('degree') || icon === 'GraduationCap') return 'education';
+  return 'generic';
+}
+
+function getProgressStage(fillPct: number): number {
+  if (fillPct >= 76) return 3;
+  if (fillPct >= 51) return 2;
+  if (fillPct >= 26) return 1;
+  return 0;
+}
+
+const fallbackCache = new Map<string, string>();
+function getGoalImage(goal: GoalType, fillPct: number): string {
+  const category = getGoalCategory(goal);
+  const stage = getProgressStage(fillPct);
+  if (category !== 'generic' && stageImages[category]) {
+    return stageImages[category][stage];
+  }
+  // Generic fallback
+  const key = goal.name || goal.id || '';
+  if (!fallbackCache.has(key)) fallbackCache.set(key, Math.random() > 0.5 ? generalGoal1 : generalGoal2);
+  return fallbackCache.get(key)!;
+}
 
 // ── Constants ──
 const SKY_GRADIENTS: Record<string, string> = {
@@ -20,7 +76,6 @@ const SKY_GRADIENTS: Record<string, string> = {
   average: 'linear-gradient(180deg, #C8A2C8 0%, #DEB8D0 40%, #F0D0E0 100%)',
   struggling: 'linear-gradient(180deg, #8E7BA4 0%, #A090B0 40%, #C0B0C8 100%)',
 };
-
 const SKY_BRIGHT = 'linear-gradient(180deg, #5BB8F5 0%, #87CEEB 40%, #D0EFFF 100%)';
 
 const GROUND_GRADIENTS: Record<string, string> = {
@@ -29,16 +84,16 @@ const GROUND_GRADIENTS: Record<string, string> = {
   struggling: 'linear-gradient(180deg, #9A8A5A 0%, #8A7A4A 50%, #7A6A3A 100%)',
 };
 const GROUND_GREEN = 'linear-gradient(180deg, #4CAF50 0%, #388E3C 50%, #2E7D32 100%)';
-
 const GROUND_EDGE: Record<string, string> = {
   healthy: '#5B8C3E', average: '#7A9A5A', struggling: '#9A8A5A',
 };
 
+// Goals positioned LEFT and RIGHT of character, never behind
 const POSITIONS = [
-  { x: '20%', bottom: '20%', size: 75 },
-  { x: '42%', bottom: '20%', size: 80 },
-  { x: '63%', bottom: '20%', size: 80 },
-  { x: '82%', bottom: '20%', size: 75 },
+  { x: '12%', bottom: '20%', size: 70 },  // far left
+  { x: '32%', bottom: '20%', size: 75 },  // left of avatar
+  { x: '68%', bottom: '20%', size: 75 },  // right of avatar
+  { x: '88%', bottom: '20%', size: 70 },  // far right
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -46,19 +101,6 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 // ── Helpers ──
-const fallbackCache = new Map<string, string>();
-function getGoalImageStable(goal: GoalType): string {
-  const name = (goal.name || '').toLowerCase();
-  const icon = goal.icon || '';
-  if (name.includes('house') || name.includes('home') || icon === 'Home') return house3Img;
-  if (name.includes('car') || name.includes('vehicle') || icon === 'Car') return car2Img;
-  if (name.includes('vacation') || name.includes('travel') || name.includes('trip') || icon === 'Plane') return vacation2Img;
-  if (name.includes('laptop') || name.includes('computer') || name.includes('tech') || icon === 'Laptop') return laptop3Img;
-  const key = goal.name || goal.id || '';
-  if (!fallbackCache.has(key)) fallbackCache.set(key, Math.random() > 0.5 ? generalGoal1 : generalGoal2);
-  return fallbackCache.get(key)!;
-}
-
 function getGoalCompletionDate(goal: GoalType): Date | null {
   if (goal.monthlyContribution <= 0) return null;
   const remaining = goal.target - goal.saved;
@@ -83,15 +125,9 @@ function formatMonth(d: Date): string {
 
 type GoalType = { id?: string; name: string; icon: string; saved: number; target: number; monthlyContribution: number; targetDate?: string };
 
-interface SpendingCategory {
-  name: string;
-  budget: number;
-  redirected: number;
-}
+interface SpendingCategory { name: string; budget: number; redirected: number; }
 
-interface Props {
-  onClose: () => void;
-}
+interface Props { onClose: () => void; }
 
 export function MyWorldScreen({ onClose }: Props) {
   const { setActiveTab } = useApp();
@@ -100,7 +136,7 @@ export function MyWorldScreen({ onClose }: Props) {
   const isPlayingRef = useRef(false);
   const animFrameRef = useRef<number>(0);
 
-  const [thumbPct, setThumbPct] = useState(0); // 0-100
+  const [thumbPct, setThumbPct] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hoverGoalIdx, setHoverGoalIdx] = useState<number | null>(null);
@@ -110,24 +146,22 @@ export function MyWorldScreen({ onClose }: Props) {
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [hintShown, setHintShown] = useState(() => localStorage.getItem('jfb_scrubberHintShown') === 'true');
   const [celebratedGoals, setCelebratedGoals] = useState<Set<string>>(new Set());
+  const [prevStages, setPrevStages] = useState<Record<string, number>>({});
+  const [stageTransitions, setStageTransitions] = useState<Set<string>>(new Set());
   const [spendingCategories, setSpendingCategories] = useState<SpendingCategory[]>([]);
   const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load goals from localStorage
   const goals: GoalType[] = useMemo(() => {
     try { return JSON.parse(localStorage.getItem('jfb_goals') || '[]'); } catch { return []; }
   }, []);
 
   const sorted = useMemo(() => [...goals].sort((a, b) => b.target - a.target), [goals]);
 
-  // Load spending categories for acceleration
   useEffect(() => {
     try {
       const budgetData = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
       const cats = (budgetData.categories || []).filter((c: any) => c.type === 'expense');
-      const mapped = cats.map((c: any) => ({
-        name: c.name, budget: c.monthlyBudget || 0, redirected: 0,
-      }));
+      const mapped = cats.map((c: any) => ({ name: c.name, budget: c.monthlyBudget || 0, redirected: 0 }));
       if (mapped.length > 0) setSpendingCategories(mapped);
       else setSpendingCategories([
         { name: 'Food', budget: 400, redirected: 0 },
@@ -148,10 +182,8 @@ export function MyWorldScreen({ onClose }: Props) {
   const clarityScore = useMemo(() => {
     try { const c = JSON.parse(localStorage.getItem('jfb_clarityScore') || '{}'); return c.total || 0; } catch { return 0; }
   }, []);
-
   const healthTier = clarityScore > 60 ? 'healthy' : clarityScore > 30 ? 'average' : 'average';
 
-  // Timeline range
   const today = useMemo(() => new Date(), []);
   const timelineEnd = useMemo(() => {
     const furthest = sorted.reduce((max, g) => {
@@ -165,20 +197,16 @@ export function MyWorldScreen({ onClose }: Props) {
 
   const totalMonths = useMemo(() =>
     (timelineEnd.getFullYear() - today.getFullYear()) * 12 + (timelineEnd.getMonth() - today.getMonth()),
-    [today, timelineEnd]
-  );
+    [today, timelineEnd]);
 
-  // Scrubber date from thumb position
   const scrubberDate = useMemo(() => {
     const d = new Date(today);
     d.setMonth(d.getMonth() + Math.round((thumbPct / 100) * totalMonths));
     return d;
   }, [thumbPct, today, totalMonths]);
 
-  // Total redirected for acceleration
   const totalRedirected = spendingCategories.reduce((s, c) => s + c.redirected, 0);
 
-  // Goal completion positions on track
   const goalMilestones = useMemo(() => {
     return sorted.map((g, i) => {
       const extraMonthly = acceleratingGoalIdx === i ? totalRedirected : 0;
@@ -194,7 +222,6 @@ export function MyWorldScreen({ onClose }: Props) {
     });
   }, [sorted, today, totalMonths, acceleratingGoalIdx, totalRedirected]);
 
-  // Original milestones (no acceleration) for ghost track
   const originalMilestones = useMemo(() => {
     return sorted.map(g => {
       if (g.monthlyContribution <= 0) return null;
@@ -204,7 +231,6 @@ export function MyWorldScreen({ onClose }: Props) {
     });
   }, [sorted, totalMonths]);
 
-  // Completion counts for scene evolution
   const completedCount = useMemo(() => {
     return sorted.filter(g => {
       const projected = getProjectedProgress(g, scrubberDate);
@@ -215,12 +241,10 @@ export function MyWorldScreen({ onClose }: Props) {
   const allGoalsComplete = sorted.length > 0 && completedCount === sorted.length;
   const halfGoalsComplete = sorted.length > 0 && completedCount >= sorted.length * 0.5;
 
-  // Sky / ground interpolation
   const skyGradient = allGoalsComplete ? SKY_BRIGHT : SKY_GRADIENTS[healthTier];
   const groundGradient = halfGoalsComplete ? GROUND_GREEN : GROUND_GRADIENTS[healthTier];
   const groundEdge = halfGoalsComplete ? '#4CAF50' : GROUND_EDGE[healthTier];
 
-  // Context text
   const contextText = useMemo(() => {
     const upcoming = goalMilestones
       .filter(m => m.date && m.date > scrubberDate)
@@ -233,12 +257,10 @@ export function MyWorldScreen({ onClose }: Props) {
     return `Moving €${totalContrib}/month toward goals`;
   }, [goalMilestones, scrubberDate, sorted]);
 
-  // Date labels for track
   const dateLabels = useMemo(() => {
     const labels: { pct: number; text: string }[] = [];
-    const startYear = today.getFullYear();
     labels.push({ pct: 0, text: formatMonth(today).replace(' ', ' \'').slice(0, 6) });
-    for (let y = startYear + 1; y <= timelineEnd.getFullYear(); y++) {
+    for (let y = today.getFullYear() + 1; y <= timelineEnd.getFullYear(); y++) {
       const monthsFromStart = (y - today.getFullYear()) * 12 - today.getMonth();
       const pct = (monthsFromStart / totalMonths) * 100;
       if (pct > 5 && pct < 95) labels.push({ pct, text: String(y) });
@@ -259,7 +281,6 @@ export function MyWorldScreen({ onClose }: Props) {
     const rect = trackRef.current.getBoundingClientRect();
     const raw = ((e.clientX - rect.left) / rect.width) * 100;
     const clamped = Math.max(0, Math.min(100, raw));
-    // Magnetic snapping
     const snapped = goalMilestones.reduce((pos, m) => {
       if (m.pct !== null && Math.abs(m.pct - pos) < 3) {
         navigator.vibrate?.(30);
@@ -280,7 +301,6 @@ export function MyWorldScreen({ onClose }: Props) {
     }
   }, [isDragging]);
 
-  // Double-tap to jump
   const lastTapRef = useRef(0);
   const handleTrackClick = useCallback((e: React.MouseEvent) => {
     const now = Date.now();
@@ -293,7 +313,6 @@ export function MyWorldScreen({ onClose }: Props) {
     lastTapRef.current = now;
   }, []);
 
-  // ── Auto-play ──
   const togglePlay = useCallback(() => {
     if (isPlaying) {
       setIsPlaying(false);
@@ -318,12 +337,27 @@ export function MyWorldScreen({ onClose }: Props) {
     }
   }, [isPlaying, thumbPct]);
 
-  // Cleanup
   useEffect(() => {
     return () => { cancelAnimationFrame(animFrameRef.current); if (touchTimer.current) clearTimeout(touchTimer.current); };
   }, []);
 
-  // ── Celebrations tracking ──
+  // ── Stage transition detection ──
+  useEffect(() => {
+    const newStages: Record<string, number> = {};
+    sorted.forEach(g => {
+      const projected = getProjectedProgress(g, scrubberDate);
+      const fillPct = g.target > 0 ? Math.min((projected / g.target) * 100, 100) : 0;
+      const stage = getProgressStage(fillPct);
+      const key = g.name;
+      newStages[key] = stage;
+      if (prevStages[key] !== undefined && prevStages[key] < stage) {
+        setStageTransitions(prev => new Set([...prev, key]));
+        setTimeout(() => setStageTransitions(prev => { const n = new Set(prev); n.delete(key); return n; }), 800);
+      }
+    });
+    setPrevStages(newStages);
+  }, [scrubberDate, sorted]);
+
   useEffect(() => {
     const newCelebrated = new Set<string>();
     sorted.forEach(g => {
@@ -360,7 +394,6 @@ export function MyWorldScreen({ onClose }: Props) {
     setAcceleratingGoalIdx(null);
   };
 
-  // ── Touch for goal tooltip ──
   const handleTouchStart = useCallback((idx: number) => {
     if (showAcceleration) { handleSpeedUp(idx); return; }
     setHoverGoalIdx(idx);
@@ -368,10 +401,8 @@ export function MyWorldScreen({ onClose }: Props) {
     touchTimer.current = setTimeout(() => setHoverGoalIdx(null), 5000);
   }, [showAcceleration]);
 
-  // ── Avatar animation speed ──
   const avatarBobDuration = allGoalsComplete ? '1.2s' : completedCount >= 2 ? '1.6s' : '2s';
 
-  // ── Acceleration delta for accelerating goal ──
   const accelDelta = useMemo(() => {
     if (acceleratingGoalIdx === null || totalRedirected === 0) return null;
     const g = sorted[acceleratingGoalIdx];
@@ -443,7 +474,6 @@ export function MyWorldScreen({ onClose }: Props) {
           <span className="text-lg font-bold text-white">My World</span>
         </button>
         <div className="flex items-center gap-2">
-          {/* Projected / Actual toggle */}
           <div className="flex gap-1 rounded-lg p-0.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
             {(['projected', 'actual'] as const).map(m => (
               <button key={m} onClick={() => setTimelineMode(m)}
@@ -464,19 +494,19 @@ export function MyWorldScreen({ onClose }: Props) {
         </div>
       </div>
 
-      {/* Goal objects */}
+      {/* Goal objects — LEFT and RIGHT of avatar, never behind */}
       {sorted.slice(0, 4).map((goal, i) => {
         const pos = POSITIONS[i];
-        const img = getGoalImageStable(goal);
         const projected = getProjectedProgress(goal, scrubberDate);
         const fillPct = goal.target > 0 ? Math.min((projected / goal.target) * 100, 100) : 0;
         const isComplete = fillPct >= 100;
         const isCelebrated = celebratedGoals.has(goal.name);
         const isHovered = hoverGoalIdx === i;
         const milestone = goalMilestones[i];
-        const isNearCompletion = milestone.date && Math.abs(
-          (milestone.date.getTime() - scrubberDate.getTime()) / (1000 * 60 * 60 * 24 * 30.4)
-        ) <= 3;
+        const isTransitioning = stageTransitions.has(goal.name);
+
+        // Progressive image based on fill
+        const img = getGoalImage(goal, fillPct);
 
         return (
           <motion.div key={goal.name + i} className="absolute"
@@ -488,23 +518,25 @@ export function MyWorldScreen({ onClose }: Props) {
               onClick={() => showAcceleration ? handleSpeedUp(i) : handleTouchStart(i)}
               onMouseEnter={() => !showAcceleration && setHoverGoalIdx(i)}
               onMouseLeave={() => setHoverGoalIdx(null)}>
-              
-              {/* Image with fill overlay */}
+
+              {/* Image — NO dark overlay, progressive images handle stages */}
               <div className="relative overflow-hidden" style={{ width: pos.size, height: pos.size, borderRadius: 8 }}>
                 <img src={img} alt={goal.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' as any,
-                    animation: isComplete && isCelebrated ? 'goalAchieved 0.5s ease-out' : undefined }} />
-                {/* Dark overlay that shrinks from top */}
-                <div className="absolute top-0 left-0 right-0 pointer-events-none transition-all duration-150"
-                  style={{ height: `${100 - fillPct}%`, background: 'rgba(0,0,0,0.45)', borderRadius: 'inherit' }} />
+                  style={{
+                    width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' as any,
+                    animation: isComplete && isCelebrated ? 'goalAchieved 0.5s ease-out' : isTransitioning ? 'stageUp 0.4s ease-out' : undefined,
+                  }} />
               </div>
 
-              {/* Goal name */}
+              {/* Goal name + progress */}
               <p className="text-center mt-0.5" style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
                 {goal.name}
               </p>
+              <div className="mx-auto mt-0.5" style={{ width: pos.size - 10, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)' }}>
+                <div style={{ width: `${fillPct}%`, height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, #8B5CF6, #EC4899)', transition: 'width 200ms' }} />
+              </div>
 
-              {/* Achieved banner + checkmark */}
+              {/* Achieved banner */}
               <AnimatePresence>
                 {isComplete && isCelebrated && (
                   <>
@@ -523,8 +555,8 @@ export function MyWorldScreen({ onClose }: Props) {
                 )}
               </AnimatePresence>
 
-              {/* Sparkle particles on completion */}
-              {isComplete && isCelebrated && (
+              {/* Sparkles */}
+              {(isComplete && isCelebrated || isTransitioning) && (
                 <div className="absolute inset-0 pointer-events-none">
                   {Array.from({ length: 8 }).map((_, s) => {
                     const angle = (s / 8) * 360;
@@ -544,24 +576,15 @@ export function MyWorldScreen({ onClose }: Props) {
                 </div>
               )}
 
-              {/* Timeline label near completion */}
-              {isNearCompletion && !isComplete && milestone.date && (
-                <div className="absolute left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-lg"
-                  style={{ bottom: `calc(100% + 8px)`, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)',
-                    whiteSpace: 'nowrap', fontSize: 11, fontWeight: 600, color: 'white' }}>
-                  {goal.name}: {formatMonth(milestone.date)}
-                </div>
-              )}
-
               {/* Actual vs Plan indicator */}
               {timelineMode === 'actual' && (
                 <div className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-[9px] font-semibold"
-                  style={{ bottom: -16, background: 'rgba(39,174,96,0.2)', color: '#34C759', whiteSpace: 'nowrap' }}>
+                  style={{ bottom: -20, background: 'rgba(39,174,96,0.2)', color: '#34C759', whiteSpace: 'nowrap' }}>
                   On track
                 </div>
               )}
 
-              {/* Speed this up button */}
+              {/* Speed up button */}
               {isHovered && !showAcceleration && (
                 <motion.button initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                   className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
@@ -599,7 +622,7 @@ export function MyWorldScreen({ onClose }: Props) {
                 )}
               </AnimatePresence>
 
-              {/* Acceleration delta label */}
+              {/* Acceleration delta */}
               {acceleratingGoalIdx === i && accelDelta && (
                 <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                   className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-lg text-[11px] font-bold"
@@ -612,12 +635,11 @@ export function MyWorldScreen({ onClose }: Props) {
         );
       })}
 
-      {/* Avatar */}
+      {/* Avatar — centered */}
       <motion.div className="absolute left-1/2" style={{ bottom: '14%', transform: 'translateX(-50%)', zIndex: 20 }}>
         <img src={avatarImg} alt="Avatar"
           style={{ width: 110, height: 110, objectFit: 'contain', imageRendering: 'pixelated' as any,
             animation: `avatar-bob ${avatarBobDuration} ease-in-out infinite` }} />
-        {/* Star thought bubble when all complete */}
         <AnimatePresence>
           {allGoalsComplete && (
             <motion.div initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0 }}
@@ -656,18 +678,13 @@ export function MyWorldScreen({ onClose }: Props) {
                       </div>
                       <span className="text-[10px] text-white/50 block mb-1.5">€{cat.budget}/mo</span>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => adjustCategory(ci, -25)}
-                          className="w-6 h-6 rounded-md flex items-center justify-center"
-                          style={{ background: 'rgba(255,255,255,0.1)' }}>
+                        <button onClick={() => adjustCategory(ci, -25)} className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
                           <Minus className="w-3 h-3 text-white/60" />
                         </button>
-                        <span className="text-[11px] font-semibold min-w-[40px] text-center"
-                          style={{ color: cat.redirected > 0 ? color : 'rgba(255,255,255,0.4)' }}>
+                        <span className="text-[11px] font-semibold min-w-[40px] text-center" style={{ color: cat.redirected > 0 ? color : 'rgba(255,255,255,0.4)' }}>
                           {cat.redirected > 0 ? `-€${cat.redirected}` : '€0'}
                         </span>
-                        <button onClick={() => adjustCategory(ci, 25)}
-                          className="w-6 h-6 rounded-md flex items-center justify-center"
-                          style={{ background: 'rgba(255,255,255,0.1)' }}>
+                        <button onClick={() => adjustCategory(ci, 25)} className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
                           <Plus className="w-3 h-3 text-white/60" />
                         </button>
                       </div>
@@ -675,15 +692,12 @@ export function MyWorldScreen({ onClose }: Props) {
                   );
                 })}
               </div>
-              {/* Summary + actions */}
               {totalRedirected > 0 && (
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-[11px] text-white/50">Total: €{totalRedirected}/mo redirected</span>
                   <div className="flex gap-2">
-                    <button onClick={cancelAcceleration} className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white/50"
-                      style={{ background: 'rgba(255,255,255,0.1)' }}>Just exploring</button>
-                    <button onClick={applyAcceleration} className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white"
-                      style={{ background: 'linear-gradient(135deg, #27AE60, #2ECC71)' }}>Apply to my plan</button>
+                    <button onClick={cancelAcceleration} className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white/50" style={{ background: 'rgba(255,255,255,0.1)' }}>Just exploring</button>
+                    <button onClick={applyAcceleration} className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white" style={{ background: 'linear-gradient(135deg, #27AE60, #2ECC71)' }}>Apply to my plan</button>
                   </div>
                 </div>
               )}
@@ -694,10 +708,9 @@ export function MyWorldScreen({ onClose }: Props) {
 
       {/* ── Timeline Scrubber ── */}
       <motion.div className="absolute left-4 right-4 z-20"
-        style={{ bottom: 60, height: showAcceleration ? 72 : 72, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(16px)', borderRadius: 16, padding: '10px 16px' }}
+        style={{ bottom: 60, height: 72, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(16px)', borderRadius: 16, padding: '10px 16px' }}
         initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5, duration: 0.3 }}>
-        
-        {/* Top row */}
+
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-1">
             <Clock className="w-3 h-3 text-white/40" />
@@ -706,9 +719,7 @@ export function MyWorldScreen({ onClose }: Props) {
           <span className="text-[14px] font-bold text-white">{formatMonth(scrubberDate)}</span>
         </div>
 
-        {/* Track */}
         <div ref={trackRef} className="relative h-5 flex items-center cursor-pointer" onClick={handleTrackClick}>
-          {/* Ghost track (acceleration) */}
           {showAcceleration && totalRedirected > 0 && (
             <div className="absolute left-0 right-0 h-1 rounded-full" style={{ top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.05)' }}>
               {originalMilestones.map((pct, i) => pct !== null && pct > 0 ? (
@@ -717,13 +728,10 @@ export function MyWorldScreen({ onClose }: Props) {
             </div>
           )}
 
-          {/* Main track */}
           <div className="absolute left-0 right-0 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }}>
-            {/* Fill */}
             <div className="h-full rounded-full transition-all duration-75" style={{ width: `${thumbPct}%`, background: 'linear-gradient(90deg, #8B5CF6, #EC4899)' }} />
           </div>
 
-          {/* Goal milestone markers */}
           {goalMilestones.map((m, i) => m.pct !== null && m.pct > 0 && m.pct < 100 ? (
             <div key={i} className="absolute" style={{ left: `${m.pct}%`, top: '50%', transform: 'translate(-50%, -50%)', zIndex: 1 }}>
               <div className="w-5 h-5 rounded-md flex items-center justify-center text-[10px]"
@@ -739,7 +747,6 @@ export function MyWorldScreen({ onClose }: Props) {
             <div key={i} className="absolute text-[9px] text-white/20" style={{ right: 0, top: '50%', transform: 'translateY(-50%)' }}>∞</div>
           ) : null)}
 
-          {/* Thumb */}
           <div className="absolute" style={{ left: `${thumbPct}%`, top: '50%', transform: 'translate(-50%, -50%)', zIndex: 3 }}
             onPointerDown={handlePointerDown}>
             <div className="transition-transform" style={{
@@ -751,14 +758,12 @@ export function MyWorldScreen({ onClose }: Props) {
             }} />
           </div>
 
-          {/* Play button */}
           <button onClick={togglePlay} className="absolute flex items-center justify-center"
             style={{ right: -2, top: '50%', transform: 'translateY(-50%)', width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', zIndex: 2 }}>
             {isPlaying ? <Pause className="w-2.5 h-2.5 text-white/60" /> : <Play className="w-2.5 h-2.5 text-white/60" style={{ marginLeft: 1 }} />}
           </button>
         </div>
 
-        {/* Date labels */}
         <div className="relative h-3 mt-0.5">
           {dateLabels.map((l, i) => (
             <span key={i} className="absolute text-[9px] font-medium" style={{ left: `${l.pct}%`, transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.35)' }}>
@@ -767,14 +772,12 @@ export function MyWorldScreen({ onClose }: Props) {
           ))}
         </div>
 
-        {/* Context text */}
         <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
           {!hintShown ? 'Drag to see your future' : contextText}
         </p>
       </motion.div>
 
       <AddGoalSheet open={addGoalOpen} onClose={() => setAddGoalOpen(false)} />
-
       <style>{baseStyles}</style>
     </motion.div>
   );
@@ -787,6 +790,7 @@ function getGoalEmoji(goal: GoalType): string {
   if (icon === 'Car' || name.includes('car')) return '🚗';
   if (icon === 'Plane' || name.includes('vacation') || name.includes('travel')) return '✈️';
   if (icon === 'Laptop' || name.includes('laptop')) return '💻';
+  if (icon === 'GraduationCap' || name.includes('education')) return '🎓';
   return '🎯';
 }
 
@@ -814,6 +818,11 @@ const baseStyles = `
     0% { transform: scale(1); }
     40% { transform: scale(1.15); }
     100% { transform: scale(1.0); }
+  }
+  @keyframes stageUp {
+    0% { transform: scale(0.9); filter: brightness(1.5); }
+    50% { transform: scale(1.1); filter: brightness(1.3); }
+    100% { transform: scale(1); filter: brightness(1); }
   }
   @keyframes sparkle {
     0% { transform: translate(0, 0) scale(1); opacity: 1; }

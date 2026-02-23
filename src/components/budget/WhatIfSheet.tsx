@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, PiggyBank, TrendingDown, ChevronRight, X, Shield,
   AlertTriangle, Flame, Layers, TrendingUp, PlusCircle, Heart,
+  ArrowLeft,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -10,7 +11,8 @@ import type { LucideIcon } from 'lucide-react';
 type ScenarioId =
   | 'cheap-rent' | 'save-more' | 'income-drop-quick'
   | 'job-loss' | 'income-cut' | 'emergency' | 'inflation' | 'perfect-storm'
-  | 'raise' | 'cheaper-housing' | 'side-income' | 'baby';
+  | 'raise' | 'cheaper-housing' | 'side-income' | 'baby'
+  | 'cut-dining' | 'cancel-subs' | 'rent-increase' | 'car-breakdown' | 'medical';
 
 type ScenarioSection = 'quick' | 'stress' | 'life';
 
@@ -27,23 +29,29 @@ interface ScenarioDef {
   euroLabel?: string;
   euroDefault?: number;
   instant?: boolean;
+  positive?: boolean;
 }
 
 const scenarios: ScenarioDef[] = [
   // Quick
-  { id: 'cheap-rent', icon: Home, label: 'Cheaper rent (-€100)', section: 'quick', instant: true },
-  { id: 'save-more', icon: PiggyBank, label: 'Save €100 more', section: 'quick', instant: true },
+  { id: 'cheap-rent', icon: Home, label: 'Cheaper rent (-€100)', section: 'quick', instant: true, positive: true },
+  { id: 'save-more', icon: PiggyBank, label: 'Save €100 more', section: 'quick', instant: true, positive: true },
   { id: 'income-drop-quick', icon: TrendingDown, label: 'Income drops 20%', section: 'quick', instant: true },
-  // Stress
+  // Stress (negative)
   { id: 'job-loss', icon: AlertTriangle, label: 'Job loss', section: 'stress', pills: ['1 mo', '3 mo', '6 mo'], pillLabel: 'How long without income?' },
   { id: 'income-cut', icon: TrendingDown, label: 'Income cut', section: 'stress', pills: ['-10%', '-20%', '-30%', '-50%'], pillLabel: 'How much?' },
   { id: 'emergency', icon: AlertTriangle, label: 'Emergency expense', section: 'stress', pills: ['€500', '€1k', '€2.5k', '€5k'], pillLabel: 'How big?' },
+  { id: 'medical', icon: Heart, label: 'Medical emergency', section: 'stress', pills: ['€1k', '€3k', '€5k', '€10k'], pillLabel: 'How much?' },
+  { id: 'car-breakdown', icon: Home, label: 'Car breakdown', section: 'stress', pills: ['€500', '€1k', '€2k'], pillLabel: 'Repair cost?' },
+  { id: 'rent-increase', icon: Home, label: 'Rent increase', section: 'stress', pills: ['+€50', '+€100', '+€200'], pillLabel: 'How much more?' },
   { id: 'inflation', icon: Flame, label: 'Inflation', section: 'stress', pills: ['5%', '8%', '12%'], pillLabel: 'Annual rate?' },
   { id: 'perfect-storm', icon: Layers, label: 'Perfect storm', section: 'stress', instant: true },
-  // Life Changes
-  { id: 'raise', icon: TrendingUp, label: 'I get a raise', section: 'life', pills: ['+5%', '+10%', '+20%', '+30%'], pillLabel: 'How much?' },
-  { id: 'cheaper-housing', icon: Home, label: 'Cheaper housing', section: 'life', euroInput: true, euroLabel: 'New monthly rent' },
-  { id: 'side-income', icon: PlusCircle, label: 'Side income', section: 'life', euroInput: true, euroLabel: 'Extra per month', euroDefault: 300 },
+  // Life Changes (positive)
+  { id: 'raise', icon: TrendingUp, label: 'Salary raise', section: 'life', pills: ['+5%', '+10%', '+20%', '+30%'], pillLabel: 'How much?', positive: true },
+  { id: 'side-income', icon: PlusCircle, label: 'Side income', section: 'life', pills: ['+€200', '+€500', '+€1000'], pillLabel: 'Extra per month?', positive: true },
+  { id: 'cheaper-housing', icon: Home, label: 'Cheaper housing', section: 'life', euroInput: true, euroLabel: 'New monthly rent', positive: true },
+  { id: 'cut-dining', icon: Home, label: 'Cut dining by 50%', section: 'life', instant: true, positive: true },
+  { id: 'cancel-subs', icon: Home, label: 'Cancel subscriptions', section: 'life', instant: true, positive: true },
   { id: 'baby', icon: Heart, label: 'Having a baby', section: 'life', instant: true },
 ];
 
@@ -72,12 +80,16 @@ function readBudgetData() {
     const rentCat = fixedCats.find((c: any) => c.name === 'Rent');
     const bankBalance = Number(localStorage.getItem('jfb_bank_balance')) || 1200;
     const savingsBalance = Number(localStorage.getItem('jfb_savings_balance')) || 500;
+    const diningCat = expenseCats.find((c: any) => c.name === 'Food' || c.name === 'Dining');
+    const subsCat = fixedCats.find((c: any) => c.name === 'Subscriptions');
     return {
       income, totalFixed, totalSpending, savings, goalsTotal, goals,
       freeAmount: income - totalFixed - totalSpending - savings - goalsTotal,
       rent: rentCat ? Number(rentCat.monthlyBudget) || 0 : 0,
       expenseCats, fixedCats, bankBalance, savingsBalance,
-      foodBudget: expenseCats.find((c: any) => c.name === 'Food')?.monthlyBudget || 350,
+      foodBudget: diningCat?.monthlyBudget || expenseCats.find((c: any) => c.name === 'Food')?.monthlyBudget || 350,
+      diningBudget: diningCat ? Number(diningCat.monthlyBudget) || 0 : 200,
+      subsBudget: subsCat ? Number(subsCat.monthlyBudget) || 0 : 60,
     };
   } catch { return null; }
 }
@@ -91,12 +103,10 @@ function generateDailyFlow(
   const points: number[] = [];
   for (let d = 0; d < totalDays; d++) {
     const dom = (d % 30) + 1;
-    // Salary on 1st — creates upward SPIKE
     if (dom === 1) {
       bal += income;
-      bal -= fixed + savings + goals; // auto-deductions
+      bal -= fixed + savings + goals;
     }
-    // Daily spending — creates gradual DECLINE
     bal -= dailyFlex;
     points.push(Math.round(bal));
   }
@@ -111,13 +121,11 @@ function simulateStress(scenarioId: ScenarioId, pill: string, budget: ReturnType
   const reserves = budget.bankBalance + budget.savingsBalance;
   const totalDays = 24 * 30;
 
-  // Base trajectory (current plan — sawtooth with normal income)
   const base = generateDailyFlow(budget.income, budget.totalFixed, budget.savings, budget.goalsTotal, dailyFlex, reserves, totalDays);
 
   let scenario: number[];
 
   if (scenarioId === 'job-loss') {
-    // Two phases: no income for N months, then recovery
     const mo = pill === '1 mo' ? 1 : pill === '3 mo' ? 3 : 6;
     const lossDays = mo * 30;
     const essentialDaily = budget.foodBudget / 30;
@@ -139,9 +147,20 @@ function simulateStress(scenarioId: ScenarioId, pill: string, budget: ReturnType
         modIncome *= (1 - pct / 100);
         break;
       }
-      case 'emergency':
-        startHit = pill === '€500' ? 500 : pill === '€1k' ? 1000 : pill === '€2.5k' ? 2500 : 5000;
+      case 'emergency': case 'medical': case 'car-breakdown':
+        if (scenarioId === 'medical') {
+          startHit = pill === '€1k' ? 1000 : pill === '€3k' ? 3000 : pill === '€5k' ? 5000 : 10000;
+        } else if (scenarioId === 'car-breakdown') {
+          startHit = pill === '€500' ? 500 : pill === '€1k' ? 1000 : 2000;
+        } else {
+          startHit = pill === '€500' ? 500 : pill === '€1k' ? 1000 : pill === '€2.5k' ? 2500 : 5000;
+        }
         break;
+      case 'rent-increase': {
+        const extra = parseInt(pill.replace(/[^0-9]/g, '')) || 100;
+        modFixed += extra;
+        break;
+      }
       case 'inflation': {
         const rate = parseInt(pill) || 8;
         modFixed = Math.round(budget.totalFixed * (1 + rate / 100));
@@ -207,14 +226,21 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
     onClose();
   }, [onClose, resetMenu]);
 
+  const isPositiveScenario = useCallback((id: ScenarioId) => {
+    return scenarios.find(s => s.id === id)?.positive ?? false;
+  }, []);
+
   const runScenario = useCallback((id: ScenarioId, pill: string) => {
     const def = scenarios.find(s => s.id === id);
     if (!def) return;
     setActiveScenario({ id, pill });
-    if (def.section === 'stress' || def.section === 'quick' && ['income-drop-quick'].includes(id)) {
-      setView('stress-results');
-    } else {
+    // Positive life changes go to life-results, negative/stress go to stress-results
+    if (def.positive && def.section === 'life') {
       setView('life-results');
+    } else if (def.positive) {
+      setView('life-results');
+    } else {
+      setView('stress-results');
     }
   }, []);
 
@@ -239,7 +265,7 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
     runScenario(expandedId, pill);
   }, [expandedId, selectedPill, euroVal, runScenario]);
 
-  // Stress results data (daily sawtooth cash flow)
+  // Stress results data
   const stressData = useMemo(() => {
     if (!activeScenario || view !== 'stress-results' || !budget) return null;
     const result = simulateStress(activeScenario.id, activeScenario.pill, budget);
@@ -264,13 +290,16 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
       const newRent = Number(pill) || budget.rent - 200;
       extraMonthly = budget.rent - newRent;
     }
-    else if (id === 'side-income') extraMonthly = Number(pill) || 300;
+    else if (id === 'side-income') {
+      extraMonthly = parseInt(pill.replace(/[^0-9]/g, '')) || 300;
+    }
+    else if (id === 'cut-dining') extraMonthly = Math.round(budget.diningBudget * 0.5);
+    else if (id === 'cancel-subs') extraMonthly = budget.subsBudget;
     else if (id === 'baby') extraMonthly = -(Math.round(budget.income * 0.15) + 400);
 
     const currentSavingsRate = budget.income > 0 ? Math.round((budget.savings / budget.income) * 100) : 0;
     const newSavingsRate = budget.income > 0 ? Math.round(((budget.savings + Math.max(0, extraMonthly * 0.5)) / (budget.income + extraMonthly)) * 100) : 0;
 
-    // Goal acceleration
     let goalAccel = 0;
     if (budget.goals.length > 0 && extraMonthly > 0) {
       const g = budget.goals[0];
@@ -283,7 +312,6 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
       }
     }
 
-    // Budget blocks
     const freeAmount = budget.freeAmount;
     const afterFree = freeAmount + extraMonthly;
     const blocks = [
@@ -294,7 +322,21 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
       { label: 'Free', amount: Math.max(0, freeAmount), newAmount: Math.max(0, afterFree), color: 'rgba(255,255,255,0.15)' },
     ].filter(b => b.amount > 0 || b.newAmount > 0);
 
-    return { extraMonthly, newSavingsRate, goalAccel, blocks, isPositive: extraMonthly >= 0, freeAmount, afterFree };
+    // Also generate sawtooth lines for positive scenarios
+    const dailyFlex = budget.totalSpending / 30;
+    const reserves = budget.bankBalance + budget.savingsBalance;
+    const totalDays = 12 * 30;
+    const baseLine = generateDailyFlow(budget.income, budget.totalFixed, budget.savings, budget.goalsTotal, dailyFlex, reserves, totalDays);
+    const newIncome = budget.income + (id === 'raise' || id === 'side-income' ? extraMonthly : 0);
+    const newFixed = (id === 'cheap-rent' || id === 'cheaper-housing') ? budget.totalFixed - Math.max(0, extraMonthly) : budget.totalFixed;
+    const newFlex = (id === 'cut-dining') ? dailyFlex - (extraMonthly / 30) : (id === 'cancel-subs') ? dailyFlex : dailyFlex;
+    const newSavings = budget.savings + (id === 'save-more' ? extraMonthly : 0);
+    const scenarioLine = generateDailyFlow(newIncome, newFixed, newSavings, budget.goalsTotal, newFlex, reserves, totalDays);
+
+    return {
+      extraMonthly, newSavingsRate, goalAccel, blocks, isPositive: extraMonthly >= 0, freeAmount, afterFree,
+      baseLine, scenarioLine, annualImpact: extraMonthly * 12,
+    };
   }, [activeScenario, view, budget]);
 
   if (!open) return null;
@@ -303,18 +345,21 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
     ? (scenarios.find(s => s.id === activeScenario.id)?.label || '') + (activeScenario.pill ? ` (${activeScenario.pill})` : '')
     : '';
 
-  // ── Sawtooth chart renderer for stress ──
-  const renderStressChart = () => {
-    if (!stressData) return null;
-    const { base, scenario, prepared, brokeDay, recoveryDay } = stressData;
+  // ── Full-screen sawtooth chart renderer ──
+  const renderFullChart = (base: number[], scenario: number[], options?: {
+    forkColor?: string;
+    prepared?: number[];
+    brokeDay?: number;
+    recoveryDay?: number;
+  }) => {
     if (base.length === 0 || scenario.length === 0) return null;
+    const { forkColor = '#FBBF24', prepared = [], brokeDay = -1, recoveryDay = -1 } = options || {};
 
-    const W = 340, H = 180;
-    const PAD = { top: 15, bottom: 25, left: 40, right: 10 };
+    const W = 380, H = 260;
+    const PAD = { top: 20, bottom: 30, left: 45, right: 15 };
     const chartW = W - PAD.left - PAD.right;
     const chartH = H - PAD.top - PAD.bottom;
 
-    // Downsample every 3rd day for clean chart
     const step = 3;
     const baseDS = base.filter((_, i) => i % step === 0);
     const scenDS = scenario.filter((_, i) => i % step === 0);
@@ -335,83 +380,71 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
     const scenPath = makePath(scenDS);
     const prepPath = prepDS.length > 0 ? makePath(prepDS) : '';
 
-    // Area fill under scenario line
     const scenArea = `${scenPath} L${toX(scenDS.length - 1).toFixed(1)},${toY(yMin).toFixed(1)} L${toX(0).toFixed(1)},${toY(yMin).toFixed(1)} Z`;
 
-    const now = new Date();
-    const monthLabels = [0, 6, 12, 18, 24].map(m => {
-      const d = new Date(now); d.setMonth(d.getMonth() + m);
+    const totalMonths = Math.ceil(base.length / 30);
+    const monthLabels = Array.from({ length: Math.min(5, totalMonths + 1) }, (_, i) => {
+      const m = Math.round(i * totalMonths / 4);
+      const d = new Date(); d.setMonth(d.getMonth() + m);
       return { x: toX(Math.min(Math.floor(m * 30 / step), baseDS.length - 1)), label: d.toLocaleString('en', { month: 'short', year: '2-digit' }) };
     });
 
     const brokeIdx = brokeDay >= 0 ? Math.floor(brokeDay / step) : -1;
     const recovIdx = recoveryDay >= 0 ? Math.floor(recoveryDay / step) : -1;
 
+    const gradId = `grad-${forkColor.replace('#', '')}`;
+
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 200 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: '100%', minHeight: 220 }}>
         <defs>
-          <linearGradient id="stressSawtoothGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(139,92,246,0.3)" />
-            <stop offset="50%" stopColor="rgba(236,72,153,0.2)" />
-            <stop offset="100%" stopColor="rgba(249,115,22,0.08)" />
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={`${forkColor}33`} />
+            <stop offset="100%" stopColor={`${forkColor}05`} />
           </linearGradient>
         </defs>
 
-        {/* Zero line */}
         {yMin < 0 && <line x1={PAD.left} y1={toY(0)} x2={W - PAD.right} y2={toY(0)}
           stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="3,3" />}
 
-        {/* Scenario area fill */}
-        <path d={scenArea} fill="url(#stressSawtoothGrad)" opacity="0.4" />
-
-        {/* Base line (current plan — white solid) */}
+        <path d={scenArea} fill={`url(#${gradId})`} opacity="0.5" />
         <path d={basePath} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
-
-        {/* Scenario line (stress — amber dashed) */}
-        <path d={scenPath} fill="none" stroke="#FBBF24" strokeWidth="2" strokeDasharray="6,3" />
-
-        {/* Prepared line (green dashed) */}
+        <path d={scenPath} fill="none" stroke={forkColor} strokeWidth="2" strokeDasharray="6,3" />
         {prepPath && <path d={prepPath} fill="none" stroke="#86EFAC" strokeWidth="1.5" strokeDasharray="4,3" />}
 
-        {/* Broke marker */}
         {brokeIdx >= 0 && brokeIdx < scenDS.length && (
           <g>
             <line x1={toX(brokeIdx)} y1={PAD.top} x2={toX(brokeIdx)} y2={H - PAD.bottom}
               stroke="#EF4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
-            <circle cx={toX(brokeIdx)} cy={toY(scenDS[brokeIdx])} r="3.5" fill="#EF4444" />
-            <text x={toX(brokeIdx)} y={PAD.top - 3} fill="#EF4444" fontSize="9" textAnchor="middle" fontWeight="600">Broke</text>
+            <circle cx={toX(brokeIdx)} cy={toY(scenDS[brokeIdx])} r="4" fill="#EF4444" />
+            <text x={toX(brokeIdx)} y={PAD.top - 5} fill="#EF4444" fontSize="10" textAnchor="middle" fontWeight="600">Broke</text>
           </g>
         )}
 
-        {/* Recovery marker */}
         {recovIdx >= 0 && recovIdx < scenDS.length && (
           <g>
-            <circle cx={toX(recovIdx)} cy={toY(scenDS[recovIdx])} r="3.5" fill="#86EFAC" />
-            <text x={toX(recovIdx)} y={toY(scenDS[recovIdx]) - 8} fill="#86EFAC" fontSize="9" textAnchor="middle" fontWeight="600">Recovers</text>
+            <circle cx={toX(recovIdx)} cy={toY(scenDS[recovIdx])} r="4" fill="#86EFAC" />
+            <text x={toX(recovIdx)} y={toY(scenDS[recovIdx]) - 10} fill="#86EFAC" fontSize="10" textAnchor="middle" fontWeight="600">Recovers</text>
           </g>
         )}
 
-        {/* Y-axis labels */}
-        {[yMin < 0 ? yMin : 0, Math.round(yMax / 2), yMax].map(v => (
-          <text key={v} x={PAD.left - 4} y={toY(v) + 3} fill="rgba(255,255,255,0.25)" fontSize="8" textAnchor="end">
+        {[yMin < 0 ? yMin : 0, Math.round((yMax + yMin) / 2), yMax].map(v => (
+          <text key={v} x={PAD.left - 5} y={toY(v) + 3} fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="end">
             €{Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}
           </text>
         ))}
 
-        {/* Month labels */}
         {monthLabels.map((ml, i) => (
-          <text key={i} x={ml.x} y={H - 4} fill="rgba(255,255,255,0.35)" fontSize="9" textAnchor="middle">{ml.label}</text>
+          <text key={i} x={ml.x} y={H - 6} fill="rgba(255,255,255,0.35)" fontSize="9" textAnchor="middle">{ml.label}</text>
         ))}
 
-        {/* Legend */}
-        <g transform={`translate(${PAD.left + 4}, ${PAD.top + 4})`}>
+        <g transform={`translate(${W - PAD.right - 80}, ${PAD.top + 4})`}>
           <line x1="0" y1="0" x2="14" y2="0" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
           <text x="18" y="3" fill="rgba(255,255,255,0.4)" fontSize="8">Current</text>
-          <line x1="0" y1="12" x2="14" y2="12" stroke="#FBBF24" strokeWidth="2" strokeDasharray="4,2" />
-          <text x="18" y="15" fill="rgba(255,255,255,0.4)" fontSize="8">Scenario</text>
+          <line x1="0" y1="14" x2="14" y2="14" stroke={forkColor} strokeWidth="2" strokeDasharray="4,2" />
+          <text x="18" y="17" fill="rgba(255,255,255,0.4)" fontSize="8">Scenario</text>
           {prepPath && <>
-            <line x1="0" y1="24" x2="14" y2="24" stroke="#86EFAC" strokeWidth="1.5" strokeDasharray="4,2" />
-            <text x="18" y="27" fill="rgba(255,255,255,0.4)" fontSize="8">Prepared</text>
+            <line x1="0" y1="28" x2="14" y2="28" stroke="#86EFAC" strokeWidth="1.5" strokeDasharray="4,2" />
+            <text x="18" y="31" fill="rgba(255,255,255,0.4)" fontSize="8">Prepared</text>
           </>}
         </g>
       </svg>
@@ -421,286 +454,276 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
   return (
     <AnimatePresence>
       {open && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.4)' }}
-            onClick={handleClose}
-          />
-          <motion.div
-            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 overflow-y-auto"
-            style={{
-              maxHeight: view === 'menu' ? '70vh' : '85vh',
-              background: 'rgba(15, 12, 24, 0.96)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
-              borderRadius: '24px 24px 0 0',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-            }}
-          >
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-2">
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.12)' }} />
-            </div>
-
-            {/* ═══ MENU ═══ */}
-            {view === 'menu' && (
-              <div className="px-5 pb-8">
-                {sections.map(sec => {
-                  const items = scenarios.filter(s => s.section === sec.key);
-                  return (
-                    <div key={sec.key}>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', letterSpacing: 1.5, textTransform: 'uppercase', padding: '16px 0 6px' }}>{sec.label}</div>
-                      {items.map((def, i) => {
-                        const Icon = def.icon;
-                        const isExpanded = expandedId === def.id;
-                        return (
-                          <div key={def.id}>
-                            <div
-                              className="flex items-center cursor-pointer"
-                              style={{ padding: '14px 0', borderBottom: i < items.length - 1 || isExpanded ? '1px solid rgba(255,255,255,0.03)' : 'none' }}
-                              onClick={() => handleRowClick(def)}
-                            >
-                              <Icon size={18} style={{ color: 'rgba(255,255,255,0.35)', marginRight: 14, flexShrink: 0 }} />
-                              <span style={{ fontSize: 15, color: 'white', flex: 1 }}>{def.label}</span>
-                              <ChevronRight size={16} style={{
-                                color: 'rgba(255,255,255,0.12)',
-                                transform: isExpanded ? 'rotate(90deg)' : undefined,
-                                transition: 'transform 200ms',
-                              }} />
-                            </div>
-                            {/* Inline config */}
-                            <AnimatePresence>
-                              {isExpanded && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="overflow-hidden"
-                                >
-                                  <div style={{ padding: '10px 0 10px 32px' }}>
-                                    {def.pillLabel && (
-                                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>{def.pillLabel}</p>
-                                    )}
-                                    {def.pills && (
-                                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                        {def.pills.map(p => (
-                                          <button key={p} onClick={() => setSelectedPill(p)}
-                                            style={{
-                                              padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-                                              background: selectedPill === p ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
-                                              border: selectedPill === p ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.08)',
-                                              color: selectedPill === p ? 'white' : 'rgba(255,255,255,0.5)',
-                                            }}>{p}</button>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {def.euroInput && (
-                                      <>
-                                        {def.euroLabel && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>{def.euroLabel}</p>}
-                                        <input
-                                          type="number" inputMode="decimal" placeholder="0"
-                                          value={euroVal} onChange={e => setEuroVal(e.target.value)}
-                                          style={{
-                                            width: '100%', padding: '10px 12px', borderRadius: 8, fontSize: 14,
-                                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
-                                            color: 'white', outline: 'none',
-                                          }}
-                                        />
-                                      </>
-                                    )}
-                                    <button onClick={handleRun} style={{
-                                      marginTop: 16, width: '100%', height: 48, borderRadius: 12,
-                                      background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)',
-                                      color: 'white', fontSize: 15, fontWeight: 600,
-                                    }}>Run</button>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 overflow-y-auto"
+          style={{
+            background: 'rgba(15, 12, 24, 0.98)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+          }}
+        >
+          {/* ═══ MENU ═══ */}
+          {view === 'menu' && (
+            <div className="px-5 pb-8 pt-12">
+              <div className="flex items-center justify-between mb-4">
+                <span style={{ fontSize: 20, fontWeight: 700, color: 'white' }}>What if?</span>
+                <button onClick={handleClose}><X size={22} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
+              </div>
+              {sections.map(sec => {
+                const items = scenarios.filter(s => s.section === sec.key);
+                return (
+                  <div key={sec.key}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', letterSpacing: 1.5, textTransform: 'uppercase', padding: '16px 0 6px' }}>{sec.label}</div>
+                    {items.map((def, i) => {
+                      const Icon = def.icon;
+                      const isExpanded = expandedId === def.id;
+                      return (
+                        <div key={def.id}>
+                          <div
+                            className="flex items-center cursor-pointer"
+                            style={{ padding: '14px 0', borderBottom: i < items.length - 1 || isExpanded ? '1px solid rgba(255,255,255,0.03)' : 'none' }}
+                            onClick={() => handleRowClick(def)}
+                          >
+                            <Icon size={18} style={{ color: def.positive ? 'rgba(134,239,172,0.5)' : 'rgba(255,255,255,0.35)', marginRight: 14, flexShrink: 0 }} />
+                            <span style={{ fontSize: 15, color: 'white', flex: 1 }}>{def.label}</span>
+                            <ChevronRight size={16} style={{
+                              color: 'rgba(255,255,255,0.12)',
+                              transform: isExpanded ? 'rotate(90deg)' : undefined,
+                              transition: 'transform 200ms',
+                            }} />
                           </div>
-                        );
-                      })}
-                    </div>
-                  );
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div style={{ padding: '10px 0 10px 32px' }}>
+                                  {def.pillLabel && (
+                                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>{def.pillLabel}</p>
+                                  )}
+                                  {def.pills && (
+                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                      {def.pills.map(p => (
+                                        <button key={p} onClick={() => setSelectedPill(p)}
+                                          style={{
+                                            padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                                            background: selectedPill === p ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                                            border: selectedPill === p ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.08)',
+                                            color: selectedPill === p ? 'white' : 'rgba(255,255,255,0.5)',
+                                          }}>{p}</button>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {def.euroInput && (
+                                    <>
+                                      {def.euroLabel && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>{def.euroLabel}</p>}
+                                      <input
+                                        type="number" inputMode="decimal" placeholder="0"
+                                        value={euroVal} onChange={e => setEuroVal(e.target.value)}
+                                        style={{
+                                          width: '100%', padding: '10px 12px', borderRadius: 8, fontSize: 14,
+                                          background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
+                                          color: 'white', outline: 'none',
+                                        }}
+                                      />
+                                    </>
+                                  )}
+                                  <button onClick={handleRun} style={{
+                                    marginTop: 16, width: '100%', height: 48, borderRadius: 12,
+                                    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)',
+                                    color: 'white', fontSize: 15, fontWeight: 600,
+                                  }}>Run</button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ═══ STRESS TEST RESULTS (full screen) ═══ */}
+          {view === 'stress-results' && stressData && (
+            <div className="px-5 pb-8 pt-12">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <button onClick={resetMenu}><ArrowLeft size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: 'white' }}>{scenarioLabel}</span>
+                </div>
+                <button onClick={handleClose}><X size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
+              </div>
+
+              {/* Full-width chart — 60% viewport */}
+              <div style={{ height: '55vh', minHeight: 280, marginLeft: -20, marginRight: -20, padding: '0 8px' }}>
+                {renderFullChart(stressData.base, stressData.scenario, {
+                  forkColor: '#FBBF24',
+                  prepared: stressData.prepared,
+                  brokeDay: stressData.brokeDay,
+                  recoveryDay: stressData.recoveryDay,
                 })}
               </div>
-            )}
 
-            {/* ═══ STRESS TEST RESULTS ═══ */}
-            {view === 'stress-results' && stressData && (
-              <div className="px-5 pb-8">
-                <div className="flex items-center justify-between mb-1">
-                  <span style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{scenarioLabel}</span>
-                  <button onClick={handleClose}><X size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
-                </div>
-
-                {/* Chart */}
-                <div className="my-4">{renderStressChart()}</div>
-
-                {/* Stats */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                  {[
-                    { label: 'SURVIVAL', value: stressData.brokeDay < 0 ? 'Indefinitely' : `${stressData.survivalMonths} mo`, color: stressData.brokeDay < 0 ? '#86EFAC' : 'white' },
-                    { label: 'BROKE AFTER', value: stressData.brokeDay < 0 ? 'Never' : `Month ${Math.ceil(stressData.brokeDay / 30)}`, color: stressData.brokeDay < 0 ? '#86EFAC' : '#EF4444' },
-                    { label: 'RECOVERY', value: stressData.recoveryDay < 0 ? (stressData.brokeDay < 0 ? 'N/A' : 'No') : `Month ${Math.ceil(stressData.recoveryDay / 30)}`, color: 'white' },
-                  ].map((s, i) => (
-                    <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14 }}>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: s.color, marginTop: 4 }}>{s.value}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Emergency fund toggle */}
-                <div className="mt-4 flex items-center justify-between" style={{
-                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: 12, padding: '12px 14px',
-                }}>
-                  <div className="flex items-center gap-2">
-                    <Shield size={16} style={{ color: 'rgba(255,255,255,0.3)' }} />
-                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>With 6-month emergency fund</span>
+              {/* Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
+                {[
+                  { label: 'SURVIVAL', value: stressData.brokeDay < 0 ? 'Indefinitely' : `${stressData.survivalMonths} mo`, color: stressData.brokeDay < 0 ? '#86EFAC' : 'white' },
+                  { label: 'BROKE AFTER', value: stressData.brokeDay < 0 ? 'Never' : `Month ${Math.ceil(stressData.brokeDay / 30)}`, color: stressData.brokeDay < 0 ? '#86EFAC' : '#EF4444' },
+                  { label: 'RECOVERY', value: stressData.recoveryDay < 0 ? (stressData.brokeDay < 0 ? 'N/A' : 'No') : `Month ${Math.ceil(stressData.recoveryDay / 30)}`, color: 'white' },
+                ].map((s, i) => (
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14 }}>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: s.color, marginTop: 4 }}>{s.value}</div>
                   </div>
-                  <button onClick={() => setShowPrepared(!showPrepared)} style={{
-                    width: 40, height: 22, borderRadius: 11,
-                    background: showPrepared ? '#86EFAC' : 'rgba(255,255,255,0.1)',
-                    position: 'relative', transition: 'background 200ms',
-                  }}>
-                    <div style={{
-                      width: 18, height: 18, borderRadius: 9, background: 'white',
-                      position: 'absolute', top: 2,
-                      left: showPrepared ? 20 : 2, transition: 'left 200ms',
-                    }} />
-                  </button>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 mt-6">
-                  <button onClick={() => { resetMenu(); }} style={{
-                    flex: 1, height: 44, borderRadius: 10,
-                    background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)',
-                    fontSize: 14, fontWeight: 500, border: 'none',
-                  }}>Try another</button>
-                  <button onClick={handleClose} style={{
-                    flex: 1, height: 44, borderRadius: 10,
-                    background: '#27AE60', color: 'white',
-                    fontSize: 14, fontWeight: 600, border: 'none',
-                  }}>Build safety net</button>
-                </div>
+                ))}
               </div>
-            )}
 
-            {/* ═══ LIFE CHANGE RESULTS ═══ */}
-            {view === 'life-results' && lifeData && (
-              <div className="px-5 pb-8">
-                <div className="flex items-center justify-between mb-1">
-                  <span style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{scenarioLabel}</span>
-                  <button onClick={handleClose}><X size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
+              {/* Emergency fund toggle */}
+              <div className="mt-4 flex items-center justify-between" style={{
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 12, padding: '12px 14px',
+              }}>
+                <div className="flex items-center gap-2">
+                  <Shield size={16} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>With 6-month emergency fund</span>
                 </div>
+                <button onClick={() => setShowPrepared(!showPrepared)} style={{
+                  width: 40, height: 22, borderRadius: 11,
+                  background: showPrepared ? '#86EFAC' : 'rgba(255,255,255,0.1)',
+                  position: 'relative', transition: 'background 200ms',
+                }}>
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 9, background: 'white',
+                    position: 'absolute', top: 2,
+                    left: showPrepared ? 20 : 2, transition: 'left 200ms',
+                  }} />
+                </button>
+              </div>
 
-                {/* Key metrics */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 16 }}>
-                  {[
-                    { label: 'EXTRA/MONTH', value: `${lifeData.extraMonthly >= 0 ? '+' : ''}€${Math.abs(lifeData.extraMonthly)}`, color: lifeData.extraMonthly >= 0 ? '#86EFAC' : '#FBBF24' },
-                    { label: 'GOALS FASTER', value: lifeData.goalAccel > 0 ? `${lifeData.goalAccel} mo sooner` : 'No change', color: '#86EFAC' },
-                    { label: 'NEW SAVINGS RATE', value: `${lifeData.newSavingsRate}%`, color: '#86EFAC' },
-                  ].map((m, i) => (
+              {/* Actions */}
+              <div className="flex gap-2 mt-6">
+                <button onClick={resetMenu} style={{
+                  flex: 1, height: 44, borderRadius: 10,
+                  background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)',
+                  fontSize: 14, fontWeight: 500, border: 'none',
+                }}>Try another</button>
+                <button onClick={handleClose} style={{
+                  flex: 1, height: 44, borderRadius: 10,
+                  background: '#27AE60', color: 'white',
+                  fontSize: 14, fontWeight: 600, border: 'none',
+                }}>Build safety net</button>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ LIFE CHANGE RESULTS (full screen) ═══ */}
+          {view === 'life-results' && lifeData && (
+            <div className="px-5 pb-8 pt-12">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <button onClick={resetMenu}><ArrowLeft size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: 'white' }}>{scenarioLabel}</span>
+                </div>
+                <button onClick={handleClose}><X size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
+              </div>
+
+              {/* Full-width chart for positive scenarios too */}
+              {lifeData.baseLine && lifeData.scenarioLine && (
+                <div style={{ height: '40vh', minHeight: 220, marginLeft: -20, marginRight: -20, padding: '0 8px' }}>
+                  {renderFullChart(lifeData.baseLine, lifeData.scenarioLine, {
+                    forkColor: lifeData.isPositive ? '#86EFAC' : '#FBBF24',
+                  })}
+                </div>
+              )}
+
+              {/* Positive scenario stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
+              {(lifeData.isPositive ? [
+                  { label: 'MONTHLY SAVINGS', value: `+€${Math.abs(lifeData.extraMonthly)}`, color: '#86EFAC' },
+                  { label: 'GOAL ACCELERATION', value: lifeData.goalAccel > 0 ? `${lifeData.goalAccel} mo sooner` : 'No change', color: '#86EFAC' },
+                  { label: 'ANNUAL IMPACT', value: `+€${Math.abs(lifeData.annualImpact)}`, color: '#86EFAC' },
+                ] : [
+                  { label: 'EXTRA/MONTH', value: `${lifeData.extraMonthly >= 0 ? '+' : ''}€${Math.abs(lifeData.extraMonthly)}`, color: '#FBBF24' },
+                  { label: 'GOALS FASTER', value: lifeData.goalAccel > 0 ? `${lifeData.goalAccel} mo sooner` : 'No change', color: '#86EFAC' },
+                  { label: 'NEW SAVINGS RATE', value: `${lifeData.newSavingsRate}%`, color: '#86EFAC' },
+                ]).map((m, i) => (
                     <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14 }}>
                       <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{m.label}</div>
                       <div style={{ fontSize: 18, fontWeight: 700, color: m.color, marginTop: 4 }}>{m.value}</div>
                     </div>
                   ))}
-                </div>
+              </div>
 
-                {/* Before / After budget bars */}
-                <div className="mt-4" style={{
-                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: 12, padding: 14,
-                }}>
-                  {/* CURRENT bar */}
-                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 4 }}>Current</div>
-                  <div className="flex rounded-md overflow-hidden" style={{ height: 28 }}>
-                    {lifeData.blocks.map((b, i) => {
-                      const total = budget ? budget.income : lifeData.blocks.reduce((s, bl) => s + bl.amount, 0);
-                      const pct = total > 0 ? (b.amount / total) * 100 : 20;
-                      return (
-                        <div key={`curr-${i}`} className="flex items-center justify-center" style={{
-                          width: `${Math.max(pct, 3)}%`, background: b.color, minWidth: 2,
-                        }}>
-                          {pct > 10 && <span style={{ fontSize: 8, fontWeight: 700, color: 'white' }}>{b.label}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* AFTER bar */}
-                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginTop: 10, marginBottom: 4 }}>
-                    After {scenarioLabel}
-                  </div>
-                  <div className="flex rounded-md overflow-hidden" style={{ height: 28 }}>
-                    {lifeData.blocks.map((b, i) => {
-                      const newAmt = b.newAmount ?? b.amount;
-                      const totalAfter = budget ? budget.income + lifeData.extraMonthly : lifeData.blocks.reduce((s, bl) => s + (bl.newAmount ?? bl.amount), 0);
-                      const pct = totalAfter > 0 ? (newAmt / totalAfter) * 100 : 20;
-                      const changed = newAmt !== b.amount;
-                      return (
-                        <div key={`new-${i}`} className="flex items-center justify-center" style={{
-                          width: `${Math.max(pct, 3)}%`, background: b.color, minWidth: 2,
-                          outline: changed ? '1px solid rgba(134,239,172,0.4)' : 'none',
-                        }}>
-                          {pct > 10 && <span style={{ fontSize: 8, fontWeight: 700, color: changed ? '#86EFAC' : 'white' }}>{b.label}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Delta summary */}
-                  <div style={{ fontSize: 13, fontWeight: 600, marginTop: 10, color: lifeData.extraMonthly >= 0 ? '#86EFAC' : '#FBBF24' }}>
-                    {lifeData.extraMonthly >= 0 ? '+' : ''}€{Math.abs(lifeData.extraMonthly)}/month {lifeData.extraMonthly >= 0 ? 'extra free cash' : 'less free cash'}
-                  </div>
-
-                  {/* Per-category deltas */}
+              {/* Before / After budget bars */}
+              <div className="mt-4" style={{
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 12, padding: 14,
+              }}>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 4 }}>Current</div>
+                <div className="flex rounded-md overflow-hidden" style={{ height: 28 }}>
                   {lifeData.blocks.map((b, i) => {
-                    const newAmt = b.newAmount;
-                    if (newAmt === undefined || newAmt === b.amount) return null;
-                    const delta = newAmt - b.amount;
+                    const total = budget ? budget.income : lifeData.blocks.reduce((s, bl) => s + bl.amount, 0);
+                    const pct = total > 0 ? (b.amount / total) * 100 : 20;
                     return (
-                      <div key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
-                        {b.label}: €{b.amount} → €{newAmt}{' '}
-                        <span style={{ color: delta > 0 ? '#86EFAC' : '#FBBF24', fontWeight: 600 }}>
-                          ({delta > 0 ? '+' : ''}€{delta})
-                        </span>
+                      <div key={`curr-${i}`} className="flex items-center justify-center" style={{
+                        width: `${Math.max(pct, 3)}%`, background: b.color, minWidth: 2,
+                      }}>
+                        {pct > 10 && <span style={{ fontSize: 8, fontWeight: 700, color: 'white' }}>{b.label}</span>}
                       </div>
                     );
                   })}
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-2 mt-6">
-                  <button onClick={handleClose} style={{
-                    flex: 1, height: 44, borderRadius: 10,
-                    background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)',
-                    fontSize: 14, fontWeight: 500, border: 'none',
-                  }}>Save scenario</button>
-                  {lifeData.isPositive && (
-                    <button onClick={handleClose} style={{
-                      flex: 1, height: 44, borderRadius: 10,
-                      background: '#27AE60', color: 'white',
-                      fontSize: 14, fontWeight: 600, border: 'none',
-                    }}>Apply changes</button>
-                  )}
-                  <button onClick={handleClose} style={{
-                    height: 44, padding: '0 12px',
-                    color: 'rgba(255,255,255,0.25)', fontSize: 13,
-                    background: 'none', border: 'none',
-                  }}>Done</button>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginTop: 10, marginBottom: 4 }}>
+                  After {scenarioLabel}
+                </div>
+                <div className="flex rounded-md overflow-hidden" style={{ height: 28 }}>
+                  {lifeData.blocks.map((b, i) => {
+                    const newAmt = b.newAmount ?? b.amount;
+                    const totalAfter = budget ? budget.income + lifeData.extraMonthly : lifeData.blocks.reduce((s, bl) => s + (bl.newAmount ?? bl.amount), 0);
+                    const pct = totalAfter > 0 ? (newAmt / totalAfter) * 100 : 20;
+                    const changed = newAmt !== b.amount;
+                    return (
+                      <div key={`new-${i}`} className="flex items-center justify-center" style={{
+                        width: `${Math.max(pct, 3)}%`, background: b.color, minWidth: 2,
+                        outline: changed ? '1px solid rgba(134,239,172,0.4)' : 'none',
+                      }}>
+                        {pct > 10 && <span style={{ fontSize: 8, fontWeight: 700, color: changed ? '#86EFAC' : 'white' }}>{b.label}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 10, color: lifeData.extraMonthly >= 0 ? '#86EFAC' : '#FBBF24' }}>
+                  {lifeData.extraMonthly >= 0 ? '+' : ''}€{Math.abs(lifeData.extraMonthly)}/month {lifeData.extraMonthly >= 0 ? 'extra free cash' : 'less free cash'}
                 </div>
               </div>
-            )}
-          </motion.div>
-        </>
+
+              {/* Actions */}
+              <div className="flex gap-2 mt-6">
+                <button onClick={resetMenu} style={{
+                  flex: 1, height: 44, borderRadius: 10,
+                  background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)',
+                  fontSize: 14, fontWeight: 500, border: 'none',
+                }}>Try another</button>
+                {lifeData.isPositive && (
+                  <button onClick={handleClose} style={{
+                    flex: 1, height: 44, borderRadius: 10,
+                    background: '#27AE60', color: 'white',
+                    fontSize: 14, fontWeight: 600, border: 'none',
+                  }}>Apply plan</button>
+                )}
+              </div>
+            </div>
+          )}
+        </motion.div>
       )}
     </AnimatePresence>
   );

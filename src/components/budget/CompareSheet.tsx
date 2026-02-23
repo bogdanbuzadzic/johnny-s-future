@@ -1,10 +1,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, X, Minus, Plus } from 'lucide-react';
+import { ChevronRight, ChevronLeft, X, Minus, Plus, Check } from 'lucide-react';
 import { useBudget } from '@/context/BudgetContext';
 import { useApp } from '@/context/AppContext';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 import { toast } from 'sonner';
+import johnnyImage from '@/assets/johnny.png';
 
 const categoryColors: Record<string, string> = {
   Food: '#E67E22', Entertainment: '#9B59B6', Shopping: '#E74C3C', Lifestyle: '#1ABC9C',
@@ -24,6 +25,9 @@ const presets = [
   { id: 'boost-goals', label: 'Boost goals' },
   { id: 'income-300', label: '+€300 income' },
 ];
+
+const planColors = ['#86EFAC', '#60A5FA', '#C084FC'];
+const planLabels = ['Plan A', 'Plan B', 'Plan C'];
 
 export function CompareSheet({ open, onClose }: CompareSheetProps) {
   const [mode, setMode] = useState<CompareMode>('menu');
@@ -71,7 +75,7 @@ export function CompareSheet({ open, onClose }: CompareSheetProps) {
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
             className="fixed bottom-0 left-0 right-0 z-50 overflow-y-auto"
             style={{
-              maxHeight: mode === 'menu' ? '50vh' : '85vh',
+              maxHeight: mode === 'menu' ? '50vh' : '90vh',
               background: 'rgba(15, 12, 24, 0.96)',
               backdropFilter: 'blur(24px)',
               WebkitBackdropFilter: 'blur(24px)',
@@ -83,13 +87,12 @@ export function CompareSheet({ open, onClose }: CompareSheetProps) {
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.12)' }} />
             </div>
 
-            {/* ═══ MENU ═══ */}
             {mode === 'menu' && (
               <div className="px-5 pb-6">
                 {[
                   { id: 'plan-vs-actual' as CompareMode, label: 'Plan vs. Actual', desc: 'How this month is tracking' },
                   { id: 'month-vs-month' as CompareMode, label: 'Month vs. Month', desc: 'Compare two months' },
-                  { id: 'compare-plans' as CompareMode, label: 'Compare Plans', desc: 'Build and compare a new plan' },
+                  { id: 'compare-plans' as CompareMode, label: 'Compare Plans', desc: 'Build and compare new plans' },
                 ].map((item, i) => (
                   <div key={item.id}
                     className="flex items-center cursor-pointer"
@@ -106,17 +109,14 @@ export function CompareSheet({ open, onClose }: CompareSheetProps) {
               </div>
             )}
 
-            {/* ═══ PLAN VS ACTUAL ═══ */}
             {mode === 'plan-vs-actual' && (
               <PlanVsActualContent onBack={() => setMode('menu')} onClose={handleClose} />
             )}
 
-            {/* ═══ MONTH VS MONTH ═══ */}
             {mode === 'month-vs-month' && (
               <MonthVsMonthContent onBack={() => setMode('menu')} onClose={handleClose} />
             )}
 
-            {/* ═══ COMPARE PLANS ═══ */}
             {mode === 'compare-plans' && (
               <ComparePlansContent onBack={() => setMode('menu')} onClose={handleClose} />
             )}
@@ -150,7 +150,6 @@ function PlanVsActualContent({ onBack, onClose }: { onBack: () => void; onClose:
         <button onClick={onClose}><X size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
       </div>
 
-      {/* Summary */}
       <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase' }}>Overall</div>
         <div style={{ fontSize: 22, fontWeight: 700, color: totalVariance > 0 ? '#FBBF24' : '#86EFAC', marginTop: 4 }}>
@@ -158,7 +157,6 @@ function PlanVsActualContent({ onBack, onClose }: { onBack: () => void; onClose:
         </div>
       </div>
 
-      {/* Category rows */}
       <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '4px 14px' }}>
         {categoryData.map((c, i) => (
           <div key={c.name} className="flex items-center" style={{ padding: '10px 0', borderBottom: i < categoryData.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
@@ -182,23 +180,38 @@ function PlanVsActualContent({ onBack, onClose }: { onBack: () => void; onClose:
   );
 }
 
-// ── Month vs Month ──
+// ── Month vs Month (FIXED: zero baseline bug) ──
 function MonthVsMonthContent({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
   const { expenseCategories, transactions } = useBudget();
   const now = new Date();
 
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    transactions.forEach(t => { months.add(format(parseISO(t.date), 'yyyy-MM')); });
-    months.add(format(now, 'yyyy-MM'));
-    months.add(format(subMonths(now, 1), 'yyyy-MM'));
-    return Array.from(months).sort().reverse();
+  // Only months that ACTUALLY have transaction data
+  const monthsWithData = useMemo(() => {
+    const months = new Map<string, number>();
+    transactions.forEach(t => {
+      if (t.type !== 'expense') return;
+      const key = format(parseISO(t.date), 'yyyy-MM');
+      months.set(key, (months.get(key) || 0) + t.amount);
+    });
+    return Array.from(months.entries())
+      .filter(([, total]) => total > 0)
+      .map(([key]) => key)
+      .sort()
+      .reverse();
   }, [transactions]);
 
-  const [refIdx, setRefIdx] = useState(Math.min(1, availableMonths.length - 1));
-  const refMonth = availableMonths[refIdx] || format(subMonths(now, 1), 'yyyy-MM');
-  const currentMonth = availableMonths[0] || format(now, 'yyyy-MM');
-  const hasEnoughData = availableMonths.length >= 2;
+  const hasEnoughData = monthsWithData.length >= 2;
+
+  const [refIdx, setRefIdx] = useState(Math.min(1, monthsWithData.length - 1));
+  const refMonth = monthsWithData[refIdx] || '';
+  const currentMonth = monthsWithData[0] || '';
+
+  const isPartialMonth = useMemo(() => {
+    if (!currentMonth) return false;
+    const [y, m] = currentMonth.split('-').map(Number);
+    const end = endOfMonth(new Date(y, m - 1));
+    return now < end;
+  }, [currentMonth, now]);
 
   const getSpending = useCallback((monthKey: string) => {
     const [y, m] = monthKey.split('-').map(Number);
@@ -216,13 +229,14 @@ function MonthVsMonthContent({ onBack, onClose }: { onBack: () => void; onClose:
     return { spending, total };
   }, [transactions]);
 
-  const refData = useMemo(() => getSpending(refMonth), [refMonth, getSpending]);
-  const currentData = useMemo(() => getSpending(currentMonth), [currentMonth, getSpending]);
+  const refData = useMemo(() => refMonth ? getSpending(refMonth) : { spending: {}, total: 0 }, [refMonth, getSpending]);
+  const currentData = useMemo(() => currentMonth ? getSpending(currentMonth) : { spending: {}, total: 0 }, [currentMonth, getSpending]);
   const totalChange = currentData.total - refData.total;
 
   const fmtMonth = (key: string) => {
+    if (!key) return '';
     const [y, m] = key.split('-').map(Number);
-    return format(new Date(y, m - 1), 'MMMM yyyy');
+    return format(new Date(y, m - 1), 'MMMM');
   };
 
   return (
@@ -233,23 +247,44 @@ function MonthVsMonthContent({ onBack, onClose }: { onBack: () => void; onClose:
       </div>
 
       {!hasEnoughData ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
-          Available after your first full month
+        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+          <img src={johnnyImage} alt="Johnny" style={{ width: 80, height: 80, margin: '0 auto 16px', objectFit: 'contain', opacity: 0.6 }} />
+          <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>
+            Not enough data yet
+          </p>
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', lineHeight: 1.5 }}>
+            You'll see month-over-month trends once you have two months of spending data. Keep tracking!
+          </p>
         </div>
       ) : (
         <>
-          {/* Month selector */}
+          {/* Month selector — only months with data */}
           <div className="flex items-center justify-center gap-3 mb-4">
-            <button onClick={() => setRefIdx(prev => Math.min(prev + 1, availableMonths.length - 1))}>
+            <button
+              onClick={() => setRefIdx(prev => Math.min(prev + 1, monthsWithData.length - 1))}
+              disabled={refIdx >= monthsWithData.length - 1}
+              style={{ opacity: refIdx >= monthsWithData.length - 1 ? 0.2 : 1 }}
+            >
               <ChevronLeft size={18} style={{ color: 'rgba(255,255,255,0.3)' }} />
             </button>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>{fmtMonth(refMonth).split(' ')[0]}</span>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>{fmtMonth(refMonth)}</span>
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>vs.</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>{fmtMonth(currentMonth).split(' ')[0]}</span>
-            <button onClick={() => setRefIdx(prev => Math.max(prev - 1, 0))}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>{fmtMonth(currentMonth)}</span>
+            <button
+              onClick={() => setRefIdx(prev => Math.max(prev - 1, 1))}
+              disabled={refIdx <= 1}
+              style={{ opacity: refIdx <= 1 ? 0.2 : 1 }}
+            >
               <ChevronRight size={18} style={{ color: 'rgba(255,255,255,0.3)' }} />
             </button>
           </div>
+
+          {/* Partial month warning */}
+          {isPartialMonth && (
+            <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 10, padding: '8px 12px', marginBottom: 10, fontSize: 11, color: '#FBBF24' }}>
+              {fmtMonth(currentMonth)} is in progress — showing data through {format(now, 'MMM d')}
+            </div>
+          )}
 
           {/* Summary */}
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
@@ -259,21 +294,25 @@ function MonthVsMonthContent({ onBack, onClose }: { onBack: () => void; onClose:
             </div>
           </div>
 
-          {/* Category comparison */}
+          {/* Category comparison with both amounts shown */}
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '4px 14px' }}>
             {expenseCategories.map((cat, i) => {
               const ref = refData.spending[cat.id] || 0;
               const cur = currentData.spending[cat.id] || 0;
-              const pct = ref > 0 ? Math.round(((cur - ref) / ref) * 100) : cur > 0 ? 100 : 0;
+              // Skip categories with zero in BOTH months
+              if (ref === 0 && cur === 0) return null;
+              const pct = ref > 0 ? Math.round(((cur - ref) / ref) * 100) : (cur > 0 ? 100 : 0);
               const color = categoryColors[cat.name] || '#7F8C8D';
+              // Green for decrease (saving more), amber for increase
+              const deltaColor = cur <= ref ? '#86EFAC' : '#FBBF24';
               return (
                 <div key={cat.id} className="flex items-center" style={{ padding: '10px 0', borderBottom: i < expenseCategories.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
                   <div style={{ width: 6, height: 6, borderRadius: 3, background: color, marginRight: 8, flexShrink: 0 }} />
                   <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', flex: 1 }}>{cat.name}</span>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginRight: 12 }}>€{Math.round(ref)}</span>
-                  <span style={{ fontSize: 12, color: 'white', marginRight: 12 }}>€{Math.round(cur)}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: pct > 0 ? '#FBBF24' : '#86EFAC', minWidth: 45, textAlign: 'right' }}>
-                    {pct > 0 ? '+' : ''}{pct}%
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginRight: 8 }}>€{Math.round(ref)}</span>
+                  <span style={{ fontSize: 12, color: 'white', marginRight: 8 }}>€{Math.round(cur)}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: deltaColor, minWidth: 45, textAlign: 'right' }}>
+                    {ref > 0 ? `${pct > 0 ? '+' : ''}${pct}%` : 'New'}
                   </span>
                 </div>
               );
@@ -291,7 +330,7 @@ function MonthVsMonthContent({ onBack, onClose }: { onBack: () => void; onClose:
   );
 }
 
-// ── Compare Plans ──
+// ── Compare Plans (multi-scenario) ──
 function ComparePlansContent({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
   const { config, expenseCategories, fixedCategories, totalFixed, updateCategory, updateConfig, savingsTarget } = useBudget();
   const { goals } = useApp();
@@ -301,64 +340,83 @@ function ComparePlansContent({ onBack, onClose }: { onBack: () => void; onClose:
   const currentSpending = expenseCategories.reduce((s, c) => s + c.monthlyBudget, 0);
   const currentFree = totalIncome - totalFixed - savingsTarget - currentSpending - totalGoalContributions;
 
-  const [modifiedBudgets, setModifiedBudgets] = useState<Record<string, number>>(() => {
+  // Multi-select preset chips (up to 3)
+  const [selectedPresets, setSelectedPresets] = useState<string[]>([]);
+  const [selectedPlanIdx, setSelectedPlanIdx] = useState(0); // which plan to apply
+  const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
+
+  // Custom plan budgets (used when 'custom' is selected)
+  const [customBudgets, setCustomBudgets] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     expenseCategories.forEach(c => { init[c.id] = c.monthlyBudget; });
     return init;
   });
-  const [modifiedIncome, setModifiedIncome] = useState(totalIncome);
-  const [activePreset, setActivePreset] = useState('custom');
-  const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
+  const [customIncome, setCustomIncome] = useState(totalIncome);
 
-  const modifiedSpending = Object.values(modifiedBudgets).reduce((s, v) => s + v, 0);
-  const modifiedFree = modifiedIncome - totalFixed - savingsTarget - modifiedSpending - totalGoalContributions;
-  const freeChange = modifiedFree - currentFree;
-
-  const applyPreset = (presetId: string) => {
-    setActivePreset(presetId);
-    const newBudgets: Record<string, number> = {};
-    expenseCategories.forEach(c => { newBudgets[c.id] = c.monthlyBudget; });
-    let newIncome = totalIncome;
-    if (presetId === 'save-15') Object.keys(newBudgets).forEach(k => { newBudgets[k] = Math.round(newBudgets[k] * 0.85); });
-    if (presetId === 'cut-spending') Object.keys(newBudgets).forEach(k => { newBudgets[k] = Math.round(newBudgets[k] * 0.80); });
-    if (presetId === 'boost-goals') Object.keys(newBudgets).forEach(k => { newBudgets[k] = Math.round(newBudgets[k] * 0.90); });
-    if (presetId === 'income-300') newIncome = totalIncome + 300;
-    setModifiedBudgets(newBudgets);
-    setModifiedIncome(newIncome);
+  const togglePreset = (presetId: string) => {
+    setSelectedPresets(prev => {
+      if (prev.includes(presetId)) return prev.filter(p => p !== presetId);
+      if (prev.length >= 3) return prev; // max 3
+      return [...prev, presetId];
+    });
   };
 
-  const handleIncrement = (catId: string, amount: number) => {
-    setModifiedBudgets(prev => ({ ...prev, [catId]: Math.max(0, (prev[catId] || 0) + amount) }));
-    setActivePreset('custom');
+  // Generate plan data for a given preset
+  const generatePlan = useCallback((presetId: string) => {
+    const budgets: Record<string, number> = {};
+    expenseCategories.forEach(c => { budgets[c.id] = c.monthlyBudget; });
+    let income = totalIncome;
+
+    if (presetId === 'custom') {
+      Object.assign(budgets, customBudgets);
+      income = customIncome;
+    } else if (presetId === 'save-15') {
+      Object.keys(budgets).forEach(k => { budgets[k] = Math.round(budgets[k] * 0.85); });
+    } else if (presetId === 'cut-spending') {
+      Object.keys(budgets).forEach(k => { budgets[k] = Math.round(budgets[k] * 0.80); });
+    } else if (presetId === 'boost-goals') {
+      Object.keys(budgets).forEach(k => { budgets[k] = Math.round(budgets[k] * 0.90); });
+    } else if (presetId === 'income-300') {
+      income = totalIncome + 300;
+    }
+
+    const spending = Object.values(budgets).reduce((s, v) => s + v, 0);
+    const free = income - totalFixed - savingsTarget - spending - totalGoalContributions;
+    const freeChange = free - currentFree;
+
+    return { budgets, income, spending, free, freeChange };
+  }, [expenseCategories, totalIncome, totalFixed, savingsTarget, totalGoalContributions, currentFree, customBudgets, customIncome]);
+
+  const plans = useMemo(() => selectedPresets.map(p => ({
+    presetId: p,
+    label: presets.find(pr => pr.id === p)?.label || p,
+    ...generatePlan(p),
+  })), [selectedPresets, generatePlan]);
+
+  const handleCustomIncrement = (catId: string, amount: number) => {
+    setCustomBudgets(prev => ({ ...prev, [catId]: Math.max(0, (prev[catId] || 0) + amount) }));
   };
 
   const handleApply = () => {
-    Object.entries(modifiedBudgets).forEach(([catId, budget]) => {
+    const plan = plans[selectedPlanIdx];
+    if (!plan) return;
+    Object.entries(plan.budgets).forEach(([catId, budget]) => {
       updateCategory(catId, { monthlyBudget: budget });
     });
-    if (modifiedIncome !== totalIncome) updateConfig({ monthlyIncome: modifiedIncome });
-    toast('New plan applied.');
+    if (plan.income !== totalIncome) updateConfig({ monthlyIncome: plan.income });
+    toast(`${plan.label} applied!`);
     onClose();
   };
 
-  const goalAcceleration = useMemo(() => {
-    if (freeChange <= 0) return [];
-    return goals.filter(g => g.monthlyContribution > 0).map(g => {
-      const remaining = g.target - g.saved;
-      const currentMonths = Math.ceil(remaining / g.monthlyContribution);
-      const extra = freeChange * 0.5 / Math.max(goals.length, 1);
-      const newMonths = Math.ceil(remaining / (g.monthlyContribution + extra));
-      return { name: g.name, diff: currentMonths - newMonths };
-    }).filter(g => g.diff > 0);
-  }, [goals, freeChange]);
-
   const rows = [
-    { label: 'Spending', current: currentSpending, modified: modifiedSpending, color: '#8E44AD' },
-    { label: 'Fixed', current: totalFixed, modified: totalFixed, color: '#5D6D7E' },
-    { label: 'Goals', current: totalGoalContributions, modified: totalGoalContributions, color: '#E91E63' },
-    { label: 'Savings', current: savingsTarget, modified: savingsTarget, color: '#2980B9' },
-    { label: 'Free', current: currentFree, modified: modifiedFree, color: 'rgba(255,255,255,0.3)' },
+    { label: 'Spending', current: currentSpending },
+    { label: 'Fixed', current: totalFixed },
+    { label: 'Goals', current: totalGoalContributions },
+    { label: 'Savings', current: savingsTarget },
+    { label: 'Free', current: currentFree },
   ];
+
+  const colCount = 1 + plans.length; // Current + selected plans
 
   return (
     <div className="px-5 pb-8">
@@ -367,125 +425,173 @@ function ComparePlansContent({ onBack, onClose }: { onBack: () => void; onClose:
         <button onClick={onClose}><X size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
       </div>
 
-      {/* Preset pills */}
+      {/* Toggleable preset chips */}
       <div className="flex gap-1.5 overflow-x-auto mb-4 pb-1" style={{ scrollbarWidth: 'none' }}>
-        {presets.map(p => (
-          <button key={p.id} onClick={() => applyPreset(p.id)} style={{
-            padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 500, flexShrink: 0, whiteSpace: 'nowrap',
-            background: activePreset === p.id ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
-            border: activePreset === p.id ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.06)',
-            color: activePreset === p.id ? 'white' : 'rgba(255,255,255,0.4)',
-          }}>{p.label}</button>
-        ))}
+        {presets.map(p => {
+          const isSelected = selectedPresets.includes(p.id);
+          const idx = selectedPresets.indexOf(p.id);
+          return (
+            <button key={p.id} onClick={() => togglePreset(p.id)} style={{
+              padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 500, flexShrink: 0, whiteSpace: 'nowrap',
+              background: isSelected ? `${planColors[idx] || '#86EFAC'}22` : 'rgba(255,255,255,0.04)',
+              border: isSelected ? `1px solid ${planColors[idx] || '#86EFAC'}55` : '1px solid rgba(255,255,255,0.06)',
+              color: isSelected ? planColors[idx] || '#86EFAC' : 'rgba(255,255,255,0.4)',
+            }}>{p.label}</button>
+          );
+        })}
       </div>
 
-      {/* Two columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-        {/* Current */}
-        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 12, opacity: 0.6 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>CURRENT</div>
-          {rows.map(r => (
-            <div key={r.label} className="flex justify-between" style={{ padding: '4px 0' }}>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{r.label}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'white' }}>€{Math.round(r.current)}</span>
-            </div>
-          ))}
+      {plans.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '30px 0', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>
+          Select up to 3 presets to compare
         </div>
+      )}
 
-        {/* New plan */}
-        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 12 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>NEW PLAN</div>
-          {rows.map(r => {
-            const diff = r.modified - r.current;
-            const isSpending = r.label === 'Spending';
-            return (
-              <div key={r.label} className="flex justify-between items-center" style={{ padding: '4px 0' }}>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', cursor: isSpending ? 'pointer' : undefined }}
-                  onClick={isSpending ? () => setExpandedCatId(expandedCatId ? null : 'spending') : undefined}>
-                  {r.label}
-                </span>
-                <div className="flex items-center gap-1">
-                  <span style={{ fontSize: 11, fontWeight: 600, color: 'white' }}>€{Math.round(r.modified)}</span>
-                  {diff !== 0 && (
-                    <span style={{ fontSize: 9, fontWeight: 700, color: diff < 0 ? '#86EFAC' : '#FBBF24' }}>
-                      {diff > 0 ? '+' : ''}€{Math.round(diff)}
-                    </span>
-                  )}
-                </div>
+      {plans.length > 0 && (
+        <>
+          {/* Multi-column comparison */}
+          <div className="overflow-x-auto mb-3" style={{ scrollbarWidth: 'none' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `1fr ${plans.map(() => '1fr').join(' ')}`, gap: 6, minWidth: colCount > 3 ? 400 : undefined }}>
+              {/* Current column */}
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 10, opacity: 0.6 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>CURRENT</div>
+                {rows.map(r => (
+                  <div key={r.label} className="flex justify-between" style={{ padding: '4px 0' }}>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{r.label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: 'white' }}>€{Math.round(r.current)}</span>
+                  </div>
+                ))}
               </div>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* Expanded spending categories */}
-      <AnimatePresence>
-        {expandedCatId === 'spending' && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-3">
-            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '8px 14px' }}>
-              {expenseCategories.map(cat => {
-                const modified = modifiedBudgets[cat.id] || 0;
-                const color = categoryColors[cat.name] || '#7F8C8D';
+              {/* Plan columns */}
+              {plans.map((plan, pIdx) => {
+                const color = planColors[pIdx];
+                const isApplyTarget = selectedPlanIdx === pIdx;
                 return (
-                  <div key={cat.id} className="flex items-center justify-between" style={{ padding: '6px 0' }}>
-                    <div className="flex items-center gap-2">
-                      <div style={{ width: 6, height: 6, borderRadius: 3, background: color }} />
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{cat.name}</span>
+                  <div key={plan.presetId}
+                    onClick={() => setSelectedPlanIdx(pIdx)}
+                    className="cursor-pointer"
+                    style={{
+                      background: isApplyTarget ? `${color}11` : 'rgba(255,255,255,0.04)',
+                      border: isApplyTarget ? `1px solid ${color}44` : '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: 12, padding: 10,
+                    }}>
+                    <div className="flex items-center gap-1 mb-2">
+                      <div style={{
+                        width: 14, height: 14, borderRadius: '50%',
+                        border: `2px solid ${color}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: isApplyTarget ? color : 'transparent',
+                      }}>
+                        {isApplyTarget && <Check size={8} style={{ color: '#0F0C18' }} />}
+                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {plan.label}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => handleIncrement(cat.id, -25)} style={{
-                        width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'white',
-                      }}><Minus size={12} /></button>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'white', minWidth: 40, textAlign: 'center' }}>€{modified}</span>
-                      <button onClick={() => handleIncrement(cat.id, 25)} style={{
-                        width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'white',
-                      }}><Plus size={12} /></button>
-                    </div>
+                    {rows.map(r => {
+                      const val = r.label === 'Spending' ? plan.spending
+                        : r.label === 'Fixed' ? totalFixed
+                        : r.label === 'Goals' ? totalGoalContributions
+                        : r.label === 'Savings' ? savingsTarget
+                        : plan.free;
+                      const diff = val - r.current;
+                      return (
+                        <div key={r.label} className="flex justify-between items-center" style={{ padding: '4px 0' }}>
+                          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{r.label}</span>
+                          <div className="flex items-center gap-1">
+                            <span style={{ fontSize: 10, fontWeight: 600, color: 'white' }}>€{Math.round(val)}</span>
+                            {diff !== 0 && (
+                              <span style={{ fontSize: 8, fontWeight: 700, color: diff < 0 ? '#86EFAC' : diff > 0 && r.label === 'Free' ? '#86EFAC' : '#FBBF24' }}>
+                                {diff > 0 ? '+' : ''}€{Math.round(diff)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Impact */}
-      <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 8 }}>Impact</div>
-        <div className="flex justify-between mb-1">
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Monthly</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: freeChange >= 0 ? '#86EFAC' : '#FBBF24' }}>
-            {freeChange >= 0 ? '+' : ''}€{Math.round(freeChange)}/mo
-          </span>
-        </div>
-        <div className="flex justify-between mb-1">
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Annual</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: freeChange >= 0 ? '#86EFAC' : '#FBBF24' }}>
-            {freeChange >= 0 ? '+' : ''}€{Math.round(freeChange * 12)}/yr
-          </span>
-        </div>
-        {goalAcceleration.map(g => (
-          <div key={g.name} className="flex justify-between">
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Goals</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#86EFAC' }}>{g.name} {g.diff}mo sooner</span>
           </div>
-        ))}
-      </div>
 
-      {/* Actions */}
-      <div className="flex gap-2">
-        <button onClick={handleApply} style={{
-          flex: 2, height: 44, borderRadius: 10,
-          background: '#27AE60', color: 'white', fontSize: 14, fontWeight: 600, border: 'none',
-        }}>Apply</button>
-        <button onClick={onClose} style={{
-          flex: 1, height: 44, borderRadius: 10,
-          background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)',
-          fontSize: 14, fontWeight: 500, border: 'none',
-        }}>Discard</button>
-      </div>
+          {/* Custom category editing */}
+          {selectedPresets.includes('custom') && (
+            <AnimatePresence>
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-3">
+                <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '8px 14px' }}>
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 6 }}>Custom Plan Categories</div>
+                  {expenseCategories.map(cat => {
+                    const modified = customBudgets[cat.id] || 0;
+                    const color = categoryColors[cat.name] || '#7F8C8D';
+                    return (
+                      <div key={cat.id} className="flex items-center justify-between" style={{ padding: '6px 0' }}>
+                        <div className="flex items-center gap-2">
+                          <div style={{ width: 6, height: 6, borderRadius: 3, background: color }} />
+                          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{cat.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleCustomIncrement(cat.id, -25)} style={{
+                            width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'white',
+                          }}><Minus size={12} /></button>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'white', minWidth: 40, textAlign: 'center' }}>€{modified}</span>
+                          <button onClick={() => handleCustomIncrement(cat.id, 25)} style={{
+                            width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'white',
+                          }}><Plus size={12} /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          )}
+
+          {/* Impact per plan */}
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 8 }}>Impact</div>
+            {plans.map((plan, pIdx) => {
+              const color = planColors[pIdx];
+              return (
+                <div key={plan.presetId} style={{ marginBottom: pIdx < plans.length - 1 ? 8 : 0 }}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <div style={{ width: 8, height: 8, borderRadius: 4, background: color }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color }}>{plan.label}</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+                      Monthly: <span style={{ fontWeight: 700, color: plan.freeChange >= 0 ? '#86EFAC' : '#FBBF24' }}>
+                        {plan.freeChange >= 0 ? '+' : ''}€{Math.round(plan.freeChange)}
+                      </span>
+                    </span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+                      Annual: <span style={{ fontWeight: 700, color: plan.freeChange >= 0 ? '#86EFAC' : '#FBBF24' }}>
+                        {plan.freeChange >= 0 ? '+' : ''}€{Math.round(plan.freeChange * 12)}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button onClick={handleApply} style={{
+              flex: 2, height: 44, borderRadius: 10,
+              background: '#27AE60', color: 'white', fontSize: 14, fontWeight: 600, border: 'none',
+            }}>Apply {plans[selectedPlanIdx]?.label || 'Plan'}</button>
+            <button onClick={onClose} style={{
+              flex: 1, height: 44, borderRadius: 10,
+              background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)',
+              fontSize: 14, fontWeight: 500, border: 'none',
+            }}>Discard</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
