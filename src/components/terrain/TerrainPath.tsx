@@ -979,7 +979,7 @@ export function TerrainPath() {
                 fill="rgba(255,255,255,0.12)"
                 fontSize={9}
               >
-                ~€{Math.round(effectiveDailySpend)}/day
+                ~€{Math.round(averageDailySpend)}/day
               </text>
             )}
 
