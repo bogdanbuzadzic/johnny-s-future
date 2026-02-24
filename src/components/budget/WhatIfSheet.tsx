@@ -119,7 +119,7 @@ function simulateStress(scenarioId: ScenarioId, pill: string, budget: ReturnType
 
   const dailyFlex = budget.totalSpending / 30;
   const reserves = budget.bankBalance + budget.savingsBalance;
-  const totalDays = 24 * 30;
+  const totalDays = 12 * 30;
 
   const base = generateDailyFlow(budget.income, budget.totalFixed, budget.savings, budget.goalsTotal, dailyFlex, reserves, totalDays);
 
@@ -180,7 +180,7 @@ function simulateStress(scenarioId: ScenarioId, pill: string, budget: ReturnType
 
   const brokeDay = scenario.findIndex(v => v < 0);
   const recoveryDay = brokeDay >= 0 ? scenario.findIndex((v, i) => i > brokeDay && v >= 0) : -1;
-  const survivalMonths = brokeDay >= 0 ? Math.round(brokeDay / 30 * 10) / 10 : 24;
+  const survivalMonths = brokeDay >= 0 ? Math.round(brokeDay / 30 * 10) / 10 : 12;
 
   return { base, scenario, brokeDay, recoveryDay, survivalMonths };
 }
@@ -345,7 +345,7 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
     ? (scenarios.find(s => s.id === activeScenario.id)?.label || '') + (activeScenario.pill ? ` (${activeScenario.pill})` : '')
     : '';
 
-  // ── Full-screen sawtooth chart renderer ──
+  // ── Full-screen sawtooth chart renderer (matching Home terrain style) ──
   const renderFullChart = (base: number[], scenario: number[], options?: {
     forkColor?: string;
     prepared?: number[];
@@ -355,96 +355,164 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
     if (base.length === 0 || scenario.length === 0) return null;
     const { forkColor = '#FBBF24', prepared = [], brokeDay = -1, recoveryDay = -1 } = options || {};
 
-    const W = 380, H = 260;
-    const PAD = { top: 20, bottom: 30, left: 45, right: 15 };
-    const chartW = W - PAD.left - PAD.right;
-    const chartH = H - PAD.top - PAD.bottom;
-
-    const step = 3;
+    // Downsample to ~180 points for smooth bezier rendering
+    const step = Math.max(1, Math.floor(base.length / 180));
     const baseDS = base.filter((_, i) => i % step === 0);
     const scenDS = scenario.filter((_, i) => i % step === 0);
     const prepDS = prepared.length > 0 ? prepared.filter((_, i) => i % step === 0) : [];
 
     const allVals = [...baseDS, ...scenDS, ...prepDS];
-    const yMax = Math.max(...allVals, 100);
+    const yMax = Math.max(...allVals, 100) * 1.1; // 10% headroom
     const yMin = Math.min(...allVals, 0);
     const yRange = yMax - yMin || 1;
+
+    const W = 400, H = 220;
+    const PAD = { top: 12, bottom: 26, left: 8, right: 44 };
+    const chartW = W - PAD.left - PAD.right;
+    const chartH = H - PAD.top - PAD.bottom;
 
     const toX = (i: number) => PAD.left + (i / Math.max(baseDS.length - 1, 1)) * chartW;
     const toY = (v: number) => PAD.top + chartH - ((v - yMin) / yRange) * chartH;
 
-    const makePath = (pts: number[]) =>
-      pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
+    // Build bezier path (matching Home terrain's smooth curves)
+    const makeBezierPath = (pts: number[]) => {
+      if (pts.length === 0) return '';
+      let path = `M${toX(0).toFixed(1)},${toY(pts[0]).toFixed(1)}`;
+      for (let i = 1; i < pts.length; i++) {
+        const px = toX(i - 1), py = toY(pts[i - 1]);
+        const cx = toX(i), cy = toY(pts[i]);
+        const dx = cx - px;
+        path += ` C${(px + dx * 0.4).toFixed(1)},${py.toFixed(1)} ${(cx - dx * 0.4).toFixed(1)},${cy.toFixed(1)} ${cx.toFixed(1)},${cy.toFixed(1)}`;
+      }
+      return path;
+    };
 
-    const basePath = makePath(baseDS);
-    const scenPath = makePath(scenDS);
-    const prepPath = prepDS.length > 0 ? makePath(prepDS) : '';
+    const basePath = makeBezierPath(baseDS);
+    const scenPath = makeBezierPath(scenDS);
+    const prepPath = prepDS.length > 0 ? makeBezierPath(prepDS) : '';
 
-    const scenArea = `${scenPath} L${toX(scenDS.length - 1).toFixed(1)},${toY(yMin).toFixed(1)} L${toX(0).toFixed(1)},${toY(yMin).toFixed(1)} Z`;
+    // Fill area under current line (matching Home terrain gradient)
+    const baseArea = `${basePath} L${toX(baseDS.length - 1).toFixed(1)},${H} L${toX(0).toFixed(1)},${H} Z`;
 
+    // Between-area fill (gap between current and scenario)
+    const len = Math.min(baseDS.length, scenDS.length);
+    let betweenPath = '';
+    if (len > 1) {
+      betweenPath = `M${toX(0).toFixed(1)},${toY(baseDS[0]).toFixed(1)}`;
+      for (let i = 1; i < len; i++) betweenPath += ` L${toX(i).toFixed(1)},${toY(baseDS[i]).toFixed(1)}`;
+      for (let i = len - 1; i >= 0; i--) betweenPath += ` L${toX(i).toFixed(1)},${toY(scenDS[i]).toFixed(1)}`;
+      betweenPath += ' Z';
+    }
+
+    // Month labels
     const totalMonths = Math.ceil(base.length / 30);
-    const monthLabels = Array.from({ length: Math.min(5, totalMonths + 1) }, (_, i) => {
-      const m = Math.round(i * totalMonths / 4);
+    const labelCount = Math.min(totalMonths + 1, 7);
+    const monthLabels = Array.from({ length: labelCount }, (_, i) => {
+      const m = Math.round(i * totalMonths / (labelCount - 1));
       const d = new Date(); d.setMonth(d.getMonth() + m);
-      return { x: toX(Math.min(Math.floor(m * 30 / step), baseDS.length - 1)), label: d.toLocaleString('en', { month: 'short', year: '2-digit' }) };
+      const idx = Math.min(Math.floor(m * 30 / step), baseDS.length - 1);
+      return { x: toX(idx), label: d.toLocaleString('en', { month: 'short' }) };
     });
+
+    // Y-axis labels on the RIGHT (matching Home terrain)
+    const yLabels: { v: number; y: number; label: string }[] = [];
+    const yStep = yRange > 10000 ? 5000 : yRange > 5000 ? 2000 : yRange > 2000 ? 1000 : 500;
+    for (let v = Math.ceil(yMin / yStep) * yStep; v <= yMax; v += yStep) {
+      yLabels.push({
+        v,
+        y: toY(v),
+        label: v >= 1000 || v <= -1000 ? `€${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : `€${v}`,
+      });
+    }
 
     const brokeIdx = brokeDay >= 0 ? Math.floor(brokeDay / step) : -1;
     const recovIdx = recoveryDay >= 0 ? Math.floor(recoveryDay / step) : -1;
 
-    const gradId = `grad-${forkColor.replace('#', '')}`;
+    const forkGradId = `forkGrad-${forkColor.replace('#', '')}`;
 
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: '100%', minHeight: 220 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={`${forkColor}33`} />
-            <stop offset="100%" stopColor={`${forkColor}05`} />
+          {/* Same purple-pink-orange gradient as Home terrain */}
+          <linearGradient id="whatIfTerrainGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.45} />
+            <stop offset="40%" stopColor="#A855F7" stopOpacity={0.25} />
+            <stop offset="70%" stopColor="#EC4899" stopOpacity={0.15} />
+            <stop offset="100%" stopColor="#F97316" stopOpacity={0.08} />
+          </linearGradient>
+          <linearGradient id={forkGradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={forkColor} stopOpacity={0.15} />
+            <stop offset="100%" stopColor={forkColor} stopOpacity={0.02} />
           </linearGradient>
         </defs>
 
-        {yMin < 0 && <line x1={PAD.left} y1={toY(0)} x2={W - PAD.right} y2={toY(0)}
-          stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="3,3" />}
+        {/* Horizontal gridlines */}
+        {yLabels.map(yl => (
+          <line key={yl.v} x1={PAD.left} y1={yl.y} x2={W - PAD.right} y2={yl.y}
+            stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />
+        ))}
 
-        <path d={scenArea} fill={`url(#${gradId})`} opacity="0.5" />
-        <path d={basePath} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
-        <path d={scenPath} fill="none" stroke={forkColor} strokeWidth="2" strokeDasharray="6,3" />
-        {prepPath && <path d={prepPath} fill="none" stroke="#86EFAC" strokeWidth="1.5" strokeDasharray="4,3" />}
+        {/* Zero line if negative values exist */}
+        {yMin < 0 && (
+          <line x1={PAD.left} y1={toY(0)} x2={W - PAD.right} y2={toY(0)}
+            stroke="rgba(239,68,68,0.25)" strokeWidth="1" />
+        )}
 
+        {/* Fill under current line (Home terrain gradient) */}
+        <path d={baseArea} fill="url(#whatIfTerrainGrad)" />
+
+        {/* Between-area fill (gap between lines) */}
+        {betweenPath && <path d={betweenPath} fill={`url(#${forkGradId})`} />}
+
+        {/* Current line (solid white, matching Home terrain) */}
+        <path d={basePath} fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
+
+        {/* Scenario line (colored dashed, thicker for visibility) */}
+        <path d={scenPath} fill="none" stroke={forkColor} strokeWidth="2.5" strokeDasharray="8,4" />
+
+        {/* Prepared line (green dashed) */}
+        {prepPath && <path d={prepPath} fill="none" stroke="#86EFAC" strokeWidth="2" strokeDasharray="6,3" />}
+
+        {/* Broke marker */}
         {brokeIdx >= 0 && brokeIdx < scenDS.length && (
           <g>
             <line x1={toX(brokeIdx)} y1={PAD.top} x2={toX(brokeIdx)} y2={H - PAD.bottom}
-              stroke="#EF4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
-            <circle cx={toX(brokeIdx)} cy={toY(scenDS[brokeIdx])} r="4" fill="#EF4444" />
-            <text x={toX(brokeIdx)} y={PAD.top - 5} fill="#EF4444" fontSize="10" textAnchor="middle" fontWeight="600">Broke</text>
+              stroke="#EF4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.6" />
+            <circle cx={toX(brokeIdx)} cy={toY(scenDS[brokeIdx])} r="5" fill="#EF4444" />
+            <text x={toX(brokeIdx)} y={PAD.top - 4} fill="#EF4444" fontSize="10" textAnchor="middle" fontWeight="700">Broke</text>
           </g>
         )}
 
+        {/* Recovery marker */}
         {recovIdx >= 0 && recovIdx < scenDS.length && (
           <g>
-            <circle cx={toX(recovIdx)} cy={toY(scenDS[recovIdx])} r="4" fill="#86EFAC" />
-            <text x={toX(recovIdx)} y={toY(scenDS[recovIdx]) - 10} fill="#86EFAC" fontSize="10" textAnchor="middle" fontWeight="600">Recovers</text>
+            <circle cx={toX(recovIdx)} cy={toY(scenDS[recovIdx])} r="5" fill="#86EFAC" />
+            <text x={toX(recovIdx)} y={toY(scenDS[recovIdx]) - 10} fill="#86EFAC" fontSize="10" textAnchor="middle" fontWeight="700">Recovers</text>
           </g>
         )}
 
-        {[yMin < 0 ? yMin : 0, Math.round((yMax + yMin) / 2), yMax].map(v => (
-          <text key={v} x={PAD.left - 5} y={toY(v) + 3} fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="end">
-            €{Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}
+        {/* Y-axis labels on RIGHT side (matching Home terrain) */}
+        {yLabels.map(yl => (
+          <text key={`yl-${yl.v}`} x={W - PAD.right + 4} y={yl.y + 3}
+            fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="start">
+            {yl.label}
           </text>
         ))}
 
+        {/* Month labels along bottom */}
         {monthLabels.map((ml, i) => (
           <text key={i} x={ml.x} y={H - 6} fill="rgba(255,255,255,0.35)" fontSize="9" textAnchor="middle">{ml.label}</text>
         ))}
 
-        <g transform={`translate(${W - PAD.right - 80}, ${PAD.top + 4})`}>
-          <line x1="0" y1="0" x2="14" y2="0" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
-          <text x="18" y="3" fill="rgba(255,255,255,0.4)" fontSize="8">Current</text>
-          <line x1="0" y1="14" x2="14" y2="14" stroke={forkColor} strokeWidth="2" strokeDasharray="4,2" />
-          <text x="18" y="17" fill="rgba(255,255,255,0.4)" fontSize="8">Scenario</text>
+        {/* Legend (dot style matching Home terrain fork legend) */}
+        <g transform={`translate(${PAD.left + 4}, ${PAD.top + 4})`}>
+          <circle cx="4" cy="4" r="3" fill="rgba(255,255,255,0.7)" />
+          <text x="12" y="7" fill="rgba(255,255,255,0.45)" fontSize="9">Current</text>
+          <circle cx="68" cy="4" r="3" fill={forkColor} />
+          <text x="76" y="7" fill="rgba(255,255,255,0.45)" fontSize="9">Scenario</text>
           {prepPath && <>
-            <line x1="0" y1="28" x2="14" y2="28" stroke="#86EFAC" strokeWidth="1.5" strokeDasharray="4,2" />
-            <text x="18" y="31" fill="rgba(255,255,255,0.4)" fontSize="8">Prepared</text>
+            <circle cx="140" cy="4" r="3" fill="#86EFAC" />
+            <text x="148" y="7" fill="rgba(255,255,255,0.45)" fontSize="9">Prepared</text>
           </>}
         </g>
       </svg>
@@ -561,8 +629,16 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
                 <button onClick={handleClose}><X size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
               </div>
 
-              {/* Full-width chart — 60% viewport */}
-              <div style={{ height: '55vh', minHeight: 280, marginLeft: -20, marginRight: -20, padding: '0 8px' }}>
+              {/* Full-width chart — edge to edge, matching Home terrain */}
+              <div style={{
+                height: 220,
+                marginLeft: -20,
+                marginRight: -20,
+                marginBottom: 12,
+                background: 'rgba(255,255,255,0.03)',
+                borderRadius: 16,
+                overflow: 'hidden',
+              }}>
                 {renderFullChart(stressData.base, stressData.scenario, {
                   forkColor: '#FBBF24',
                   prepared: stressData.prepared,
@@ -634,9 +710,17 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
                 <button onClick={handleClose}><X size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
               </div>
 
-              {/* Full-width chart for positive scenarios too */}
+              {/* Full-width chart for positive scenarios — matching Home terrain */}
               {lifeData.baseLine && lifeData.scenarioLine && (
-                <div style={{ height: '40vh', minHeight: 220, marginLeft: -20, marginRight: -20, padding: '0 8px' }}>
+                <div style={{
+                  height: 220,
+                  marginLeft: -20,
+                  marginRight: -20,
+                  marginBottom: 12,
+                  background: 'rgba(255,255,255,0.03)',
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                }}>
                   {renderFullChart(lifeData.baseLine, lifeData.scenarioLine, {
                     forkColor: lifeData.isPositive ? '#86EFAC' : '#FBBF24',
                   })}
