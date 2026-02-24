@@ -260,12 +260,14 @@ function saveCustomEvents(events: CustomEvent[]) {
 }
 
 // ── SVG helpers ──
-function buildPath(points: TerrainPoint[], width: number, height: number, padding = { top: 20, bottom: 10 }): string {
+function buildPath(points: TerrainPoint[], width: number, height: number, padding = { top: 20, bottom: 10 }, externalMaxBal?: number): string {
   if (points.length === 0) return '';
-  const maxBal = Math.max(...points.map(p => p.balance), 1);
+  const maxBal = externalMaxBal ?? Math.max(...points.map(p => p.balance), 1);
+  const minBal = Math.min(...points.map(p => p.balance), 0);
+  const range = maxBal - minBal || 1;
   const mapX = (i: number) => (i / (points.length - 1)) * width;
   const mapY = (bal: number) => {
-    const norm = bal / maxBal;
+    const norm = (bal - minBal) / range;
     return height - padding.bottom - norm * (height - padding.top - padding.bottom);
   };
 
@@ -279,8 +281,8 @@ function buildPath(points: TerrainPoint[], width: number, height: number, paddin
   return path;
 }
 
-function buildFillPath(points: TerrainPoint[], width: number, height: number, padding = { top: 20, bottom: 10 }): string {
-  const line = buildPath(points, width, height, padding);
+function buildFillPath(points: TerrainPoint[], width: number, height: number, padding = { top: 20, bottom: 10 }, externalMaxBal?: number): string {
+  const line = buildPath(points, width, height, padding, externalMaxBal);
   if (!line) return '';
   const maxX = (points.length - 1) / (points.length - 1) * width;
   return `${line} L ${maxX} ${height} L 0 ${height} Z`;
@@ -415,16 +417,18 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
     return bals;
   }, [terrainPoints, forkData]);
   const maxBal = Math.max(...allBalances, 1);
+  const minBal = Math.min(...allBalances, 0);
 
   const mapX = useCallback((i: number) => (i / Math.max(terrainPoints.length - 1, 1)) * chartWidth, [terrainPoints.length, chartWidth]);
   const mapY = useCallback((bal: number) => {
-    const norm = bal / maxBal;
+    const range = maxBal - minBal || 1;
+    const norm = (bal - minBal) / range;
     return chartHeight - 10 - norm * (chartHeight - 30);
-  }, [maxBal, chartHeight]);
+  }, [maxBal, minBal, chartHeight]);
 
-  // SVG paths
-  const fillPath = useMemo(() => buildFillPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth, chartHeight]);
-  const linePath = useMemo(() => buildPath(terrainPoints, chartWidth, chartHeight), [terrainPoints, chartWidth, chartHeight]);
+  // SVG paths — pass maxBal so all lines share the same Y-axis scale
+  const fillPath = useMemo(() => buildFillPath(terrainPoints, chartWidth, chartHeight, undefined, maxBal), [terrainPoints, chartWidth, chartHeight, maxBal]);
+  const linePath = useMemo(() => buildPath(terrainPoints, chartWidth, chartHeight, undefined, maxBal), [terrainPoints, chartWidth, chartHeight, maxBal]);
 
   // Plan line (planned spending, no actuals) for Plan vs. Actual
   const planPoints = useMemo(() => {
@@ -434,8 +438,8 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
   }, [planVsActualMode, timeRange, computed, bills]);
   const planLinePath = useMemo(() => {
     if (planPoints.length === 0) return '';
-    return buildPath(planPoints, chartWidth, chartHeight);
-  }, [planPoints, chartWidth, chartHeight]);
+    return buildPath(planPoints, chartWidth, chartHeight, undefined, maxBal);
+  }, [planPoints, chartWidth, chartHeight, maxBal]);
 
   // Plan vs Actual deviation fill
   const deviationFillPath = useMemo(() => {
@@ -504,8 +508,8 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
 
   const preparedForkPath = useMemo(() => {
     if (!preparedForkPoints) return '';
-    return buildPath(preparedForkPoints, chartWidth, chartHeight);
-  }, [preparedForkPoints, chartWidth, chartHeight]);
+    return buildPath(preparedForkPoints, chartWidth, chartHeight, undefined, maxBal);
+  }, [preparedForkPoints, chartWidth, chartHeight, maxBal]);
 
   // ── Terrain direct editing handlers ──
   const handleChartClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -609,13 +613,13 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
   // Fork paths
   const forkLinePath = useMemo(() => {
     if (!forkData?.active || !forkData.points.length) return '';
-    return buildPath(forkData.points, chartWidth, chartHeight);
-  }, [forkData, chartWidth, chartHeight]);
+    return buildPath(forkData.points, chartWidth, chartHeight, undefined, maxBal);
+  }, [forkData, chartWidth, chartHeight, maxBal]);
 
   const forkFillPath = useMemo(() => {
     if (!forkData?.active || !forkData.points.length) return '';
-    return buildFillPath(forkData.points, chartWidth, chartHeight);
-  }, [forkData, chartWidth, chartHeight]);
+    return buildFillPath(forkData.points, chartWidth, chartHeight, undefined, maxBal);
+  }, [forkData, chartWidth, chartHeight, maxBal]);
 
   // Between-area fill (area between main and fork)
   const betweenFillPath = useMemo(() => {
