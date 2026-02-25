@@ -200,11 +200,50 @@ function MonthVsMonthContent({ onBack, onClose }: { onBack: () => void; onClose:
       .reverse();
   }, [transactions]);
 
-  const hasEnoughData = monthsWithData.length >= 2;
+  // Ensure synthetic previous month exists for demo/first-use
+  useMemo(() => {
+    const now = new Date();
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+    const snapshots = JSON.parse(localStorage.getItem('jfb_month_snapshots') || '{}');
+    if (!snapshots[prevKey]) {
+      // Create synthetic snapshot using budget amounts (assume full budget spent)
+      const budgetRaw = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
+      const cats = ((budgetRaw.categories || []) as any[]).filter((c: any) => c.type === 'expense');
+      if (cats.length > 0) {
+        snapshots[prevKey] = {
+          month: prevKey,
+          income: budgetRaw.config?.monthlyIncome || 0,
+          categories: cats.map((c: any) => ({
+            id: c.id, name: c.name, budget: c.monthlyBudget || 0, spent: c.monthlyBudget || 0,
+          })),
+          totalSpent: cats.reduce((s: number, c: any) => s + (c.monthlyBudget || 0), 0),
+          timestamp: Date.now(),
+        };
+        localStorage.setItem('jfb_month_snapshots', JSON.stringify(snapshots));
+      }
+    }
+  }, []);
 
-  const [refIdx, setRefIdx] = useState(Math.min(1, monthsWithData.length - 1));
-  const refMonth = monthsWithData[refIdx] || '';
-  const currentMonth = monthsWithData[0] || '';
+  const hasEnoughData = monthsWithData.length >= 2 || (() => {
+    // Re-check with synthetic data
+    const snapshots = JSON.parse(localStorage.getItem('jfb_month_snapshots') || '{}');
+    return Object.keys(snapshots).length >= 2;
+  })();
+
+  // Build months list from snapshots if transactions don't have enough
+  const effectiveMonths = useMemo(() => {
+    if (monthsWithData.length >= 2) return monthsWithData;
+    const snapshots = JSON.parse(localStorage.getItem('jfb_month_snapshots') || '{}');
+    const snapshotMonths = Object.keys(snapshots).sort().reverse();
+    // Merge with transaction months
+    const all = new Set([...monthsWithData, ...snapshotMonths]);
+    return Array.from(all).sort().reverse();
+  }, [monthsWithData]);
+
+  const [refIdx, setRefIdx] = useState(Math.min(1, effectiveMonths.length - 1));
+  const refMonth = effectiveMonths[refIdx] || '';
+  const currentMonth = effectiveMonths[0] || '';
 
   const isPartialMonth = useMemo(() => {
     if (!currentMonth) return false;
@@ -226,6 +265,17 @@ function MonthVsMonthContent({ onBack, onClose }: { onBack: () => void; onClose:
       spending[t.categoryId] = (spending[t.categoryId] || 0) + t.amount;
       total += t.amount;
     });
+    // If no transaction data, try snapshot
+    if (total === 0) {
+      const snapshots = JSON.parse(localStorage.getItem('jfb_month_snapshots') || '{}');
+      const snap = snapshots[monthKey];
+      if (snap && snap.categories) {
+        snap.categories.forEach((c: any) => {
+          spending[c.id] = c.spent || 0;
+          total += c.spent || 0;
+        });
+      }
+    }
     return { spending, total };
   }, [transactions]);
 
@@ -261,9 +311,9 @@ function MonthVsMonthContent({ onBack, onClose }: { onBack: () => void; onClose:
           {/* Month selector — only months with data */}
           <div className="flex items-center justify-center gap-3 mb-4">
             <button
-              onClick={() => setRefIdx(prev => Math.min(prev + 1, monthsWithData.length - 1))}
-              disabled={refIdx >= monthsWithData.length - 1}
-              style={{ opacity: refIdx >= monthsWithData.length - 1 ? 0.2 : 1 }}
+              onClick={() => setRefIdx(prev => Math.min(prev + 1, effectiveMonths.length - 1))}
+              disabled={refIdx >= effectiveMonths.length - 1}
+              style={{ opacity: refIdx >= effectiveMonths.length - 1 ? 0.2 : 1 }}
             >
               <ChevronLeft size={18} style={{ color: 'rgba(255,255,255,0.3)' }} />
             </button>
