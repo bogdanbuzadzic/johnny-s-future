@@ -86,11 +86,12 @@ function readBudgetForTerrain(): BudgetTerrainData {
     const savings = Number(config.monthlySavingsTarget) || 0;
     const flexBudget = mi - totalFixed - savings;
 
+    const billDays = [1, 15, 28, 28, 5, 10];
     const bills: BillEvent[] = fixedCats.map((c: any, i: number) => ({
       name: c.name,
       amount: Number(c.monthlyBudget) || 0,
       icon: Home,
-      date: new Date(currentYear, currentMonth, Math.min(3 + i * 4, 28)),
+      date: new Date(currentYear, currentMonth, billDays[i % billDays.length]),
     }));
 
     const incomeEvents: IncomeEvent[] = [
