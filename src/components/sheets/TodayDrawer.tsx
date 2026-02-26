@@ -180,32 +180,33 @@ function generateForkPoints(
   dailySpend: number,
   bills: Array<{ day: number; amount: number }>,
 ): TerrainPoint[] {
+  if (basePoints.length === 0) return [];
+  
   const modifiedIncome = originalIncome * forkCfg.incomeMultiplier + forkCfg.extraMonthlyIncome;
   const extraDaily = forkCfg.extraMonthlyExpense / 30.4;
   const modifiedDailySpend = dailySpend + extraDaily;
-  const daysInMonth = getDaysInMonth(new Date());
 
-  // Rebuild cash flow with modified params
-  const startDate = basePoints[0]?.date || new Date();
-  let bal = basePoints[0]?.balance || 0;
-
+  // Start fresh: day 1 balance = modified salary (not base balance)
+  let bal = modifiedIncome;
+  
   // Apply one-time expense immediately
   bal -= forkCfg.oneTimeExpense;
 
   const result: TerrainPoint[] = [];
+  
   for (let i = 0; i < basePoints.length; i++) {
     const bp = basePoints[i];
     const dom = bp.date.getDate();
     const monthsSinceStart = Math.floor(i / 30);
     const withinDuration = forkCfg.durationMonths === 0 || monthsSinceStart < forkCfg.durationMonths;
-
+    
     if (i === 0) {
       result.push({ ...bp, balance: Math.round(bal) });
       continue;
     }
 
-    // Salary on 1st
-    if (dom === 1) {
+    // Salary on 1st of each NEW month
+    if (dom === 1 && i > 0) {
       const inc = withinDuration ? modifiedIncome : originalIncome;
       bal += inc;
     }
@@ -214,7 +215,7 @@ function generateForkPoints(
     const dueBills = bills.filter(b => b.day === dom);
     dueBills.forEach(b => { bal -= b.amount; });
 
-    // Daily spend
+    // Daily spend (modified during scenario, original after)
     bal -= withinDuration ? modifiedDailySpend : dailySpend;
 
     result.push({ ...bp, balance: Math.round(bal) });
@@ -301,6 +302,13 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
   const [activeScenarios, setActiveScenarios] = useState<ActiveScenario[]>([]);
   const [showPrepared, setShowPrepared] = useState(false);
 
+  // Auto-switch to 3M when scenarios are active so salary spike differences are visible
+  useEffect(() => {
+    if (activeScenarios.length > 0 && timeRange === '1M') {
+      setTimeRange('3M');
+    }
+  }, [activeScenarios.length]);
+
   // Custom events for direct terrain editing
   const [customEvents, setCustomEvents] = useState<CustomEvent[]>(() => readCustomEvents());
   const [eventPicker, setEventPicker] = useState<{ x: number; y: number; dayIdx: number } | null>(null);
@@ -373,8 +381,10 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
   const bills = useMemo(() => {
     if (!budgetData) return [];
     const fixedCats = budgetData.categories.filter(c => c.type === 'fixed');
+    // Cluster bills at realistic dates: rent on 1st, utilities mid-month, others end of month
+    const billDays = [1, 15, 28, 28, 5, 10];
     return fixedCats.map((c, i) => ({
-      day: Math.min(3 + i * 4, 28),
+      day: billDays[i % billDays.length],
       icon: c.icon || 'Home',
       label: c.name,
       amount: c.monthlyBudget,

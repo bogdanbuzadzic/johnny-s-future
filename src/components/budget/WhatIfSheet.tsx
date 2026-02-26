@@ -634,9 +634,8 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
                 height: 220,
                 marginLeft: -20,
                 marginRight: -20,
+                width: 'calc(100% + 40px)',
                 marginBottom: 12,
-                background: 'rgba(255,255,255,0.03)',
-                borderRadius: 16,
                 overflow: 'hidden',
               }}>
                 {renderFullChart(stressData.base, stressData.scenario, {
@@ -716,9 +715,8 @@ export function WhatIfSheet({ open, onClose }: WhatIfSheetProps) {
                   height: 220,
                   marginLeft: -20,
                   marginRight: -20,
+                  width: 'calc(100% + 40px)',
                   marginBottom: 12,
-                  background: 'rgba(255,255,255,0.03)',
-                  borderRadius: 16,
                   overflow: 'hidden',
                 }}>
                   {renderFullChart(lifeData.baseLine, lifeData.scenarioLine, {

@@ -75,7 +75,8 @@ export function CompareSheet({ open, onClose }: CompareSheetProps) {
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
             className="fixed bottom-0 left-0 right-0 z-50 overflow-y-auto"
             style={{
-              maxHeight: mode === 'menu' ? '50vh' : '90vh',
+              maxHeight: mode === 'menu' ? '50vh' : '85vh',
+              height: 'auto',
               background: 'rgba(15, 12, 24, 0.96)',
               backdropFilter: 'blur(24px)',
               WebkitBackdropFilter: 'blur(24px)',
@@ -346,7 +347,9 @@ function MonthVsMonthContent({ onBack, onClose }: { onBack: () => void; onClose:
 
           {/* Category comparison with both amounts shown */}
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '4px 14px' }}>
-            {expenseCategories.map((cat, i) => {
+            {expenseCategories
+              .filter(cat => !['Personal', 'Other', 'other', 'personal'].includes(cat.name))
+              .map((cat, i) => {
               const ref = refData.spending[cat.id] || 0;
               const cur = currentData.spending[cat.id] || 0;
               // Skip categories with zero in BOTH months
