@@ -50,6 +50,7 @@ export interface TerrainForkData {
 interface TodayDrawerProps {
   open: boolean;
   onClose: () => void;
+  autoOpenWhatIf?: boolean;
 }
 
 // ── Persona tips ──
@@ -73,9 +74,12 @@ function generateCashFlowPoints(
   const daysInCurrentMonth = getDaysInMonth(now);
 
   const totalMonths = range === '1M' ? 1 : range === '3M' ? 3 : range === '6M' ? 6 : 12;
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Start 10 days before current month so the salary spike on the 1st is always visible
+  const startDate = range === '1M'
+    ? new Date(now.getFullYear(), now.getMonth() - 1, 21)
+    : new Date(now.getFullYear(), now.getMonth(), 1);
   const endDate = range === '1M'
-    ? new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    ? new Date(now.getFullYear(), now.getMonth() + 1, 10) // extend 10 days into next month
     : addMonths(startDate, totalMonths);
   const totalDays = differenceInDays(endDate, startDate) + 1;
 
@@ -290,7 +294,7 @@ function buildFillPath(points: TerrainPoint[], width: number, height: number, pa
 }
 
 // ── Main Component ──
-function DrawerContent({ onClose }: { onClose: () => void }) {
+function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoOpenWhatIf?: boolean }) {
   const { planVsActualMode, setPlanVsActualMode } = useApp();
   const [timeRange, setTimeRange] = useState<TimeRange>('1M');
   const [tip] = useState(getPersonaTip);
@@ -298,7 +302,7 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
   const [chartWidth, setChartWidth] = useState(320);
 
   // What If panel state
-  const [showWhatIfPanel, setShowWhatIfPanel] = useState(false);
+  const [showWhatIfPanel, setShowWhatIfPanel] = useState(autoOpenWhatIf || false);
   const [activeScenarios, setActiveScenarios] = useState<ActiveScenario[]>([]);
   const [showPrepared, setShowPrepared] = useState(false);
 
@@ -426,7 +430,7 @@ function DrawerContent({ onClose }: { onClose: () => void }) {
     if (forkData?.active) bals.push(...forkData.points.map(p => p.balance));
     return bals;
   }, [terrainPoints, forkData]);
-  const maxBal = Math.max(...allBalances, 1);
+  const maxBal = Math.max(...allBalances, computed.monthlyIncome * 1.2, 1);
   const minBal = Math.min(...allBalances, 0);
 
   const mapX = useCallback((i: number) => (i / Math.max(terrainPoints.length - 1, 1)) * chartWidth, [terrainPoints.length, chartWidth]);
@@ -1299,10 +1303,10 @@ export function activateTerrainFork(_scenario: {
 }
 
 // ── Wrapper ──
-export function TodayDrawer({ open, onClose }: TodayDrawerProps) {
+export function TodayDrawer({ open, onClose, autoOpenWhatIf }: TodayDrawerProps) {
   return (
     <AnimatePresence>
-      {open && <DrawerContent onClose={onClose} />}
+      {open && <DrawerContent onClose={onClose} autoOpenWhatIf={autoOpenWhatIf} />}
     </AnimatePresence>
   );
 }
