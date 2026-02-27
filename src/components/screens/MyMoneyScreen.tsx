@@ -43,11 +43,11 @@ const iconTintMap: Record<string, string> = {
 };
 
 const fixedColors: Record<string, string> = {
-  'Rent': '#5D6D7E', 'Utilities': '#2E86C1', 'Transport': '#34495E',
-  'Subscriptions': '#6C3483', 'Insurance': '#1A5276', 'Tax': '#1A5276',
-  'Childcare': '#5D6D7E', 'Other Fixed': '#566573', 'Car': '#34495E',
+  'Rent': '#607D8B', 'Utilities': '#5C9DC4', 'Transport': '#78909C',
+  'Subscriptions': '#9575CD', 'Insurance': '#7986CB', 'Tax': '#7986CB',
+  'Childcare': '#90A4AE', 'Other Fixed': '#90A4AE', 'Car': '#78909C',
 };
-const fixedColorFallbacks = ['#5D6D7E', '#2E86C1', '#34495E', '#6C3483', '#1A5276'];
+const fixedColorFallbacks = ['#607D8B', '#5C9DC4', '#78909C', '#9575CD', '#7986CB'];
 
 const goalIconColors: Record<string, string> = {
   ShieldCheck: '#8B5CF6', Plane: '#F39C12', Car: '#3498DB',
@@ -86,12 +86,12 @@ function getSpans(amount: number, income: number) {
 }
 
 function getSubSpans(amount: number, parentTotal: number) {
-  if (parentTotal <= 0) return { col: 1, row: 1, minH: 60 };
+  if (parentTotal <= 0) return { col: 1, row: 1, minH: 70 };
   const ratio = amount / parentTotal;
-  const minH = Math.max(60, Math.round(ratio * 200));
-  if (ratio >= 0.45) return { col: 3, row: 2, minH };
-  if (ratio >= 0.25) return { col: 2, row: 1, minH };
-  return { col: 1, row: 1, minH };
+  const minH = Math.max(70, Math.round(ratio * 220));
+  if (ratio >= 0.40) return { col: 3, row: 2, minH };
+  if (ratio >= 0.20) return { col: 2, row: 1, minH };
+  return { col: 1, row: 1, minH: 70 };
 }
 
 // Goal progress bar colors (contrasting on pink)
@@ -614,8 +614,8 @@ function MyMoneyContent() {
         {/* Sub-grid */}
         <div className="relative z-10" style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gridAutoRows: 'minmax(56px, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+          gridAutoRows: 'minmax(70px, auto)',
           gap: 6,
           gridAutoFlow: 'dense',
         }}>
@@ -749,9 +749,11 @@ function MyMoneyContent() {
           })}
 
           {/* + Add block */}
-          <AddBlockInline parentType="spending" onAdd={(item) => {
-            addCategory({ name: item.name, icon: item.icon, monthlyBudget: item.monthlyBudget, type: 'expense' });
-          }} />
+          <div style={{ gridColumn: '1 / -1' }}>
+            <AddBlockInline parentType="spending" onAdd={(item) => {
+              addCategory({ name: item.name, icon: item.icon, monthlyBudget: item.monthlyBudget, type: 'expense' });
+            }} />
+          </div>
         </div>
       </div>
     );
@@ -761,8 +763,8 @@ function MyMoneyContent() {
   const renderFixedChildren = () => (
     <div className="relative z-10" style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(3, 1fr)',
-      gridAutoRows: 'minmax(56px, 1fr)',
+      gridTemplateColumns: fixedCategories.length <= 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+      gridAutoRows: 'minmax(70px, auto)',
       gap: 6,
       gridAutoFlow: 'dense',
     }}>
@@ -789,9 +791,11 @@ function MyMoneyContent() {
       })}
 
       {/* + Add block */}
-      <AddBlockInline parentType="fixed" onAdd={(item) => {
-        addCategory({ name: item.name, icon: item.icon, monthlyBudget: item.monthlyBudget, type: 'fixed' });
-      }} />
+      <div style={{ gridColumn: '1 / -1' }}>
+        <AddBlockInline parentType="fixed" onAdd={(item) => {
+          addCategory({ name: item.name, icon: item.icon, monthlyBudget: item.monthlyBudget, type: 'fixed' });
+        }} />
+      </div>
     </div>
   );
 
@@ -803,19 +807,30 @@ function MyMoneyContent() {
         const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
         return (
           <div key={goal.id} className="rounded-[10px] p-2.5" style={{
-            background: 'rgba(233,30,99,0.1)',
+            background: 'linear-gradient(135deg, rgba(233,30,99,0.15) 0%, rgba(139,92,246,0.1) 100%)',
             border: '1px solid rgba(233,30,99,0.2)',
+            borderRadius: 12,
+            position: 'relative',
+            overflow: 'hidden',
           }}>
-            <div className="flex items-center gap-2 mb-1.5">
-              <GoalIcon size={16} style={{ color: 'rgba(255,255,255,0.8)' }} strokeWidth={1.5} />
-              <span style={{ fontSize: 12, color: 'white', fontWeight: 700, flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{goal.name}</span>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.60)' }}>€{goal.saved}/€{goal.target}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }}>
-                <div style={{ width: `${pctFunded}%`, height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, #E91E63, #FF6B9D)' }} />
+            {/* Decorative background orb */}
+            <div style={{
+              position: 'absolute', right: -20, top: -20, width: 80, height: 80, borderRadius: '50%',
+              background: `radial-gradient(circle, ${goal._color}30 0%, transparent 70%)`,
+              pointerEvents: 'none',
+            }} />
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-1.5">
+                <GoalIcon size={16} style={{ color: 'rgba(255,255,255,0.8)' }} strokeWidth={1.5} />
+                <span style={{ fontSize: 12, color: 'white', fontWeight: 700, flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{goal.name}</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.60)' }}>€{goal.saved}/€{goal.target}</span>
               </div>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.50)', minWidth: 28, textAlign: 'right' }}>{Math.round(pctFunded)}%</span>
+              <div className="flex items-center gap-2">
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }}>
+                  <div style={{ width: `${pctFunded}%`, height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, #E91E63, #FF6B9D)' }} />
+                </div>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.50)', minWidth: 28, textAlign: 'right' }}>{Math.round(pctFunded)}%</span>
+              </div>
             </div>
           </div>
         );
@@ -837,20 +852,30 @@ function MyMoneyContent() {
     return (
       <div className="relative z-10">
         <div className="rounded-[10px] p-4 flex flex-col items-center" style={{
-          background: 'rgba(41,128,185,0.1)',
+          background: 'linear-gradient(150deg, rgba(41,128,185,0.15) 0%, rgba(52,199,89,0.08) 100%)',
           border: '1px solid rgba(41,128,185,0.2)',
+          borderRadius: 14,
+          position: 'relative',
+          overflow: 'hidden',
         }}>
+          {/* Decorative background wave */}
+          <div style={{
+            position: 'absolute', bottom: -30, left: -30, width: 120, height: 120, borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(41,128,185,0.15) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }} />
+          <div className="relative z-10 flex flex-col items-center w-full">
           <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2" style={{ background: 'rgba(255,255,255,0.15)' }}>
             <PiggyBank size={18} className="text-white" />
           </div>
-          <span style={{ fontSize: 16, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>€{Math.round(savingsTarget * mult)}/mo</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.3)', letterSpacing: '-0.5px' }}>€{Math.round(savingsTarget * mult)}<span style={{ fontSize: 14, fontWeight: 500, opacity: 0.6 }}>/mo</span></span>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.60)', marginTop: 2 }}>{pctOfIncome}% of income</span>
           {pctOfIncome < targetPct && (
             <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)', marginTop: 2 }}>Experts recommend {targetPct}%</span>
           )}
           {/* Progress bar: current % vs target */}
           <div className="w-full mt-3" style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }}>
-            <div style={{ width: `${barFillPct}%`, height: '100%', borderRadius: 3, background: '#2980B9', transition: 'width 0.4s ease' }} />
+            <div style={{ width: `${barFillPct}%`, height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, #2980B9, #34C759)', transition: 'width 0.4s ease', boxShadow: barFillPct > 70 ? '0 0 8px rgba(52,199,89,0.4)' : undefined }} />
           </div>
           <div className="flex justify-between w-full mt-1">
             <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.40)' }}>{pctOfIncome}%</span>
@@ -869,6 +894,7 @@ function MyMoneyContent() {
               </div>
             </motion.div>
           )}
+          </div>
         </div>
       </div>
     );
@@ -878,7 +904,7 @@ function MyMoneyContent() {
   // Parent accent colors for header text
   const parentHeaderColors: Record<string, string> = {
     spending: '#8E44AD',
-    fixed: '#8899AA',
+    fixed: '#B0BEC5',
     goals: '#E91E63',
     savings: '#2980B9',
   };
@@ -900,7 +926,11 @@ function MyMoneyContent() {
         style={{
           gridColumn: `span ${spans.col}`,
           gridRow: `span ${spans.row}`,
-          background: 'rgba(255,255,255,0.06)',
+          background: id === 'goals'
+            ? 'linear-gradient(160deg, rgba(233,30,99,0.08) 0%, rgba(139,92,246,0.06) 50%, rgba(255,255,255,0.04) 100%)'
+            : id === 'savings'
+              ? 'linear-gradient(160deg, rgba(41,128,185,0.08) 0%, rgba(52,199,89,0.06) 50%, rgba(255,255,255,0.04) 100%)'
+              : 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(4px)',
           WebkitBackdropFilter: 'blur(4px)',
           border: isDragging && dragSource?.id !== id && id !== 'fixed' && dragSource?.type !== 'fixed'
