@@ -77,15 +77,15 @@ export function CompareSheet({ open, onClose }: CompareSheetProps) {
             style={{
               maxHeight: mode === 'menu' ? '50vh' : '85vh',
               height: 'auto',
-              background: 'rgba(15, 12, 24, 0.96)',
+              background: 'linear-gradient(180deg, #1A1525 0%, #2D1F3D 100%)',
               backdropFilter: 'blur(24px)',
               WebkitBackdropFilter: 'blur(24px)',
               borderRadius: '24px 24px 0 0',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
             }}
           >
             <div className="flex justify-center pt-3 pb-2">
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.12)' }} />
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }} />
             </div>
 
             {mode === 'menu' && (
