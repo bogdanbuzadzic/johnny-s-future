@@ -155,8 +155,9 @@ function buildTerrainData(
   if (monthlyIncome <= 0) return [];
 
   const now = new Date();
-  const monthStart = startOfMonth(now);
-  const totalDays = 60; // ~2 months for clear sawtooth pattern
+  // Start 10 days before month start so first salary spike is always visible
+  const monthStart = addDays(startOfMonth(now), -10);
+  const totalDays = 70; // ~2.3 months: ensures two full salary spikes visible
 
   // Map bills by day-of-month (they recur monthly)
   const billsByDom = new Map<number, BillEvent[]>();

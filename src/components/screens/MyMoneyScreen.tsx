@@ -17,7 +17,7 @@ import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { useApp, Goal } from '@/context/AppContext';
 import { AddTransactionSheet } from '@/components/budget/AddTransactionSheet';
 import { CanIAffordSheet } from '@/components/budget/CanIAffordSheet';
-import { WhatIfSheet } from '@/components/budget/WhatIfSheet';
+import { TodayDrawer } from '@/components/sheets/TodayDrawer';
 import { CompareSheet } from '@/components/budget/CompareSheet';
 import { tipsByPersona, getImpactText, getAffordText } from '@/lib/personaMessaging';
 import { getPersona } from '@/lib/profileData';
@@ -1160,8 +1160,8 @@ function MyMoneyContent() {
         </div>
       </div>
 
-      {/* What If Sheet */}
-      <WhatIfSheet open={showWhatIf} onClose={() => setShowWhatIf(false)} />
+      {/* What If -- reuse the Home terrain drawer */}
+      <TodayDrawer open={showWhatIf} onClose={() => setShowWhatIf(false)} autoOpenWhatIf={true} />
 
       {/* Compare Sheet */}
       <CompareSheet open={showCompare} onClose={() => setShowCompare(false)} />
