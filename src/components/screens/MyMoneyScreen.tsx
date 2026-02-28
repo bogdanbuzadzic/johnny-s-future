@@ -116,8 +116,8 @@ function AddBlockInline({ parentType, onAdd }: { parentType: 'spending' | 'fixed
   if (!isOpen) {
     return (
       <div onClick={() => setIsOpen(true)} className="rounded-xl flex items-center justify-center cursor-pointer"
-        style={{ border: '1.5px dashed rgba(255,255,255,0.2)', borderRadius: 12, minHeight: 60 }}>
-        <Plus size={20} style={{ color: 'rgba(255,255,255,0.3)' }} />
+        style={{ flex: '1 1 100%', border: '1.5px dashed rgba(255,255,255,0.15)', borderRadius: 10, minHeight: 40, maxHeight: 44 }}>
+        <Plus size={18} style={{ color: 'rgba(255,255,255,0.3)' }} />
       </div>
     );
   }
@@ -585,7 +585,10 @@ function MyMoneyContent() {
 
   // ── Render Spending Parent Internals ──
   const renderSpendingChildren = () => {
-    const visibleCats = expenseCategories.filter(c => Number(c.monthlyBudget) > 0);
+    const visibleCats = expenseCategories.filter(c => 
+      Number(c.monthlyBudget) > 0 && 
+      !['Other', 'other', 'Personal', 'personal'].includes(c.name)
+    );
     const spendingFillPct = totalSpendingBudget > 0 ? Math.min((flexSpent / totalSpendingBudget) * 100, 100) : 0;
 
     // Subscription block
@@ -738,7 +741,7 @@ function MyMoneyContent() {
                   <div className="w-6 h-6 rounded-full flex items-center justify-center mb-1" style={{ background: 'rgba(255,255,255,0.15)' }}>
                     <CatIcon size={14} className="text-white" />
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'white', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{cat.name}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'white', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{cat.name === 'Personal' ? 'Lifestyle' : cat.name}</span>
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.80)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
                     €{Math.round(spent)} / €{Math.round(budget * mult)}
                   </span>
@@ -800,27 +803,35 @@ function MyMoneyContent() {
   // ── Render Goals Parent Internals ──
   const renderGoalsChildren = () => (
     <div className="relative z-10 space-y-2" style={{ position: 'relative' }}>
-      {/* Decorative orb on parent */}
+      {/* Decorative orbs on parent */}
       <div style={{
-        position: 'absolute', right: -30, top: -40, width: 100, height: 100, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)',
-        pointerEvents: 'none',
+        position: 'absolute', right: -30, top: -30, width: 120, height: 120, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 60%)',
+        pointerEvents: 'none', zIndex: 0,
+      }} />
+      <div style={{
+        position: 'absolute', left: -15, bottom: -15, width: 70, height: 70, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(233,30,99,0.25) 0%, transparent 70%)',
+        pointerEvents: 'none', zIndex: 0,
       }} />
       {sortedGoals.slice(0, 4).map(goal => {
         const GoalIcon = getIcon(goal.icon);
         const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
         return (
-          <div key={goal.id} className="rounded-[10px] p-2.5" style={{
-            background: 'linear-gradient(135deg, rgba(233,30,99,0.2) 0%, rgba(139,92,246,0.1) 100%)',
-            border: '1px solid rgba(255,255,255,0.12)',
+          <div key={goal.id} className="rounded-[10px]" style={{
+            background: 'linear-gradient(135deg, rgba(30, 10, 25, 0.7) 0%, rgba(50, 15, 40, 0.5) 100%)',
+            border: '1px solid rgba(233,30,99,0.25)',
             borderRadius: 12,
+            padding: '10px 12px',
+            marginBottom: 6,
             position: 'relative',
             overflow: 'hidden',
+            backdropFilter: 'blur(8px)',
           }}>
             {/* Decorative orb */}
             <div style={{
-              position: 'absolute', right: -20, top: -20, width: 80, height: 80, borderRadius: '50%',
-              background: `radial-gradient(circle, ${goal._color}30 0%, transparent 70%)`,
+              position: 'absolute', right: -10, top: -10, width: 60, height: 60, borderRadius: '50%',
+              background: `radial-gradient(circle, rgba(233,30,99,0.35) 0%, transparent 70%)`,
               pointerEvents: 'none',
             }} />
             <div className="relative z-10">
@@ -872,38 +883,29 @@ function MyMoneyContent() {
       <div className="relative z-10" style={{ position: 'relative' }}>
         {/* Decorative orbs */}
         <div style={{
-          position: 'absolute', bottom: -30, left: -30, width: 120, height: 120, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(41,128,185,0.15) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-        <div style={{
-          position: 'absolute', right: -20, top: -20, width: 80, height: 80, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(52,199,89,0.12) 0%, transparent 70%)',
-          pointerEvents: 'none',
+          position: 'absolute', bottom: -25, left: -25, width: 100, height: 100, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(52,199,89,0.1) 0%, transparent 60%)',
+          pointerEvents: 'none', zIndex: 0,
         }} />
 
-        <div className="rounded-[14px] p-4 flex flex-col items-center" style={{
+        <div className="rounded-[14px] flex flex-col items-center" style={{
           background: 'rgba(255,255,255,0.06)',
           border: '1px solid rgba(255,255,255,0.08)',
           position: 'relative',
           overflow: 'hidden',
+          padding: '14px 12px',
         }}>
           {/* Progress Ring */}
           <div className="relative flex items-center justify-center mb-2">
             <svg width={ringSize} height={ringSize} style={{ transform: 'rotate(-90deg)' }}>
+              <defs>
+                <linearGradient id="savingsRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#42A5F5" />
+                  <stop offset="100%" stopColor="#66BB6A" />
+                </linearGradient>
+              </defs>
               <circle cx={ringSize / 2} cy={ringSize / 2} r={radius} fill="none"
-                stroke="rgba(255,255,255,0.1)" strokeWidth={strokeWidth} />
-              <circle cx={ringSize / 2} cy={ringSize / 2} r={radius} fill="none"
-                strokeWidth={strokeWidth} strokeLinecap="round"
-                strokeDasharray={circumference} strokeDashoffset={ringOffset}
-                style={{ transition: 'stroke-dashoffset 0.6s ease' }}>
-                <defs>
-                  <linearGradient id="savingsRingGrad" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#2980B9" />
-                    <stop offset="100%" stopColor="#34C759" />
-                  </linearGradient>
-                </defs>
-              </circle>
+                stroke="rgba(255,255,255,0.12)" strokeWidth={strokeWidth} />
               <circle cx={ringSize / 2} cy={ringSize / 2} r={radius} fill="none"
                 stroke="url(#savingsRingGrad)" strokeWidth={strokeWidth} strokeLinecap="round"
                 strokeDasharray={circumference} strokeDashoffset={ringOffset}
@@ -998,7 +1000,7 @@ function MyMoneyContent() {
           WebkitBackdropFilter: (id === 'goals' || id === 'savings') ? undefined : 'blur(4px)',
           border: parentBorder,
           padding: 8,
-          minHeight: 120,
+          minHeight: (id === 'savings' || id === 'fixed') ? undefined : 120,
           transition: 'all 400ms ease',
           transform: isDragging && dragSource?.id === id ? 'scale(1.05)' : undefined,
           zIndex: isDragging && dragSource?.id === id ? 100 : undefined,
