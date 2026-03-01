@@ -767,7 +767,9 @@ function MyMoneyContent() {
     <div className="relative z-10" style={{
       display: 'flex',
       flexWrap: 'wrap' as const,
-      gap: 6,
+      gap: 5,
+      flex: 1,
+      alignContent: 'flex-start',
     }}>
       {sortedFixed.map(cat => {
         const CatIcon = getIcon(cat.icon);
@@ -779,7 +781,7 @@ function MyMoneyContent() {
             background: cat._color,
             border: `1.5px solid rgba(255,255,255,0.15)`,
             boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.12)',
-            minHeight: isLargest ? 80 : 60,
+            minHeight: isLargest ? 70 : 50,
           }}>
             <div className="w-6 h-6 rounded-full flex items-center justify-center mb-1" style={{ background: 'rgba(255,255,255,0.15)' }}>
               <CatIcon size={14} style={{ color: 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
@@ -801,157 +803,178 @@ function MyMoneyContent() {
   );
 
   // ── Render Goals Parent Internals ──
-  const renderGoalsChildren = () => (
-    <div className="relative z-10 space-y-2" style={{ position: 'relative' }}>
-      {/* Decorative orbs on parent */}
-      <div style={{
-        position: 'absolute', right: -30, top: -30, width: 120, height: 120, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 60%)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-      <div style={{
-        position: 'absolute', left: -15, bottom: -15, width: 70, height: 70, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(233,30,99,0.25) 0%, transparent 70%)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-      {sortedGoals.slice(0, 4).map(goal => {
-        const GoalIcon = getIcon(goal.icon);
-        const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
-        return (
-          <div key={goal.id} className="rounded-[10px]" style={{
-            background: 'linear-gradient(135deg, rgba(30, 10, 25, 0.7) 0%, rgba(50, 15, 40, 0.5) 100%)',
-            border: '1px solid rgba(233,30,99,0.25)',
-            borderRadius: 12,
-            padding: '10px 12px',
-            marginBottom: 6,
-            position: 'relative',
-            overflow: 'hidden',
-            backdropFilter: 'blur(8px)',
-          }}>
-            {/* Decorative orb */}
-            <div style={{
-              position: 'absolute', right: -10, top: -10, width: 60, height: 60, borderRadius: '50%',
-              background: `radial-gradient(circle, rgba(233,30,99,0.35) 0%, transparent 70%)`,
-              pointerEvents: 'none',
-            }} />
-            <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-1.5">
-                <div style={{
-                  width: 28, height: 28, borderRadius: 8,
-                  background: 'rgba(255,255,255,0.15)',
-                  backdropFilter: 'blur(4px)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <GoalIcon size={16} style={{ color: 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
-                </div>
-                <span style={{ fontSize: 12, color: 'white', fontWeight: 700, flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{goal.name}</span>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.60)' }}>€{goal.saved}/€{goal.target}</span>
+  const renderGoalsChildren = () => {
+    const maxGoalTarget = Math.max(...sortedGoals.map(g => g.target), 1);
+    return (
+      <div className="relative z-10" style={{ position: 'relative' }}>
+        {/* Decorative orbs on parent */}
+        <div style={{
+          position: 'absolute', right: -30, top: -30, width: 120, height: 120, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 60%)',
+          pointerEvents: 'none', zIndex: 0,
+        }} />
+        <div style={{
+          position: 'absolute', left: -15, bottom: -15, width: 70, height: 70, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(233,30,99,0.25) 0%, transparent 70%)',
+          pointerEvents: 'none', zIndex: 0,
+        }} />
+        {sortedGoals.slice(0, 4).map((goal) => {
+          const GoalIcon = getIcon(goal.icon);
+          const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
+          const cardHeight = Math.max(44, Math.round((goal.target / maxGoalTarget) * 80));
+          const isCompact = cardHeight < 55;
+
+          return (
+            <div key={goal.id} style={{
+              background: 'rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(6px)',
+              borderRadius: 16,
+              padding: isCompact ? '8px 14px' : '10px 14px',
+              marginBottom: 4,
+              minHeight: cardHeight,
+              display: 'flex',
+              flexDirection: isCompact ? 'row' : 'column',
+              alignItems: isCompact ? 'center' : 'stretch',
+              justifyContent: isCompact ? 'flex-start' : 'center',
+              gap: isCompact ? 8 : 0,
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              {/* Icon */}
+              <div style={{
+                width: isCompact ? 24 : 28, height: isCompact ? 24 : 28,
+                borderRadius: isCompact ? 6 : 8,
+                background: 'rgba(255,255,255,0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <GoalIcon size={isCompact ? 12 : 16} style={{ color: 'rgba(255,255,255,0.8)' }} />
               </div>
-              <div className="flex items-center gap-2">
-                <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }}>
-                  <div style={{ width: `${pctFunded}%`, height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, #E91E63, #FF6B9D)' }} />
-                </div>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.50)', minWidth: 28, textAlign: 'right' }}>{Math.round(pctFunded)}%</span>
-              </div>
+
+              {isCompact ? (
+                <>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'white', flex: 1 }}>{goal.name}</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>
+                    €{goal.saved.toLocaleString()}/€{goal.target >= 1000 ? `${Math.round(goal.target / 1000)}k` : goal.target}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'white', flex: 1 }}>{goal.name}</span>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>
+                      €{goal.saved.toLocaleString()}/€{goal.target >= 1000 ? `${Math.round(goal.target / 1000)}k` : goal.target}
+                    </span>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }}>
+                    <div style={{
+                      width: `${pctFunded}%`, height: '100%', borderRadius: 3,
+                      background: 'linear-gradient(90deg, #FF80AB, #F48FB1)',
+                    }} />
+                  </div>
+                  <div style={{ textAlign: 'right', marginTop: 2 }}>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>{Math.round(pctFunded)}%</span>
+                  </div>
+                </>
+              )}
             </div>
-          </div>
-        );
-      })}
-      {sortedGoals.length > 4 && (
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)' }}>+{sortedGoals.length - 4} more</span>
-      )}
-      {sortedGoals.length === 0 && (
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)' }}>Tap to add goals</span>
-      )}
-    </div>
-  );
+          );
+        })}
+        {sortedGoals.length > 4 && (
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)' }}>+{sortedGoals.length - 4} more</span>
+        )}
+        {sortedGoals.length === 0 && (
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)' }}>Tap to add goals</span>
+        )}
+      </div>
+    );
+  };
 
   // ── Render Savings Parent Internals ──
   const renderSavingsChildren = () => {
     const pctOfIncome = totalIncome > 0 ? Math.round((savingsTarget / totalIncome) * 100) : 0;
     const targetPct = 20;
-    const barFillPct = Math.min((pctOfIncome / targetPct) * 100, 100);
-
-    // SVG ring calculations
-    const ringSize = 90;
-    const strokeWidth = 7;
-    const radius = (ringSize - strokeWidth) / 2;
-    const circumference = 2 * Math.PI * radius;
-    const ringOffset = circumference - (barFillPct / 100) * circumference;
+    const fillPct = Math.min((pctOfIncome / targetPct) * 100, 100);
+    const ringSize = 100;
+    const strokeW = 8;
+    const r = (ringSize - strokeW) / 2;
+    const circ = 2 * Math.PI * r;
+    const offset = circ - (fillPct / 100) * circ;
 
     return (
-      <div className="relative z-10" style={{ position: 'relative' }}>
-        {/* Decorative orbs */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 0', position: 'relative' }}>
+        {/* Decorative orb */}
         <div style={{
-          position: 'absolute', bottom: -25, left: -25, width: 100, height: 100, borderRadius: '50%',
+          position: 'absolute', left: -25, bottom: -25, width: 100, height: 100, borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(52,199,89,0.1) 0%, transparent 60%)',
           pointerEvents: 'none', zIndex: 0,
         }} />
 
-        <div className="rounded-[14px] flex flex-col items-center" style={{
-          background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          position: 'relative',
-          overflow: 'hidden',
-          padding: '14px 12px',
-        }}>
-          {/* Progress Ring */}
-          <div className="relative flex items-center justify-center mb-2">
-            <svg width={ringSize} height={ringSize} style={{ transform: 'rotate(-90deg)' }}>
-              <defs>
-                <linearGradient id="savingsRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#42A5F5" />
-                  <stop offset="100%" stopColor="#66BB6A" />
-                </linearGradient>
-              </defs>
-              <circle cx={ringSize / 2} cy={ringSize / 2} r={radius} fill="none"
-                stroke="rgba(255,255,255,0.12)" strokeWidth={strokeWidth} />
-              <circle cx={ringSize / 2} cy={ringSize / 2} r={radius} fill="none"
-                stroke="url(#savingsRingGrad)" strokeWidth={strokeWidth} strokeLinecap="round"
-                strokeDasharray={circumference} strokeDashoffset={ringOffset}
-                style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ transform: 'none' }}>
-              <span style={{ fontSize: 18, fontWeight: 800, color: 'white', letterSpacing: '-0.5px' }}>
-                €{Math.round(savingsTarget * mult)}
-              </span>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>/mo</span>
-            </div>
+        {/* Progress Ring */}
+        <div style={{ position: 'relative', width: ringSize, height: ringSize, marginBottom: 10 }}>
+          <svg width={ringSize} height={ringSize} style={{ transform: 'rotate(-90deg)' }}>
+            <defs>
+              <linearGradient id="savRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#29B6F6" />
+                <stop offset="50%" stopColor="#26A69A" />
+                <stop offset="100%" stopColor="#66BB6A" />
+              </linearGradient>
+            </defs>
+            <circle cx={ringSize / 2} cy={ringSize / 2} r={r}
+              fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeW} />
+            <circle cx={ringSize / 2} cy={ringSize / 2} r={r}
+              fill="none" stroke="url(#savRingGrad)" strokeWidth={strokeW}
+              strokeLinecap="round"
+              strokeDasharray={circ} strokeDashoffset={offset}
+              style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
+          </svg>
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color: 'white' }}>€{Math.round(savingsTarget * mult)}</span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>/mo</span>
           </div>
-
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{pctOfIncome}% of income</span>
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>Target: {targetPct}%</span>
-
-          {/* Progress bar */}
-          <div className="w-full mt-3" style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.1)' }}>
-            <div style={{
-              width: `${barFillPct}%`, height: '100%', borderRadius: 3,
-              background: 'linear-gradient(90deg, #2980B9, #34C759)',
-              boxShadow: barFillPct > 70 ? '0 0 10px rgba(52,199,89,0.4)' : undefined,
-              transition: 'width 0.4s ease',
-            }} />
-          </div>
-
-          <div className="flex justify-between w-full mt-1">
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>{pctOfIncome}%</span>
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>{targetPct}%</span>
-          </div>
-
-          {/* Expandable slider */}
-          {savingsExpanded && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="w-full mt-2">
-              <input type="range" min={0} max={Math.round(savingsTarget + Math.max(freeAmount, 0))}
-                value={Math.round(savingsSlider)}
-                onChange={e => setSavingsSlider(Number(e.target.value))}
-                className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                style={{ background: `linear-gradient(to right, rgba(41,128,185,0.5) ${(savingsSlider / Math.max(savingsTarget + Math.max(freeAmount, 0), 1)) * 100}%, rgba(255,255,255,0.10) 0)` }}
-              />
-              <div className="text-[11px] mt-1 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                €{Math.round(savingsSlider)}/mo
-              </div>
-            </motion.div>
-          )}
         </div>
+
+        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
+          {pctOfIncome}% of income
+        </span>
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+          Target: {targetPct}%
+        </span>
+
+        {/* Bottom progress bar */}
+        <div style={{
+          width: '100%', height: 6, borderRadius: 3, marginTop: 12,
+          background: 'rgba(255,255,255,0.08)',
+        }}>
+          <div style={{
+            width: `${fillPct}%`, height: '100%', borderRadius: 3,
+            background: 'linear-gradient(90deg, #29B6F6, #66BB6A)',
+            boxShadow: fillPct > 50 ? '0 0 8px rgba(102,187,106,0.4)' : undefined,
+            transition: 'width 0.4s ease',
+          }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginTop: 3 }}>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>{pctOfIncome}%</span>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>{targetPct}%</span>
+        </div>
+
+        {/* Expandable slider */}
+        {savingsExpanded && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="w-full mt-2">
+            <input type="range" min={0} max={Math.round(savingsTarget + Math.max(freeAmount, 0))}
+              value={Math.round(savingsSlider)}
+              onChange={e => setSavingsSlider(Number(e.target.value))}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+              style={{ background: `linear-gradient(to right, rgba(41,128,185,0.5) ${(savingsSlider / Math.max(savingsTarget + Math.max(freeAmount, 0), 1)) * 100}%, rgba(255,255,255,0.10) 0)` }}
+            />
+            <div className="text-[11px] mt-1 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              €{Math.round(savingsSlider)}/mo
+            </div>
+          </motion.div>
+        )}
       </div>
     );
   };
@@ -962,7 +985,7 @@ function MyMoneyContent() {
     spending: '#8E44AD',
     fixed: '#B0BEC5',
     goals: 'rgba(255,255,255,0.95)',
-    savings: 'rgba(255,255,255,0.95)',
+    savings: '#29B6F6',
   };
 
   const renderParentBlock = (block: typeof parentBlocks[0]) => {
@@ -971,21 +994,40 @@ function MyMoneyContent() {
     const displayAmount = Math.round(amount * mult);
     const isGhosting = false;
     const headerColor = parentHeaderColors[id] || color;
-    const flexBasis = id === 'spending' ? '52%' : id === 'fixed' ? '44%' : '48%';
+
+    // Proportional sizing
+    const spendingAmt = parentBlocks.find(b => b.id === 'spending')?.amount || 0;
+    const fixedAmt = parentBlocks.find(b => b.id === 'fixed')?.amount || 0;
+    const goalsAmt = parentBlocks.find(b => b.id === 'goals')?.amount || 0;
+    const savingsAmt = parentBlocks.find(b => b.id === 'savings')?.amount || 0;
+    const topTotal = spendingAmt + fixedAmt;
+    const spendingPct = topTotal > 0 ? Math.round((spendingAmt / topTotal) * 96) : 50;
+    const fixedPct = 96 - spendingPct;
+    const bottomTotal = goalsAmt + savingsAmt;
+    const goalsPct = bottomTotal > 0 ? Math.round((goalsAmt / bottomTotal) * 96) : 50;
+    const savingsPct = 96 - goalsPct;
+
+    const flexBasis = id === 'spending' ? `${spendingPct}%`
+      : id === 'fixed' ? `${fixedPct}%`
+      : id === 'goals' ? `${goalsPct}%`
+      : id === 'savings' ? `${savingsPct}%`
+      : '48%';
 
     const parentBg = id === 'goals'
       ? 'linear-gradient(145deg, #880E4F 0%, #AD1457 40%, #C2185B 100%)'
       : id === 'savings'
-        ? 'linear-gradient(145deg, #0D47A1 0%, #1565C0 40%, #1976D2 100%)'
+        ? 'linear-gradient(160deg, #0A1628 0%, #0F1D30 50%, #0D1B2A 100%)'
         : 'rgba(255,255,255,0.06)';
 
-    const parentBorder = (id === 'goals' || id === 'savings')
+    const parentBorder = id === 'goals'
       ? 'none'
-      : isDragging && dragSource?.id !== id && id !== 'fixed' && dragSource?.type !== 'fixed'
-        ? '2px dashed rgba(45,36,64,0.15)'
-        : isDragging && dragTarget?.id === id
-          ? '2px dashed rgba(45,36,64,0.25)'
-          : '1px solid rgba(255,255,255,0.12)';
+      : id === 'savings'
+        ? '1px solid rgba(33, 150, 243, 0.2)'
+        : isDragging && dragSource?.id !== id && id !== 'fixed' && dragSource?.type !== 'fixed'
+          ? '2px dashed rgba(45,36,64,0.15)'
+          : isDragging && dragTarget?.id === id
+            ? '2px dashed rgba(45,36,64,0.25)'
+            : '1px solid rgba(255,255,255,0.12)';
 
     return (
       <motion.div
@@ -1000,7 +1042,8 @@ function MyMoneyContent() {
           WebkitBackdropFilter: (id === 'goals' || id === 'savings') ? undefined : 'blur(4px)',
           border: parentBorder,
           padding: 8,
-          minHeight: (id === 'savings' || id === 'fixed') ? undefined : 120,
+          minHeight: undefined,
+          alignSelf: id === 'fixed' ? 'stretch' : 'flex-start',
           transition: 'all 400ms ease',
           transform: isDragging && dragSource?.id === id ? 'scale(1.05)' : undefined,
           zIndex: isDragging && dragSource?.id === id ? 100 : undefined,
@@ -1028,7 +1071,7 @@ function MyMoneyContent() {
         {/* Left accent stripe */}
         <div className="absolute left-0 top-0 bottom-0 rounded-l-2xl" style={{
           width: 4,
-          background: id === 'goals' ? '#FF80AB' : id === 'savings' ? '#64B5F6' : color,
+          background: id === 'goals' ? '#FF80AB' : id === 'savings' ? '#29B6F6' : color,
         }} />
 
         {/* Ghost for Can I Afford */}
