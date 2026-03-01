@@ -56,6 +56,19 @@ const goalIconColors: Record<string, string> = {
   Target: '#1ABC9C', Gamepad2: '#3498DB',
 };
 
+const goalFillColors: Record<string, { filled: string; accent: string }> = {
+  Home: { filled: 'linear-gradient(135deg, #E91E63, #F06292)', accent: '#FF80AB' },
+  Car: { filled: 'linear-gradient(135deg, #FF9800, #FFB74D)', accent: '#FFE0B2' },
+  Plane: { filled: 'linear-gradient(135deg, #AB47BC, #CE93D8)', accent: '#E1BEE7' },
+  Laptop: { filled: 'linear-gradient(135deg, #FFC107, #FFD54F)', accent: '#FFF8E1' },
+  GraduationCap: { filled: 'linear-gradient(135deg, #5C6BC0, #7986CB)', accent: '#C5CAE9' },
+  Heart: { filled: 'linear-gradient(135deg, #EF5350, #E57373)', accent: '#FFCDD2' },
+  ShieldCheck: { filled: 'linear-gradient(135deg, #8B5CF6, #A78BFA)', accent: '#DDD6FE' },
+  Target: { filled: 'linear-gradient(135deg, #26A69A, #4DB6AC)', accent: '#B2DFDB' },
+  Gamepad2: { filled: 'linear-gradient(135deg, #42A5F5, #64B5F6)', accent: '#BBDEFB' },
+};
+const defaultGoalFill = { filled: 'linear-gradient(135deg, #E91E63, #F06292)', accent: '#FF80AB' };
+
 // Health bar contrasting colors
 const healthBarColors: Record<string, string> = {
   '#E67E22': '#FFD700', // orange → gold
@@ -804,82 +817,130 @@ function MyMoneyContent() {
 
   // ── Render Goals Parent Internals ──
   const renderGoalsChildren = () => {
-    const maxGoalTarget = Math.max(...sortedGoals.map(g => g.target), 1);
+    const maxTarget = Math.max(...sortedGoals.map(g => g.target), 1);
+
     return (
-      <div className="relative z-10" style={{ position: 'relative' }}>
-        {/* Decorative orbs on parent */}
-        <div style={{
-          position: 'absolute', right: -30, top: -30, width: 120, height: 120, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 60%)',
-          pointerEvents: 'none', zIndex: 0,
-        }} />
-        <div style={{
-          position: 'absolute', left: -15, bottom: -15, width: 70, height: 70, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(233,30,99,0.25) 0%, transparent 70%)',
-          pointerEvents: 'none', zIndex: 0,
-        }} />
-        {sortedGoals.slice(0, 4).map((goal) => {
+      <div className="relative z-10" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {sortedGoals.slice(0, 4).map((goal, i) => {
           const GoalIcon = getIcon(goal.icon);
           const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
-          const cardHeight = Math.max(44, Math.round((goal.target / maxGoalTarget) * 80));
-          const isCompact = cardHeight < 55;
+          const colors = goalFillColors[goal.icon] || defaultGoalFill;
+          const isComplete = pctFunded >= 100;
+
+          const ratio = goal.target / maxTarget;
+          const flexBasisGoal = ratio >= 0.5 ? '100%' : ratio >= 0.2 ? '48%' : '23%';
+          const minH = ratio >= 0.5 ? 68 : ratio >= 0.2 ? 56 : 50;
+          const isCompact = minH <= 50;
+          const isMedium = minH > 50 && minH < 68;
 
           return (
-            <div key={goal.id} style={{
-              background: 'rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(6px)',
-              borderRadius: 16,
-              padding: isCompact ? '8px 14px' : '10px 14px',
-              marginBottom: 4,
-              minHeight: cardHeight,
-              display: 'flex',
-              flexDirection: isCompact ? 'row' : 'column',
-              alignItems: isCompact ? 'center' : 'stretch',
-              justifyContent: isCompact ? 'flex-start' : 'center',
-              gap: isCompact ? 8 : 0,
-              position: 'relative',
-              overflow: 'hidden',
-            }}>
-              {/* Icon */}
-              <div style={{
-                width: isCompact ? 24 : 28, height: isCompact ? 24 : 28,
-                borderRadius: isCompact ? 6 : 8,
-                background: 'rgba(255,255,255,0.15)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                <GoalIcon size={isCompact ? 12 : 16} style={{ color: 'rgba(255,255,255,0.8)' }} />
-              </div>
+            <div key={goal.id} className="group" style={{ flex: `1 1 ${flexBasisGoal}`, position: 'relative' }}>
+              <div
+                style={{
+                  borderRadius: ratio >= 0.5 ? 12 : 10,
+                  minHeight: minH,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  setActiveTab(2);
+                  setTimeout(() => { window.dispatchEvent(new CustomEvent('openMyWorld')); }, 100);
+                }}
+              >
+                {/* Dark unfunded background */}
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'rgba(0,0,0,0.35)',
+                  borderRadius: 'inherit',
+                }} />
 
-              {isCompact ? (
-                <>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'white', flex: 1 }}>{goal.name}</span>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>
-                    €{goal.saved.toLocaleString()}/€{goal.target >= 1000 ? `${Math.round(goal.target / 1000)}k` : goal.target}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'white', flex: 1 }}>{goal.name}</span>
-                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>
-                      €{goal.saved.toLocaleString()}/€{goal.target >= 1000 ? `${Math.round(goal.target / 1000)}k` : goal.target}
-                    </span>
-                  </div>
-                  <div style={{ height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }}>
-                    <div style={{
-                      width: `${pctFunded}%`, height: '100%', borderRadius: 3,
-                      background: 'linear-gradient(90deg, #FF80AB, #F48FB1)',
-                    }} />
-                  </div>
-                  <div style={{ textAlign: 'right', marginTop: 2 }}>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>{Math.round(pctFunded)}%</span>
-                  </div>
-                </>
-              )}
+                {/* Vibrant funded fill from left */}
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${pctFunded}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                  style={{
+                    position: 'absolute', top: 0, bottom: 0, left: 0,
+                    background: colors.filled,
+                    borderRadius: pctFunded >= 100
+                      ? 'inherit'
+                      : `${ratio >= 0.5 ? 12 : 10}px 0 0 ${ratio >= 0.5 ? 12 : 10}px`,
+                  }}
+                />
+
+                {/* Content on top */}
+                <div style={{
+                  position: 'relative', zIndex: 1,
+                  padding: isCompact ? '6px 8px' : isMedium ? '8px 10px' : '10px 12px',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                  height: '100%', minHeight: minH,
+                }}>
+                  {/* Large block */}
+                  {!isCompact && !isMedium && (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 26, height: 26, borderRadius: 7,
+                          background: 'rgba(255,255,255,0.15)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <GoalIcon size={14} style={{ color: 'rgba(255,255,255,0.8)' }} strokeWidth={1.5} />
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'white', flex: 1, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{goal.name}</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{Math.round(pctFunded)}%</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }}>€{goal.saved >= 1000 ? `${Math.round(goal.saved/1000)}k` : goal.saved} saved</span>
+                        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }}>€{goal.target >= 1000 ? `${Math.round(goal.target/1000)}k` : goal.target} target</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Medium block */}
+                  {isMedium && (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{
+                          width: 22, height: 22, borderRadius: 6,
+                          background: 'rgba(255,255,255,0.15)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <GoalIcon size={12} style={{ color: 'rgba(255,255,255,0.8)' }} strokeWidth={1.5} />
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'white', flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{goal.name}</span>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>{Math.round(pctFunded)}%</span>
+                      </div>
+                      <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                        €{goal.saved >= 1000 ? `${Math.round(goal.saved/1000)}k` : goal.saved} / €{goal.target >= 1000 ? `${Math.round(goal.target/1000)}k` : goal.target}
+                      </span>
+                    </>
+                  )}
+
+                  {/* Compact block */}
+                  {isCompact && (
+                    <>
+                      <GoalIcon size={14} style={{ color: 'rgba(255,255,255,0.8)' }} strokeWidth={1.5} />
+                      <span style={{ fontSize: 9, fontWeight: 700, color: 'white', marginTop: 2, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{goal.name}</span>
+                      <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)' }}>{Math.round(pctFunded)}%</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Completion glow */}
+                {isComplete && (
+                  <div style={{
+                    position: 'absolute', inset: 0, borderRadius: 'inherit',
+                    boxShadow: `inset 0 0 20px ${colors.accent}40`,
+                    pointerEvents: 'none',
+                  }} />
+                )}
+              </div>
             </div>
           );
         })}
+
         {sortedGoals.length > 4 && (
           <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)' }}>+{sortedGoals.length - 4} more</span>
         )}
@@ -1004,7 +1065,7 @@ function MyMoneyContent() {
     const spendingPct = topTotal > 0 ? Math.round((spendingAmt / topTotal) * 96) : 50;
     const fixedPct = 96 - spendingPct;
     const bottomTotal = goalsAmt + savingsAmt;
-    const goalsPct = bottomTotal > 0 ? Math.round((goalsAmt / bottomTotal) * 96) : 50;
+    const goalsPct = bottomTotal > 0 ? Math.max(35, Math.round((goalsAmt / bottomTotal) * 96)) : 48;
     const savingsPct = 96 - goalsPct;
 
     const flexBasis = id === 'spending' ? `${spendingPct}%`
