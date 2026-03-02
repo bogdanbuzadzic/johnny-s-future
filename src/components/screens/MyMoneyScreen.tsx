@@ -56,18 +56,17 @@ const goalIconColors: Record<string, string> = {
   Target: '#1ABC9C', Gamepad2: '#3498DB',
 };
 
-const goalFillColors: Record<string, { filled: string; accent: string }> = {
-  Home: { filled: 'linear-gradient(135deg, #E91E63, #F06292)', accent: '#FF80AB' },
-  Car: { filled: 'linear-gradient(135deg, #FF9800, #FFB74D)', accent: '#FFE0B2' },
-  Plane: { filled: 'linear-gradient(135deg, #AB47BC, #CE93D8)', accent: '#E1BEE7' },
-  Laptop: { filled: 'linear-gradient(135deg, #FFC107, #FFD54F)', accent: '#FFF8E1' },
-  GraduationCap: { filled: 'linear-gradient(135deg, #5C6BC0, #7986CB)', accent: '#C5CAE9' },
-  Heart: { filled: 'linear-gradient(135deg, #EF5350, #E57373)', accent: '#FFCDD2' },
-  ShieldCheck: { filled: 'linear-gradient(135deg, #8B5CF6, #A78BFA)', accent: '#DDD6FE' },
-  Target: { filled: 'linear-gradient(135deg, #26A69A, #4DB6AC)', accent: '#B2DFDB' },
-  Gamepad2: { filled: 'linear-gradient(135deg, #42A5F5, #64B5F6)', accent: '#BBDEFB' },
+const goalFillColors: Record<string, string> = {
+  Home: 'linear-gradient(135deg, #E91E63, #F06292)',
+  Car: 'linear-gradient(135deg, #FF9800, #FFB74D)',
+  Plane: 'linear-gradient(135deg, #AB47BC, #CE93D8)',
+  Laptop: 'linear-gradient(135deg, #FFC107, #FFD54F)',
+  GraduationCap: 'linear-gradient(135deg, #5C6BC0, #7986CB)',
+  Heart: 'linear-gradient(135deg, #EF5350, #E57373)',
+  ShieldCheck: 'linear-gradient(135deg, #8B5CF6, #A78BFA)',
+  Target: 'linear-gradient(135deg, #26A69A, #4DB6AC)',
+  Gamepad2: 'linear-gradient(135deg, #42A5F5, #64B5F6)',
 };
-const defaultGoalFill = { filled: 'linear-gradient(135deg, #E91E63, #F06292)', accent: '#FF80AB' };
 
 // Health bar contrasting colors
 const healthBarColors: Record<string, string> = {
@@ -824,7 +823,7 @@ function MyMoneyContent() {
         {sortedGoals.slice(0, 4).map((goal, i) => {
           const GoalIcon = getIcon(goal.icon);
           const pctFunded = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
-          const colors = goalFillColors[goal.icon] || defaultGoalFill;
+          const fillGradient = goalFillColors[goal.icon] || goalFillColors['Target'];
           const isComplete = pctFunded >= 100;
 
           const ratio = goal.target / maxTarget;
@@ -863,7 +862,7 @@ function MyMoneyContent() {
                   transition={{ duration: 0.6, ease: 'easeOut' }}
                   style={{
                     position: 'absolute', top: 0, bottom: 0, left: 0,
-                    background: colors.filled,
+                    background: fillGradient,
                     borderRadius: pctFunded >= 100
                       ? 'inherit'
                       : `${ratio >= 0.5 ? 12 : 10}px 0 0 ${ratio >= 0.5 ? 12 : 10}px`,
@@ -932,7 +931,7 @@ function MyMoneyContent() {
                 {isComplete && (
                   <div style={{
                     position: 'absolute', inset: 0, borderRadius: 'inherit',
-                    boxShadow: `inset 0 0 20px ${colors.accent}40`,
+                    boxShadow: 'inset 0 0 20px rgba(255,255,255,0.15)',
                     pointerEvents: 'none',
                   }} />
                 )}
