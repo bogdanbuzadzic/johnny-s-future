@@ -1102,7 +1102,7 @@ function MyMoneyContent() {
           backdropFilter: (id === 'goals' || id === 'savings') ? undefined : 'blur(4px)',
           WebkitBackdropFilter: (id === 'goals' || id === 'savings') ? undefined : 'blur(4px)',
           border: parentBorder,
-          padding: 8,
+          padding: (id === 'goals' || id === 'savings') ? '8px 8px 4px 8px' : 8,
           minHeight: undefined,
           alignSelf: id === 'fixed' ? 'stretch' : 'flex-start',
           transition: 'all 400ms ease',
@@ -1214,11 +1214,11 @@ function MyMoneyContent() {
       <div className="px-4 mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button onClick={() => setShowWhatIf(true)}
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 10, padding: '8px 14px', color: '#5C4F6E', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Sparkles size={14} />What if?
           </button>
           <button onClick={() => setShowCompare(true)}
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 10, padding: '8px 14px', color: '#5C4F6E', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
             <BarChart2 size={14} />Compare
           </button>
         </div>
@@ -1236,7 +1236,7 @@ function MyMoneyContent() {
         <div className="relative rounded-[20px] overflow-hidden" style={{
           background: '#27AE60',
           border: freeAmount < 0 ? '2px solid rgba(245,158,11,0.4)' : 'none',
-          minHeight: '58vh',
+          minHeight: undefined,
           padding: 10,
           paddingTop: 52,
           paddingBottom: 10,
@@ -1324,11 +1324,11 @@ function MyMoneyContent() {
           </div>
 
           {/* Empty space = free/unallocated (green peeks through) */}
-          <div className="flex items-center justify-center gap-3 mt-3 py-3 rounded-xl"
+          <div className="flex items-center justify-center gap-3 mt-3 py-2 rounded-xl"
             style={{
               backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)',
               backgroundSize: '20px 20px',
-              minHeight: freeAmount > 0 ? 60 : 36,
+              minHeight: freeAmount > 0 ? 44 : 32,
             }}>
             {freeAmount >= 0 ? (
               <>
