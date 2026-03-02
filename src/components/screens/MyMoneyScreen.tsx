@@ -211,6 +211,7 @@ function MyMoneyContent() {
   const [sliderVal, setSliderVal] = useState(0);
   const [sliderOriginal, setSliderOriginal] = useState(0);
   const [showFab, setShowFab] = useState(false);
+  const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [fabMode, setFabMode] = useState<'expense' | 'income' | 'goal' | undefined>(undefined);
   const [prefillAmount, setPrefillAmount] = useState<number | undefined>();
   const [prefillCatId, setPrefillCatId] = useState<string | undefined>();
@@ -772,10 +773,7 @@ function MyMoneyContent() {
   // ── Render Fixed Parent Internals ──
   const renderFixedChildren = () => (
     <div className="relative z-10" style={{
-      display: 'flex',
-      flexWrap: 'wrap' as const,
-      gap: 4,
-      paddingLeft: 4,
+      display: 'flex', flexWrap: 'wrap' as const, gap: 4, paddingLeft: 4,
     }}>
       {sortedFixed.map(cat => {
         const CatIcon = getIcon(cat.icon);
@@ -811,7 +809,6 @@ function MyMoneyContent() {
           </div>
         );
       })}
-      {/* + Add block removed -- FAB replaces it */}
     </div>
   );
 
@@ -956,75 +953,76 @@ function MyMoneyContent() {
     const pctOfIncome = totalIncome > 0 ? Math.round((savingsTarget / totalIncome) * 100) : 0;
     const targetPct = 20;
     const fillPct = Math.min((pctOfIncome / targetPct) * 100, 100);
-    const ringSize = 100;
-    const strokeW = 8;
-    const r = (ringSize - strokeW) / 2;
+    const ringSize = 60;
+    const sw = 5;
+    const r = (ringSize - sw) / 2;
     const circ = 2 * Math.PI * r;
     const offset = circ - (fillPct / 100) * circ;
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 0', position: 'relative' }}>
-        {/* Decorative orb */}
+      <div className="relative z-10">
         <div style={{
-          position: 'absolute', left: -25, bottom: -25, width: 100, height: 100, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(52,199,89,0.1) 0%, transparent 60%)',
-          pointerEvents: 'none', zIndex: 0,
-        }} />
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '4px 8px 8px',
+        }}>
+          {/* Ring */}
+          <div style={{ position: 'relative', width: ringSize, height: ringSize, flexShrink: 0 }}>
+            <svg width={ringSize} height={ringSize} style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx={ringSize/2} cy={ringSize/2} r={r}
+                fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={sw} />
+              <circle cx={ringSize/2} cy={ringSize/2} r={r}
+                fill="none" stroke="url(#savRingG)" strokeWidth={sw}
+                strokeLinecap="round"
+                strokeDasharray={circ} strokeDashoffset={offset}
+                style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
+              <defs>
+                <linearGradient id="savRingG" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#29B6F6" />
+                  <stop offset="100%" stopColor="#66BB6A" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: 'white' }}>
+                €{Math.round(savingsTarget * mult)}
+              </span>
+              <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.4)' }}>/mo</span>
+            </div>
+          </div>
 
-        {/* Progress Ring */}
-        <div style={{ position: 'relative', width: ringSize, height: ringSize, marginBottom: 10 }}>
-          <svg width={ringSize} height={ringSize} style={{ transform: 'rotate(-90deg)' }}>
-            <defs>
-              <linearGradient id="savRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#29B6F6" />
-                <stop offset="50%" stopColor="#26A69A" />
-                <stop offset="100%" stopColor="#66BB6A" />
-              </linearGradient>
-            </defs>
-            <circle cx={ringSize / 2} cy={ringSize / 2} r={r}
-              fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeW} />
-            <circle cx={ringSize / 2} cy={ringSize / 2} r={r}
-              fill="none" stroke="url(#savRingGrad)" strokeWidth={strokeW}
-              strokeLinecap="round"
-              strokeDasharray={circ} strokeDashoffset={offset}
-              style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
-          </svg>
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: 'white' }}>€{Math.round(savingsTarget * mult)}</span>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>/mo</span>
+          {/* Text info beside ring */}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+              {pctOfIncome}% of income
+            </div>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>
+              Target: {targetPct}%
+            </div>
+            {/* Mini progress bar */}
+            <div style={{
+              height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', marginTop: 6,
+            }}>
+              <div style={{
+                width: `${fillPct}%`, height: '100%', borderRadius: 2,
+                background: 'linear-gradient(90deg, #29B6F6, #66BB6A)',
+                boxShadow: fillPct > 50 ? '0 0 6px rgba(102,187,106,0.3)' : undefined,
+                transition: 'width 0.4s ease',
+              }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+              <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)' }}>{pctOfIncome}%</span>
+              <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)' }}>{targetPct}%</span>
+            </div>
           </div>
         </div>
 
-        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
-          {pctOfIncome}% of income
-        </span>
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
-          Target: {targetPct}%
-        </span>
-
-        {/* Bottom progress bar */}
-        <div style={{
-          width: '100%', height: 6, borderRadius: 3, marginTop: 12,
-          background: 'rgba(255,255,255,0.08)',
-        }}>
-          <div style={{
-            width: `${fillPct}%`, height: '100%', borderRadius: 3,
-            background: 'linear-gradient(90deg, #29B6F6, #66BB6A)',
-            boxShadow: fillPct > 50 ? '0 0 8px rgba(102,187,106,0.4)' : undefined,
-            transition: 'width 0.4s ease',
-          }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginTop: 3 }}>
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>{pctOfIncome}%</span>
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>{targetPct}%</span>
-        </div>
-
-        {/* Expandable slider */}
+        {/* Expandable slider -- KEEP existing functionality */}
         {savingsExpanded && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="w-full mt-2">
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+            style={{ padding: '0 8px 8px' }}>
             <input type="range" min={0} max={Math.round(savingsTarget + Math.max(freeAmount, 0))}
               value={Math.round(savingsSlider)}
               onChange={e => setSavingsSlider(Number(e.target.value))}
@@ -1097,11 +1095,12 @@ function MyMoneyContent() {
         data-block-id={id}
         className="relative rounded-2xl overflow-hidden cursor-pointer"
         style={{
-          flex: `1 1 ${flexBasis}`,
+          flex: id === 'goals' ? undefined : `1 1 ${flexBasis}`,
           background: parentBg,
           backdropFilter: (id === 'goals' || id === 'savings') ? undefined : 'blur(4px)',
           WebkitBackdropFilter: (id === 'goals' || id === 'savings') ? undefined : 'blur(4px)',
           border: parentBorder,
+          borderRadius: 16,
           padding: (id === 'goals' || id === 'savings') ? '8px 8px 4px 8px' : 8,
           minHeight: undefined,
           alignSelf: id === 'fixed' ? 'stretch' : 'flex-start',
@@ -1313,48 +1312,125 @@ function MyMoneyContent() {
             </button>
           </div>
 
-          {/* Parent blocks grid */}
-          <div style={{
-            display: 'flex',
-            flexWrap: 'wrap' as const,
-            gap: 8,
-            marginTop: 6,
-          }}>
-            {parentBlocks.map(renderParentBlock)}
+          {/* Parent blocks: TWO COLUMNS, no Goals */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 6 }}>
+            {/* Left column: Spending */}
+            <div style={{ flex: '1 1 55%' }}>
+              {parentBlocks.filter(b => b.id === 'spending').map(renderParentBlock)}
+            </div>
+
+            {/* Right column: Fixed + Savings stacked */}
+            <div style={{ flex: '1 1 43%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {parentBlocks.filter(b => b.id === 'fixed').map(renderParentBlock)}
+              {parentBlocks.filter(b => b.id === 'savings').map(renderParentBlock)}
+            </div>
           </div>
 
-          {/* Empty space = free/unallocated (green peeks through) */}
-          <div className="flex items-center justify-center gap-3 mt-3 py-2 rounded-xl"
-            style={{
-              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)',
-              backgroundSize: '20px 20px',
-              minHeight: freeAmount > 0 ? 44 : 32,
-            }}>
-            {freeAmount >= 0 ? (
-              <>
-                <motion.img src={johnnyImage} alt="Johnny" className="w-9 h-9 object-contain"
-                  animate={{ y: [0, -3, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  style={{ imageRendering: 'pixelated' }} />
-                <div className="flex flex-col">
-                  <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.70)' }}>€{Math.round(freeAmount * mult).toLocaleString()} free</span>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)' }}>€{Math.round(dailyAllowance)}/day</span>
-                </div>
-              </>
-            ) : (
-              <>
-                <motion.img src={johnnyImage} alt="Johnny" className="w-7 h-7 object-contain"
-                  animate={{ y: [0, -2, 0], rotate: [0, -3, 3, 0] }} transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                  style={{ imageRendering: 'pixelated' }} />
-                <div className="flex flex-col">
-                  <span style={{ fontSize: 14, fontWeight: 500, color: '#F59E0B' }}>€{Math.abs(Math.round(freeAmount * mult)).toLocaleString()} over</span>
-                  <span style={{ fontSize: 11, color: 'rgba(245,158,11,0.5)' }}>Over-committed</span>
-                </div>
-              </>
-            )}
+          {/* Free cash strip */}
+          <div style={{
+            marginTop: 6,
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}>
+            <motion.img src={johnnyImage} alt="Johnny" className="w-8 h-8 object-contain"
+              animate={{ y: [0, -3, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ imageRendering: 'pixelated' as any }} />
+            <div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: freeAmount >= 0 ? 'white' : '#F59E0B' }}>
+                {freeAmount >= 0 ? `€${Math.round(freeAmount * mult).toLocaleString()} free` : `€${Math.abs(Math.round(freeAmount * mult)).toLocaleString()} over`}
+              </span>
+              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }}>
+                {freeAmount >= 0 ? `€${Math.round(dailyAllowance)}/day remaining` : 'Over-committed'}
+              </div>
+            </div>
+          </div>
+
+          {/* Single circular + button */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 2px 0' }}>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowFab(true)}
+              style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
+                border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)', cursor: 'pointer',
+              }}
+            >
+              <Plus size={18} style={{ color: 'white' }} strokeWidth={2.5} />
+            </motion.button>
           </div>
 
         </div>
       </div>
+
+      {/* GOALS SECTION -- Outside the green container */}
+      <div className="px-4 mb-3">
+        {parentBlocks.filter(b => b.id === 'goals').length > 0 && (
+          <div>
+            {parentBlocks.filter(b => b.id === 'goals').map(renderParentBlock)}
+          </div>
+        )}
+      </div>
+
+      {/* FAB Menu */}
+      <AnimatePresence>
+        {showFab && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowFab(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.15)', zIndex: 60 }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.85, y: 10 }}
+              style={{
+                position: 'fixed', bottom: 140, right: 24, zIndex: 61,
+                background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255,255,255,0.6)', borderRadius: 16,
+                padding: '6px', boxShadow: '0 8px 24px rgba(45,36,64,0.15)', minWidth: 190,
+              }}
+            >
+              {[
+                { label: 'Add transaction', icon: CreditCard, action: () => { setShowFab(false); setShowAddTransaction(true); } },
+                { label: 'New spending category', icon: ShoppingBag, action: () => { setShowFab(false); addCategory({ name: 'New Category', icon: 'MoreHorizontal', monthlyBudget: 100, type: 'expense' }); } },
+                { label: 'New fixed expense', icon: Lock, action: () => { setShowFab(false); addCategory({ name: 'New Fixed', icon: 'Home', monthlyBudget: 50, type: 'fixed' }); } },
+                { label: 'New goal', icon: Target, action: () => { setShowFab(false); setActiveTab(2); setTimeout(() => window.dispatchEvent(new CustomEvent('openMyWorld')), 100); } },
+              ].map((item, i) => (
+                <motion.button key={i} whileTap={{ scale: 0.97 }} onClick={item.action}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                    padding: '10px 12px', background: 'none', border: 'none', borderRadius: 10,
+                    cursor: 'pointer', fontSize: 13, color: '#2D2440', fontWeight: 500,
+                  }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%', background: 'rgba(139,92,246,0.08)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <item.icon size={14} style={{ color: '#8B5CF6' }} strokeWidth={1.5} />
+                  </div>
+                  {item.label}
+                </motion.button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Add Transaction Sheet */}
+      <AddTransactionSheet
+        open={showAddTransaction}
+        onClose={() => setShowAddTransaction(false)}
+      />
 
       {/* What If -- reuse the Home terrain drawer */}
       <TodayDrawer open={showWhatIf} onClose={() => setShowWhatIf(false)} autoOpenWhatIf={true} />
