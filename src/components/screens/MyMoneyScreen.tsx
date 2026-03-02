@@ -763,12 +763,7 @@ function MyMoneyContent() {
             );
           })}
 
-          {/* + Add block */}
-          <div style={{ flex: '1 1 100%' }}>
-            <AddBlockInline parentType="spending" onAdd={(item) => {
-              addCategory({ name: item.name, icon: item.icon, monthlyBudget: item.monthlyBudget, type: 'expense' });
-            }} />
-          </div>
+          {/* + Add block removed -- FAB replaces it */}
         </div>
       </div>
     );
@@ -779,38 +774,44 @@ function MyMoneyContent() {
     <div className="relative z-10" style={{
       display: 'flex',
       flexWrap: 'wrap' as const,
-      gap: 5,
-      flex: 1,
-      alignContent: 'flex-start',
+      gap: 4,
+      paddingLeft: 4,
     }}>
       {sortedFixed.map(cat => {
         const CatIcon = getIcon(cat.icon);
         const isLargest = cat.monthlyBudget === Math.max(...fixedCategories.map(c => c.monthlyBudget));
-        const flexBasis = isLargest ? '100%' : '45%';
         return (
-          <div key={cat.id} data-block-id={cat.id} className="relative rounded-xl p-2 flex flex-col" style={{
-            flex: `1 1 ${flexBasis}`,
+          <div key={cat.id} data-block-id={cat.id} style={{
+            flex: isLargest ? '1 1 100%' : '1 1 45%',
             background: cat._color,
-            border: `1.5px solid rgba(255,255,255,0.15)`,
-            boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.12)',
-            minHeight: isLargest ? 70 : 50,
+            borderRadius: 10,
+            padding: '7px 8px',
+            minHeight: isLargest ? 55 : 44,
+            border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: 'inset 0 -2px 4px rgba(0,0,0,0.1)',
+            display: 'flex',
+            flexDirection: 'column' as const,
           }}>
-            <div className="w-6 h-6 rounded-full flex items-center justify-center mb-1" style={{ background: 'rgba(255,255,255,0.15)' }}>
-              <CatIcon size={14} style={{ color: 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <CatIcon size={11} style={{ color: 'rgba(255,255,255,0.9)' }} strokeWidth={1.5} />
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'white', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                {cat.name}
+              </span>
             </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'white', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{cat.name}</span>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.80)', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>€{Math.round(cat.monthlyBudget * mult)}</span>
-            <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.30)' }}>fixed</span>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
+              €{Math.round(cat.monthlyBudget * mult)}
+            </span>
+            <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)' }}>fixed</span>
           </div>
         );
       })}
-
-      {/* + Add block */}
-      <div style={{ flex: '1 1 100%' }}>
-        <AddBlockInline parentType="fixed" onAdd={(item) => {
-          addCategory({ name: item.name, icon: item.icon, monthlyBudget: item.monthlyBudget, type: 'fixed' });
-        }} />
-      </div>
+      {/* + Add block removed -- FAB replaces it */}
     </div>
   );
 
