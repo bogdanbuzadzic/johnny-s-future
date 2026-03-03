@@ -5,6 +5,7 @@ import { startOfMonth, endOfMonth, isWithinInterval, parseISO, getDate, getDaysI
 import johnnyImage from '@/assets/johnny.png';
 import { tipsByPersona } from '@/lib/personaMessaging';
 import { WhatIfPanel, scenariosToForkConfig, type ActiveScenario, type ForkConfig } from './WhatIfPanel';
+import { JohnnyMessage, JohnnyPrimaryBtn, JohnnySecondaryBtn } from '@/components/ui/JohnnyMessage';
 import { useApp } from '@/context/AppContext';
 import { BudgetProvider } from '@/context/BudgetContext';
 // PlanVsActualOverlay removed - now in CompareSheet
@@ -1277,13 +1278,41 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
         </AnimatePresence>
 
         {/* Johnny's Note */}
-        <div className="mx-5 mt-3 mb-8 flex items-start gap-[10px] rounded-[14px] p-3" style={{
+        <div className="mx-5 mt-3 mb-2 flex items-start gap-[10px] rounded-[14px] p-3" style={{
           background: 'rgba(255,255,255,0.06)',
           border: '1px solid rgba(255,255,255,0.08)',
         }}>
           <img src={johnnyImage} alt="Johnny" className="w-9 h-9 object-contain flex-shrink-0" />
           <p className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>{tip}</p>
         </div>
+
+        {/* Johnny What If insight */}
+        {activeScenarios.length > 0 && (
+          <div className="mx-5 mb-8">
+            <JohnnyMessage variant="dark" from="Johnny"
+              actions={
+                <>
+                  <JohnnyPrimaryBtn onClick={() => { /* navigate to savings */ }}>Adjust savings</JohnnyPrimaryBtn>
+                  <JohnnySecondaryBtn onClick={() => setActiveScenarios([])}>Later</JohnnySecondaryBtn>
+                </>
+              }
+            >
+              {(() => {
+                const monthlySavings = Number(budgetData?.config?.monthlySavingsTarget) || 200;
+                const monthlyExpenses = computed.totalFixed + computed.flexBudget;
+                const runway = monthlyExpenses > 0 ? Math.round((monthlySavings * 6) / monthlyExpenses) : 0;
+                const suggestedSavings = Math.round(monthlyExpenses / 6) > monthlySavings
+                  ? Math.round(monthlyExpenses / 6) : monthlySavings;
+                return (
+                  <>
+                    Your savings cover about <strong style={{ color: 'white' }}>{runway} months</strong> of expenses. Experts recommend 6.{' '}
+                    <strong style={{ color: '#86EFAC' }}>Bumping savings to €{suggestedSavings}/mo</strong> would close the gap faster.
+                  </>
+                );
+              })()}
+            </JohnnyMessage>
+          </div>
+        )}
       </motion.div>
     </>
   );

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { getModuleQuestions, calculateClarityScore, BADGES, QUEST_NODES, getPersona } from '@/lib/profileData';
+import { JohnnyMessage } from '@/components/ui/JohnnyMessage';
 import { getCelebration } from '@/lib/personaMessaging';
 import type { ProfileQ } from '@/lib/profileData';
 import { useBudget } from '@/context/BudgetContext';
@@ -447,6 +448,40 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
             </div>
           </motion.div>
         )}
+
+        {/* Johnny's take on the results */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }}
+          className="w-full max-w-[320px] mt-4">
+          <JohnnyMessage variant="light" from="Johnny">
+            {moduleKey === 'clarity' && (
+              <>
+                <strong>
+                  {(() => { try { const cs = JSON.parse(localStorage.getItem('jfb_clarityScore') || '{}'); return cs.total || 0; } catch { return 0; } })() >= 70 ? 'Solid score.' : 'Good start.'}
+                </strong>
+                {' '}Most people score around 55. Your spending awareness is your strongest area. Let's put that to work.
+              </>
+            )}
+            {moduleKey === 'module0' && (
+              <>
+                {(() => {
+                  try {
+                    const a = JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null');
+                    const p = getPersona(a);
+                    if (!p) return <>Interesting profile. I'm learning how you think about money.</>;
+                    return (
+                      <>
+                        <strong>{p.n}</strong> types are great at sticking to plans once they have one. Your blind spot? You might delay big decisions while still "researching." I'll help you move faster.
+                      </>
+                    );
+                  } catch { return <>Interesting. I'm building your financial profile.</>; }
+                })()}
+              </>
+            )}
+            {moduleKey !== 'clarity' && moduleKey !== 'module0' && (
+              <>Another piece of the puzzle. The more I know about you, the better I can help you make decisions that fit your style.</>
+            )}
+          </JohnnyMessage>
+        </motion.div>
 
         <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1, duration: 0.3 }}
           onClick={handleContinue}

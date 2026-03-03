@@ -17,6 +17,8 @@ import { BudgetProvider, useBudget } from '@/context/BudgetContext';
 import { useApp, Goal } from '@/context/AppContext';
 import { AddTransactionSheet } from '@/components/budget/AddTransactionSheet';
 import { CanIAffordSheet } from '@/components/budget/CanIAffordSheet';
+import { BlockDetailSheet } from '@/components/budget/BlockDetailSheet';
+import { JohnnyMessage } from '@/components/ui/JohnnyMessage';
 import { TodayDrawer } from '@/components/sheets/TodayDrawer';
 import { CompareSheet } from '@/components/budget/CompareSheet';
 import { tipsByPersona, getImpactText, getAffordText } from '@/lib/personaMessaging';
@@ -221,6 +223,10 @@ function MyMoneyContent() {
   const [importing, setImporting] = useState(false);
   const [savingsExpanded, setSavingsExpanded] = useState(false);
   const [savingsSlider, setSavingsSlider] = useState(savingsTarget);
+  const [detailCatId, setDetailCatId] = useState<string | null>(null);
+  const [showMyMoneyIntro, setShowMyMoneyIntro] = useState(
+    () => localStorage.getItem('jfb_myMoney_introduced') !== 'true'
+  );
 
   // Purchase Decision Engine
   const [purchaseAmount, setPurchaseAmount] = useState('');
@@ -743,7 +749,7 @@ function MyMoneyContent() {
                   borderColor: isDragging && dragTarget?.id === cat.id ? 'rgba(45,36,64,0.3)' : undefined,
                   transition: 'transform 150ms ease, border 200ms ease',
                 }}
-                onClick={() => { if (!isDragging) handleExpandItem(cat.id, budget); }}
+                onClick={() => { if (!isDragging) setDetailCatId(cat.id); }}
                 onTouchStart={(e) => handleDragTouchStart(e, { id: cat.id, type: 'spending', name: cat.name, color: tint, budget: cat.monthlyBudget })}
                 onTouchMove={handleDragTouchMove}
                 onTouchEnd={handleDragTouchEnd}
@@ -1326,6 +1332,20 @@ function MyMoneyContent() {
             </div>
           </div>
 
+          {/* First-visit intro notification */}
+          {showMyMoneyIntro && (
+            <div style={{ marginTop: 6 }}>
+              <JohnnyMessage variant="glass" from="Johnny"
+                onDismiss={() => {
+                  setShowMyMoneyIntro(false);
+                  localStorage.setItem('jfb_myMoney_introduced', 'true');
+                }}
+              >
+                <strong>The green is your income.</strong> Everything inside = where your money goes. The green that's left? That's €{Math.round(freeAmount * mult).toLocaleString()} — yours. Tap any block to explore.
+              </JohnnyMessage>
+            </div>
+          )}
+
           {/* Free cash strip */}
           <div style={{
             marginTop: 6,
@@ -1456,6 +1476,18 @@ function MyMoneyContent() {
         goals={goals}
         onBuyIt={handleBuyIt}
         onWait24h={handleWait24h}
+      />
+
+      {/* Block Detail Sheet */}
+      <BlockDetailSheet
+        open={!!detailCatId}
+        onClose={() => setDetailCatId(null)}
+        category={expenseCategories.find(c => c.id === detailCatId) || null}
+        spent={detailCatId ? categorySpentMap[detailCatId] || 0 : 0}
+        transactions={transactions.filter(t => t.categoryId === detailCatId && t.type === 'expense')}
+        daysInMonth={daysInMonth}
+        dayOfMonth={dayOfMonth}
+        onUpdateBudget={(id, budget) => updateCategory(id, { monthlyBudget: budget })}
       />
 
       {/* Drag-and-Drop Overlay: coin at finger + coin trail */}
