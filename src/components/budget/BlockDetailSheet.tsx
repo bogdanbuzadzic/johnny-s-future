@@ -18,7 +18,19 @@ const allIcons: Record<string, LucideIcon> = {
   ShieldCheck, Plane, Laptop, GraduationCap, Gamepad2, RefreshCw,
 };
 
+const iconTintMap: Record<string, string> = {
+  UtensilsCrossed: '#F97316', ShoppingBag: '#EF4444', Bus: '#34495E', Film: '#8B5CF6',
+  Dumbbell: '#7F8C8D', CreditCard: '#6C3483', Coffee: '#795548', Smartphone: '#E91E63',
+  Gift: '#F1C40F', BookOpen: '#8E44AD', Shirt: '#D35400', Wrench: '#5AC8FA',
+  Heart: '#06B6D4', MoreHorizontal: '#7F8C8D', Home: '#5D6D7E', Zap: '#2E86C1',
+  Landmark: '#1A5276', Car: '#3498DB', Tv: '#6C3483', Shield: '#1A5276', Baby: '#EC4899',
+  TrendingUp: '#8B5CF6', LineChart: '#3498DB', Sunset: '#F39C12',
+  Target: '#1ABC9C', ShieldCheck: '#8B5CF6', Plane: '#F39C12', Laptop: '#8E44AD',
+  GraduationCap: '#8E44AD', Gamepad2: '#3498DB', PiggyBank: '#2980B9', Wallet: '#FFFFFF',
+};
+
 function getIcon(name: string): LucideIcon { return allIcons[name] || MoreHorizontal; }
+function getCatColor(icon: string): string { return iconTintMap[icon] || '#8B5CF6'; }
 
 interface BlockDetailSheetProps {
   open: boolean;
@@ -29,26 +41,34 @@ interface BlockDetailSheetProps {
   daysInMonth: number;
   dayOfMonth: number;
   onUpdateBudget: (id: string, budget: number) => void;
+  allExpenseCategories?: Category[];
+  categorySpentMap?: Record<string, number>;
 }
 
 export function BlockDetailSheet({
   open, onClose, category, spent, transactions, daysInMonth, dayOfMonth, onUpdateBudget,
+  allExpenseCategories = [], categorySpentMap = {},
 }: BlockDetailSheetProps) {
   const [sliderVal, setSliderVal] = useState(0);
   const [sliderDirty, setSliderDirty] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
-  // Reset slider when category changes
   const catBudget = category?.monthlyBudget || 0;
   if (open && !sliderDirty && sliderVal !== catBudget) {
     setSliderVal(catBudget);
   }
 
   const dailyBudget = daysInMonth > 0 ? catBudget / daysInMonth : 0;
+  const catColor = category ? getCatColor(category.icon) : '#8B5CF6';
+
+  // Stacked spending bar data
+  const totalAllSpent = useMemo(() =>
+    allExpenseCategories.reduce((s, c) => s + (categorySpentMap[c.id] || 0), 0),
+    [allExpenseCategories, categorySpentMap]);
 
   // Build daily totals for the last 7 days
   const { dailyData, weekDays } = useMemo(() => {
-    const days: { dayNum: number; dayName: string; amount: number; isToday: boolean }[] = [];
+    const days: { dayNum: number; dayName: string; amount: number; isToday: boolean; dateStr: string }[] = [];
     const now = new Date();
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
@@ -62,13 +82,14 @@ export function BlockDetailSheet({
         dayName: i === 0 ? 'Today' : format(d, 'EEE'),
         amount: total,
         isToday: i === 0,
+        dateStr,
       });
     }
     return { dailyData: days, weekDays: days };
   }, [transactions, dayOfMonth]);
 
   const maxBarValue = useMemo(() =>
-    Math.max(dailyBudget * 2.5, ...dailyData.map(d => d.amount), 1),
+    Math.max(dailyBudget, ...dailyData.map(d => d.amount), 1),
     [dailyBudget, dailyData]);
 
   const barAreaHeight = 60;
@@ -85,10 +106,6 @@ export function BlockDetailSheet({
   const filteredTxs = useMemo(() => {
     if (selectedDay === null) return transactions.slice(0, 10);
     const now = new Date();
-    // Find the date for the selected day number in the last 7 days
-    const target = dailyData.find(d => d.dayNum === selectedDay);
-    if (!target) return [];
-    // Reconstruct date
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
@@ -98,12 +115,11 @@ export function BlockDetailSheet({
       }
     }
     return [];
-  }, [selectedDay, transactions, dailyData]);
+  }, [selectedDay, transactions]);
 
   // Cumulative chart data
-  const { cumulativeActual, cumulativeBudget, cumMax } = useMemo(() => {
+  const { cumulativeActual, cumMax } = useMemo(() => {
     const actual: number[] = [];
-    const budget: number[] = [];
     let runningActual = 0;
     for (let day = 1; day <= Math.min(dayOfMonth, daysInMonth); day++) {
       const dateStr = (() => {
@@ -114,14 +130,12 @@ export function BlockDetailSheet({
       const dayTotal = transactions.filter(t => t.date === dateStr).reduce((s, t) => s + (Number(t.amount) || 0), 0);
       runningActual += dayTotal;
       actual.push(runningActual);
-      budget.push(dailyBudget * day);
     }
     return {
       cumulativeActual: actual,
-      cumulativeBudget: budget,
-      cumMax: Math.max(...actual, ...budget, catBudget, 1),
+      cumMax: Math.max(...actual, catBudget, 1),
     };
-  }, [transactions, dayOfMonth, daysInMonth, dailyBudget, catBudget]);
+  }, [transactions, dayOfMonth, daysInMonth, catBudget]);
 
   const cumChartW = 280;
   const cumChartH = 60;
@@ -157,14 +171,14 @@ export function BlockDetailSheet({
             </div>
 
             <div className="px-5 pb-6">
-              {/* Category Header */}
+              {/* 1A. Category Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 10,
-                  background: 'rgba(139,92,246,0.15)',
+                  background: catColor,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <CatIcon size={18} style={{ color: '#8B5CF6' }} strokeWidth={1.5} />
+                  <CatIcon size={18} style={{ color: 'white' }} strokeWidth={1.5} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{category.name}</div>
@@ -174,16 +188,43 @@ export function BlockDetailSheet({
                 </div>
               </div>
 
+              {/* 1B. Stacked Spending Bar */}
+              {allExpenseCategories.length > 0 && totalAllSpent > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{
+                    height: 10, borderRadius: 5, overflow: 'hidden',
+                    background: 'rgba(255,255,255,0.06)',
+                    display: 'flex',
+                  }}>
+                    {allExpenseCategories.map(cat => {
+                      const catSpent = categorySpentMap[cat.id] || 0;
+                      if (catSpent === 0) return null;
+                      const pct = (catSpent / totalAllSpent) * 100;
+                      const color = getCatColor(cat.icon);
+                      const isActive = cat.id === category.id;
+                      return (
+                        <div key={cat.id} style={{
+                          width: `${pct}%`, height: '100%',
+                          background: color,
+                          opacity: isActive ? 1 : 0.35,
+                          transition: 'opacity 0.3s',
+                        }} />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Budget bar */}
               <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', marginBottom: 12 }}>
                 <div style={{
                   width: `${Math.min(fillPct, 100)}%`, height: '100%', borderRadius: 4,
-                  background: fillPct > 100 ? '#FF5252' : fillPct > 80 ? '#FFC107' : '#8B5CF6',
+                  background: fillPct > 100 ? '#FF5252' : fillPct > 80 ? '#FFC107' : catColor,
                   transition: 'width 0.4s ease',
                 }} />
               </div>
 
-              {/* Budget Slider */}
+              {/* 1C. Budget Slider */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ textAlign: 'center', marginBottom: 4 }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>€{Math.round(sliderVal)}</span>
@@ -192,7 +233,7 @@ export function BlockDetailSheet({
                   value={Math.round(sliderVal)}
                   onChange={e => { setSliderVal(Number(e.target.value)); setSliderDirty(true); }}
                   className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{ background: `linear-gradient(to right, rgba(139,92,246,0.5) ${(sliderVal / Math.max(catBudget * 2, 1)) * 100}%, rgba(255,255,255,0.10) 0)` }}
+                  style={{ background: `linear-gradient(to right, ${catColor}80 ${(sliderVal / Math.max(catBudget * 2, 1)) * 100}%, rgba(255,255,255,0.10) 0)` }}
                 />
                 {sliderDirty && Math.round(sliderVal) !== Math.round(catBudget) && (
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 8 }}>
@@ -208,95 +249,97 @@ export function BlockDetailSheet({
                 )}
               </div>
 
-              {/* Daily Spending Timeline */}
+              {/* 1D. Daily Spending Bars */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
                   THIS WEEK
                 </div>
-                <div style={{ display: 'flex', gap: 4, justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', gap: 0, justifyContent: 'space-between' }}>
                   {weekDays.map((day, i) => {
-                    const underPart = Math.min(day.amount, dailyBudget);
-                    const overPart = Math.max(0, day.amount - dailyBudget);
-                    const budgetLineBottom = (dailyBudget / maxBarValue) * barAreaHeight;
+                    const pct = Math.min(100, maxBarValue > 0 ? (day.amount / maxBarValue) * 100 : 0);
+                    const isOver = day.amount > dailyBudget;
                     const isSelected = selectedDay === day.dayNum;
+                    const budgetLinePct = maxBarValue > 0 ? (dailyBudget / maxBarValue) * 100 : 0;
 
                     return (
                       <div key={i}
                         onClick={() => setSelectedDay(isSelected ? null : day.dayNum)}
                         style={{
-                          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                          cursor: 'pointer', opacity: isSelected ? 1 : 0.8,
+                          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                          cursor: 'pointer', opacity: isSelected ? 1 : 0.85,
                         }}
                       >
-                        <span style={{ fontSize: 9, color: day.isToday ? '#8B5CF6' : 'rgba(255,255,255,0.3)' }}>
+                        <span style={{ fontSize: 9, color: day.isToday ? catColor : 'rgba(255,255,255,0.3)', fontWeight: day.isToday ? 700 : 400 }}>
                           {day.dayName}
                         </span>
-                        <div style={{ position: 'relative', width: '100%', height: barAreaHeight }}>
+                        {/* Bar area */}
+                        <div style={{ position: 'relative', width: 10, height: barAreaHeight, borderRadius: 5, background: 'rgba(255,255,255,0.06)' }}>
                           {/* Budget line */}
                           <div style={{
-                            position: 'absolute', bottom: budgetLineBottom, left: 0, right: 0,
-                            height: 2, borderTop: '2px dashed rgba(139,92,246,0.4)',
+                            position: 'absolute',
+                            bottom: `${budgetLinePct}%`,
+                            left: -3, right: -3,
+                            height: 2,
+                            borderTop: '2px dashed rgba(255,255,255,0.15)',
                           }} />
+                          {/* Fill */}
                           {day.amount > 0 && (
-                            <>
-                              {/* Under-budget portion */}
-                              <div style={{
-                                position: 'absolute', bottom: 0, left: '15%', right: '15%',
-                                height: (underPart / maxBarValue) * barAreaHeight,
-                                background: 'rgba(255,255,255,0.12)', borderRadius: '4px 4px 0 0',
-                              }} />
-                              {overPart > 0 && (
-                                <div style={{
-                                  position: 'absolute',
-                                  bottom: (underPart / maxBarValue) * barAreaHeight,
-                                  left: '15%', right: '15%',
-                                  height: (overPart / maxBarValue) * barAreaHeight,
-                                  background: '#FFD700', borderRadius: '4px 4px 0 0',
-                                }} />
-                              )}
-                            </>
+                            <div style={{
+                              position: 'absolute', bottom: 0, left: 0, right: 0,
+                              height: `${pct}%`,
+                              borderRadius: 5,
+                              background: isOver
+                                ? `linear-gradient(to top, ${catColor}, #FBBF24)`
+                                : catColor,
+                              transition: 'height 0.3s ease',
+                            }} />
                           )}
                         </div>
                         <span style={{
-                          fontSize: 9, fontWeight: 600,
-                          color: day.amount > dailyBudget ? '#FFD700'
+                          fontSize: 8,
+                          fontFamily: 'JetBrains Mono, monospace',
+                          color: isOver ? '#FBBF24'
                             : day.amount > 0 ? 'rgba(255,255,255,0.3)'
-                            : 'rgba(255,255,255,0.1)',
+                            : 'rgba(255,255,255,0.12)',
                         }}>
                           {day.amount > 0 ? `€${Math.round(day.amount)}` : '-'}
                         </span>
-                        <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)' }}>{day.dayNum}</span>
+                        <span style={{ fontSize: 8, fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,255,255,0.2)' }}>{day.dayNum}</span>
                       </div>
                     );
                   })}
                 </div>
 
                 {/* Legend */}
-                <div style={{ display: 'flex', gap: 12, marginTop: 6, justifyContent: 'center' }}>
+                <div style={{ display: 'flex', gap: 12, marginTop: 8, justifyContent: 'center', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: 'rgba(255,255,255,0.12)' }} />
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>Under budget</span>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: 'rgba(255,255,255,0.06)' }} />
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>Budget</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: '#FFD700' }} />
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>Over budget</span>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: catColor }} />
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>Spent</span>
                   </div>
-                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>€{Math.round(dailyBudget)}/day</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: '#FBBF24' }} />
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>Over</span>
+                  </div>
+                  <span style={{ fontSize: 9, fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,255,255,0.2)' }}>€{Math.round(dailyBudget)}/day</span>
                 </div>
               </div>
 
-              {/* Johnny Insight */}
+              {/* 1E. Johnny Insight */}
               <div style={{ marginBottom: 16 }}>
                 <JohnnyMessage variant="dark" from="Johnny">
                   {overBudgetDayCount > 0 ? (
-                    <>You overspend on <strong style={{ color: '#FFD700' }}>{overBudgetDayCount}</strong> out of {Math.min(7, daysElapsed)} days, and those days are <strong style={{ color: '#FFD700' }}>{overBudgetSpendPct}%</strong> of total spending. Your big spending days are the pattern to watch.</>
+                    <>You overspend on <strong style={{ color: '#FBBF24' }}>{overBudgetDayCount}</strong> out of {Math.min(7, daysElapsed)} days. Those days are <strong style={{ color: '#FBBF24' }}>{overBudgetSpendPct}%</strong> of total spending. Your big spending days are the pattern to watch.</>
                   ) : (
                     <>Every day under budget so far. That's rare — keep it up.</>
                   )}
                 </JohnnyMessage>
               </div>
 
-              {/* Transaction List */}
+              {/* 1F. Transaction List */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
                   {selectedDay !== null ? `Day ${selectedDay} transactions` : 'Recent transactions'}
@@ -306,7 +349,7 @@ export function BlockDetailSheet({
                     <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{tx.description}</span>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>{format(parseISO(tx.date), 'MMM d')}</span>
-                      <span style={{ fontSize: 12, color: 'white', fontWeight: 600 }}>-€{Number(tx.amount)}</span>
+                      <span style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', color: '#F87171', fontWeight: 600 }}>-€{Number(tx.amount)}</span>
                     </div>
                   </div>
                 )) : (
@@ -325,12 +368,12 @@ export function BlockDetailSheet({
                     <line
                       x1={0} y1={cumChartH}
                       x2={cumChartW} y2={cumChartH - (catBudget / cumMax) * cumChartH}
-                      stroke="rgba(139,92,246,0.3)" strokeWidth={1.5} strokeDasharray="4 4"
+                      stroke="rgba(255,255,255,0.12)" strokeWidth={1.5} strokeDasharray="4 4"
                     />
                     {/* Actual cumulative polyline */}
                     <polyline
                       fill="none"
-                      stroke="#8B5CF6"
+                      stroke={catColor}
                       strokeWidth={2}
                       points={cumulativeActual.map((v, i) => {
                         const x = (i / Math.max(cumulativeActual.length - 1, 1)) * cumChartW;

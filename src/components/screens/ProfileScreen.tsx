@@ -471,119 +471,96 @@ function ProfileScreenContent() {
           {nextQuestName && <p className="text-xs" style={{ color: '#8A7FA0' }}>Next: Complete {nextQuestName} to level up</p>}
         </div>
 
-        {/* ═══ BADGE SHOWCASE ═══ */}
-        <div className="frosted-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Trophy className="w-4 h-4" style={{ color: '#FFD700' }} />
-            <h3 className="text-base font-bold" style={{ color: '#2D2440' }}>Trophy Case</h3>
-          </div>
-
-          {/* Featured badges - pixel art */}
-          <div className="flex gap-3 justify-center mb-4">
-            {[0, 1, 2].map(i => {
-              const badge = featuredBadges[i];
-              if (badge) {
-                const badgeImg = BADGE_IMAGES[badge.key];
-                return (
-                  <button key={badge.key} onClick={() => handleBadgeTap(badge)} className="flex flex-col items-center gap-1.5">
-                    <motion.div
-                      animate={{ y: [0, -2, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                      className="w-[72px] h-[72px] rounded-[14px] flex items-center justify-center relative overflow-hidden"
-                      style={{
-                        background: badge.tint + '26',
-                        border: `2px solid ${badge.tint}4D`,
-                        boxShadow: `0 4px 12px ${badge.tint}33`,
-                      }}>
-                      {badgeImg ? (
-                        <img src={badgeImg} alt={badge.name} className="w-14 h-14 object-contain" style={{ imageRendering: 'pixelated' }} />
-                      ) : (
-                        <badge.Icon className="w-8 h-8 text-white" strokeWidth={1.5} />
-                      )}
-                      <div className="absolute inset-0" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.10) 50%, transparent 70%)', animation: 'shimmer 4s infinite' }} />
-                    </motion.div>
-                    <span className="text-[10px] w-[72px] text-center truncate font-bold" style={{ color: badge.tint, opacity: 0.7 }}>{badge.name}</span>
-                  </button>
-                );
-              }
-              return (
-                <div key={i} className="flex flex-col items-center gap-1.5">
-                  <div className="w-[72px] h-[72px] rounded-[14px] flex items-center justify-center"
-                    style={{ background: 'rgba(255,255,255,0.3)', border: '2px dashed rgba(45,36,64,0.15)' }}>
-                    <Sparkles className="w-5 h-5" style={{ color: 'rgba(45,36,64,0.15)', animation: 'sparkle-pulse 3s ease-in-out infinite' }} />
-                  </div>
-                  <span className="text-[9px]" style={{ color: '#8A7FA0' }}>Earn a badge!</span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="border-t border-white/[0.15] pt-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs" style={{ color: '#5C4F6E' }}>All Badges</span>
-              <span className="text-xs" style={{ color: '#8A7FA0' }}>{totalEarned}/{BADGES.length} collected</span>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {BADGES.map((b, i) => {
-                const unlocked = allBadgeUnlocks[b.key];
-                const badgeImg = BADGE_IMAGES[b.key];
-                return (
-                  <motion.button key={b.key} onClick={() => handleBadgeTap(b)}
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 + i * 0.04 }}
-                    className="shrink-0 flex flex-col items-center gap-0.5">
-                    <div className="w-11 h-11 rounded-[10px] flex items-center justify-center relative"
-                      style={{
-                        background: unlocked ? b.tint + '26' : 'rgba(255,255,255,0.2)',
-                        border: unlocked ? `1.5px solid ${b.tint}4D` : '1px solid rgba(255,255,255,0.3)',
-                      }}>
-                      {unlocked && badgeImg ? (
-                        <img src={badgeImg} alt={b.name} className="w-9 h-9 object-contain" style={{ imageRendering: 'pixelated' }} />
-                      ) : (
-                        <span className="text-[18px] font-bold" style={{ color: 'rgba(45,36,64,0.12)' }}>?</span>
-                      )}
-                    </div>
-                    <span className="text-[8px] w-11 text-center truncate" style={{ color: unlocked ? b.tint : 'rgba(45,36,64,0.15)', opacity: unlocked ? 0.6 : 1 }}>
-                      {unlocked ? b.name : '???'}
-                    </span>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* ═══ JOHNNY'S OBSERVATIONS ═══ */}
-        <div className="frosted-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <img src={johnnyImg} alt="Johnny" className="w-8 h-8" />
-            <h3 className="text-sm font-bold" style={{ color: '#2D2440' }}>Johnny's Notes</h3>
-            <BookOpen className="w-3.5 h-3.5" style={{ color: '#8A7FA0' }} />
+        {/* ═══ JOHNNY'S NOTES (above badges) ═══ */}
+        <div style={{
+          background: 'rgba(255,255,255,0.7)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255,255,255,0.8)',
+          borderRadius: 16,
+          padding: 16,
+          boxShadow: '0 4px 20px rgba(45,36,64,0.06)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <img src={johnnyImg} alt="Johnny" className="w-8 h-8 rounded-full" style={{ objectFit: 'contain' }} />
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#2D1F4E', margin: 0 }}>Johnny's Notes</h3>
           </div>
           {(() => {
             const personaObs = persona ? getPersonaObservation(persona.n) : null;
             const allObs = personaObs ? [personaObs, ...observations] : observations;
+            const dotColors = ['#22C55E', '#FBBF24', '#EC4899', '#3B82F6', '#8B5CF6'];
             if (allObs.length > 0) {
-              return allObs.map((obs: any, i: number) => {
-                const ObsIcon = OBS_ICONS[obs.icon] || Star;
-                const obsColor = OBS_COLORS[obs.icon] || obs.color || '#5C4F6E';
-                return (
-                  <div key={i} className="flex items-start gap-3 mb-2 last:mb-0">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: `${obsColor}33` }}>
-                      <ObsIcon className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: obsColor, opacity: 0.6 }} />
-                    </div>
-                    <p className="text-[13px] leading-relaxed" style={{ color: '#5C4F6E' }}>{obs.text}</p>
+              return allObs.map((obs: any, i: number) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: i < allObs.length - 1 ? 10 : 0 }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: dotColors[i % dotColors.length],
+                    marginTop: 6, flexShrink: 0,
+                  }} />
+                  <div>
+                    <p style={{ fontSize: 14, color: '#4A3D63', lineHeight: 1.5, margin: 0 }}>{obs.text}</p>
+                    {obs.action && (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#8B5CF6', cursor: 'pointer' }}>
+                        {obs.action} →
+                      </span>
+                    )}
                   </div>
-                );
-              });
+                </div>
+              ));
             }
             return (
-              <div className="flex flex-col items-center gap-2 py-3">
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '12px 0' }}>
                 <img src={johnnyImg} alt="Johnny" className="w-12 h-12" />
-                <p className="text-sm" style={{ color: '#5C4F6E' }}>I'm still getting to know you!</p>
-                <p className="text-xs" style={{ color: '#8A7FA0' }}>Complete your first quest and I'll share what I learn.</p>
+                <p style={{ fontSize: 14, color: '#5C4F6E', margin: 0 }}>I'm still getting to know you!</p>
+                <p style={{ fontSize: 12, color: '#8A7FA0', margin: 0 }}>Complete your first quest and I'll share what I learn.</p>
               </div>
             );
           })()}
+        </div>
+
+        {/* ═══ ALL BADGES (compact) ═══ */}
+        <div style={{
+          background: 'rgba(255,255,255,0.5)',
+          border: '1px solid rgba(255,255,255,0.6)',
+          borderRadius: 14,
+          padding: '12px 14px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#2D1F4E' }}>🏆 All Badges</span>
+            <span style={{ fontSize: 11, color: '#8A7FA0' }}>{totalEarned}/{BADGES.length} collected</span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {BADGES.map((b, i) => {
+              const unlocked = allBadgeUnlocks[b.key];
+              const badgeImg = BADGE_IMAGES[b.key];
+              return (
+                <motion.button key={b.key} onClick={() => handleBadgeTap(b)}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 + i * 0.03 }}
+                  className="shrink-0 flex flex-col items-center gap-0.5">
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: unlocked ? 'rgba(139,92,246,0.06)' : 'rgba(0,0,0,0.02)',
+                    border: unlocked ? '1px solid rgba(139,92,246,0.1)' : '1px solid rgba(0,0,0,0.04)',
+                  }}>
+                    {unlocked && badgeImg ? (
+                      <img src={badgeImg} alt={b.name} className="w-8 h-8 object-contain" style={{ imageRendering: 'pixelated' }} />
+                    ) : (
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'rgba(45,36,64,0.12)' }}>?</span>
+                    )}
+                  </div>
+                  <span style={{
+                    fontSize: 8, width: 40, textAlign: 'center',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    color: unlocked ? '#8B5CF6' : 'rgba(45,36,64,0.15)',
+                    opacity: unlocked ? 0.6 : 1,
+                  }}>
+                    {unlocked ? b.name : '???'}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
         </div>
 
         {/* ═══ SETTINGS BUTTON ═══ */}
