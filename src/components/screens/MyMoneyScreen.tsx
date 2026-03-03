@@ -18,6 +18,7 @@ import { useApp, Goal } from '@/context/AppContext';
 import { AddTransactionSheet } from '@/components/budget/AddTransactionSheet';
 import { CanIAffordSheet } from '@/components/budget/CanIAffordSheet';
 import { BlockDetailSheet } from '@/components/budget/BlockDetailSheet';
+import { SubscriptionCalendarSheet } from '@/components/budget/SubscriptionCalendarSheet';
 import { JohnnyMessage } from '@/components/ui/JohnnyMessage';
 import { TodayDrawer } from '@/components/sheets/TodayDrawer';
 import { CompareSheet } from '@/components/budget/CompareSheet';
@@ -224,6 +225,7 @@ function MyMoneyContent() {
   const [savingsExpanded, setSavingsExpanded] = useState(false);
   const [savingsSlider, setSavingsSlider] = useState(savingsTarget);
   const [detailCatId, setDetailCatId] = useState<string | null>(null);
+  const [showSubsSheet, setShowSubsSheet] = useState(false);
   const [showMyMoneyIntro, setShowMyMoneyIntro] = useState(
     () => localStorage.getItem('jfb_myMoney_introduced') !== 'true'
   );
@@ -641,11 +643,13 @@ function MyMoneyContent() {
         }}>
           {/* Subscription block */}
           {subscriptions.length > 0 && (
-            <div className="relative rounded-xl p-2" style={{
+            <div className="relative rounded-xl p-2 cursor-pointer" style={{
               gridColumn: visibleCats.length <= 2 ? '1 / -1' : undefined,
               background: 'repeating-linear-gradient(135deg, #D4A017, #D4A017 4px, #C49000 4px, #C49000 8px)',
               boxShadow: 'inset 0 -3px 6px rgba(0,0,0,0.12)',
-            }}>
+            }}
+              onClick={() => setShowSubsSheet(true)}
+            >
               <div className="flex items-center gap-1.5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
                   <RefreshCw size={14} className="text-white" />
@@ -1488,6 +1492,34 @@ function MyMoneyContent() {
         daysInMonth={daysInMonth}
         dayOfMonth={dayOfMonth}
         onUpdateBudget={(id, budget) => updateCategory(id, { monthlyBudget: budget })}
+        allExpenseCategories={expenseCategories}
+        categorySpentMap={categorySpentMap}
+      />
+
+      {/* Subscription Calendar Sheet */}
+      <SubscriptionCalendarSheet
+        open={showSubsSheet}
+        onClose={() => setShowSubsSheet(false)}
+        subscriptions={(() => {
+          const recurringTxs = transactions.filter(t => t.isRecurring === true);
+          const subMap: Record<string, { name: string; amount: number; dayOfMonth: number; isPaid: boolean; categoryId: string }> = {};
+          recurringTxs.forEach(t => {
+            const key = (t.description || 'Unknown').trim();
+            if (!subMap[key]) {
+              const txDay = parseInt(t.date.split('-')[2], 10) || 1;
+              subMap[key] = { name: key, amount: Number(t.amount) || 0, dayOfMonth: txDay, isPaid: txDay <= dayOfMonth, categoryId: t.categoryId };
+            }
+          });
+          return Object.values(subMap);
+        })()}
+        monthlyTotal={(() => {
+          const recurringTxs = transactions.filter(t => t.isRecurring === true);
+          const subMap: Record<string, number> = {};
+          recurringTxs.forEach(t => { const k = (t.description || '').trim(); if (!subMap[k]) subMap[k] = Number(t.amount) || 0; });
+          return Object.values(subMap).reduce((s, v) => s + v, 0);
+        })()}
+        allExpenseCategories={expenseCategories}
+        categorySpentMap={categorySpentMap}
       />
 
       {/* Drag-and-Drop Overlay: coin at finger + coin trail */}
