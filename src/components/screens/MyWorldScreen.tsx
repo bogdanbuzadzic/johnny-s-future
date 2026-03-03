@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { JohnnyMessage, JohnnyPrimaryBtn, JohnnySecondaryBtn } from '@/components/ui/JohnnyMessage';
 import { ArrowLeft, Info, Play, Pause, Zap, Clock, Minus, Plus, Check, Star, X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { useToast } from '@/hooks/use-toast';
@@ -149,6 +150,7 @@ export function MyWorldScreen({ onClose }: Props) {
   const [prevStages, setPrevStages] = useState<Record<string, number>>({});
   const [stageTransitions, setStageTransitions] = useState<Set<string>>(new Set());
   const [spendingCategories, setSpendingCategories] = useState<SpendingCategory[]>([]);
+  const [milestoneGoal, setMilestoneGoal] = useState<GoalType | null>(null);
   const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const goals: GoalType[] = useMemo(() => {
@@ -356,6 +358,25 @@ export function MyWorldScreen({ onClose }: Props) {
       }
     });
     setPrevStages(newStages);
+  }, [scrubberDate, sorted]);
+
+  useEffect(() => {
+    sorted.forEach(g => {
+      const projected = getProjectedProgress(g, scrubberDate);
+      const pct = g.target > 0 ? (projected / g.target) * 100 : 0;
+      // Check 50% milestone
+      const key50 = `jfb_milestone_${g.name}_50`;
+      if (pct >= 50 && !localStorage.getItem(key50)) {
+        localStorage.setItem(key50, 'true');
+        setMilestoneGoal(g);
+      }
+      // Check 75% milestone
+      const key75 = `jfb_milestone_${g.name}_75`;
+      if (pct >= 75 && !localStorage.getItem(key75)) {
+        localStorage.setItem(key75, 'true');
+        setMilestoneGoal(g);
+      }
+    });
   }, [scrubberDate, sorted]);
 
   useEffect(() => {
@@ -650,6 +671,30 @@ export function MyWorldScreen({ onClose }: Props) {
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* ── Milestone notification ── */}
+      {milestoneGoal && (
+        <div className="absolute left-4 right-4 z-30" style={{ bottom: 148 }}>
+          <JohnnyMessage variant="glass" from="Johnny"
+            onDismiss={() => setMilestoneGoal(null)}
+            actions={
+              <>
+                <JohnnyPrimaryBtn onClick={() => {
+                  setMilestoneGoal(null);
+                  setShowAcceleration(true);
+                  setAcceleratingGoalIdx(sorted.indexOf(milestoneGoal));
+                }}>Speed it up</JohnnyPrimaryBtn>
+                <JohnnySecondaryBtn onClick={() => setMilestoneGoal(null)}>Keep pace</JohnnySecondaryBtn>
+              </>
+            }
+          >
+            🎉 <strong>{milestoneGoal.name}</strong> just hit a milestone!{' '}
+            {milestoneGoal.monthlyContribution > 0 && (
+              <>Redirect spending and reach it <strong>sooner</strong>.</>
+            )}
+          </JohnnyMessage>
+        </div>
+      )}
 
       {/* ── Acceleration Chips ── */}
       <AnimatePresence>

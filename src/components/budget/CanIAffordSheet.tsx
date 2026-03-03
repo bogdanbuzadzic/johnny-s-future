@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
+import { JohnnyMessage } from '@/components/ui/JohnnyMessage';
 import type { Category } from '@/context/BudgetContext';
 import type { Goal } from '@/context/AppContext';
 
@@ -219,6 +220,19 @@ export function CanIAffordSheet({
                       )}
                     </div>
                   </div>
+
+                  {/* Johnny insight */}
+                  {amount > 0 && (
+                    <div style={{ padding: '10px 0' }}>
+                      <JohnnyMessage variant="dark" from="Johnny">
+                        €{amount} = <strong style={{ color: 'white' }}>{hoursOfWork.toFixed(1)} hours</strong> of your work.
+                        {goalDelays.length > 0 && goalDelays[0] && (
+                          <> Your {goalDelays[0].name} gets pushed back <strong style={{ color: '#FBBF24' }}>{goalDelays[0].delay}</strong>.</>
+                        )}
+                        {' '}Still worth it?
+                      </JohnnyMessage>
+                    </div>
+                  )}
 
                   {/* Type-specific sections */}
                   {selectedType === 'habit' && (
