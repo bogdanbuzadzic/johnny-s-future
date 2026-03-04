@@ -616,62 +616,255 @@ function ProfileScreenContent() {
             )}
 
             {/* Demo Mode: Load Demo Goals */}
-            {localStorage.getItem('jfb_clarity_done') === 'true' && (
+            {/* Demo Mode: Load Demo Goals */}
               <div className="pt-3 border-t border-white/[0.15] mt-2">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[11px]" style={{ color: '#8A7FA0' }}>🎬 Demo Mode</span>
                 </div>
                 <button onClick={() => {
-                  const demoGoals = [
-                    { id: crypto.randomUUID(), name: 'Dream House', icon: 'Home', target: 40000, saved: 30000, monthlyContribution: 200, targetDate: '', monthIndex: -1 },
-                    { id: crypto.randomUUID(), name: 'New Car', icon: 'Car', target: 10000, saved: 5000, monthlyContribution: 150, targetDate: '', monthIndex: -1 },
-                    { id: crypto.randomUUID(), name: 'Vacation', icon: 'Plane', target: 2000, saved: 1000, monthlyContribution: 75, targetDate: '', monthIndex: -1 },
-                    { id: crypto.randomUUID(), name: 'New Laptop', icon: 'Laptop', target: 2500, saved: 1875, monthlyContribution: 50, targetDate: '', monthIndex: -1 },
-                  ];
-                  setGoals(demoGoals);
-                  // Seed mock transactions with CURRENT month dates
-                  try {
-                    const bd = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
-                    const cats = bd.categories || [];
-                    const foodCat = cats.find((c: any) => c.name === 'Food');
-                    const entCat = cats.find((c: any) => c.name === 'Entertainment');
-                    const shopCat = cats.find((c: any) => c.name === 'Shopping');
-                    const persCat = cats.find((c: any) => c.name === 'Lifestyle');
-                    if (!foodCat || !entCat || !shopCat || !persCat) {
-                      toast({ title: 'Complete Clarity first', description: 'Spending categories need to exist before loading demo data.' });
-                      return;
-                    }
-                    const now = new Date();
-                    const yr = now.getFullYear();
-                    const mo = String(now.getMonth() + 1).padStart(2, '0');
-                    const mockTxs = [
-                      { id: crypto.randomUUID(), amount: 45, type: 'expense', categoryId: foodCat.id, description: 'Grocery Store', date: `${yr}-${mo}-10`, isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 12, type: 'expense', categoryId: foodCat.id, description: 'Coffee Shop', date: `${yr}-${mo}-11`, isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 35, type: 'expense', categoryId: entCat.id, description: 'Cinema', date: `${yr}-${mo}-09`, isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 89, type: 'expense', categoryId: shopCat.id, description: 'H&M', date: `${yr}-${mo}-08`, isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 15, type: 'expense', categoryId: foodCat.id, description: 'Uber Eats', date: `${yr}-${mo}-12`, isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 25, type: 'expense', categoryId: persCat.id, description: 'Pharmacy', date: `${yr}-${mo}-07`, isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 60, type: 'expense', categoryId: foodCat.id, description: 'Weekly Groceries', date: `${yr}-${mo}-14`, isRecurring: false },
-                      { id: crypto.randomUUID(), amount: 10, type: 'expense', categoryId: entCat.id, description: 'Spotify', date: `${yr}-${mo}-01`, isRecurring: true },
-                      { id: crypto.randomUUID(), amount: 50, type: 'expense', categoryId: shopCat.id, description: 'Amazon', date: `${yr}-${mo}-05`, isRecurring: false },
-                    ];
-                    bd.transactions = [...(bd.transactions || []), ...mockTxs];
-                    localStorage.setItem('jfb-budget-data', JSON.stringify(bd));
-                  } catch (e) {
-                    console.error('Demo data error:', e);
-                  }
-                  localStorage.setItem('jfb_import_shown', 'true');
-                  toast({ title: '🎬 Demo data loaded!', description: 'Goals with progress + mock transactions added. Reloading...' });
-                  setSettingsOpen(false);
-                  // Force reload so BudgetContext picks up the new localStorage data
-                  setTimeout(() => window.location.reload(), 500);
+  // ═══════════════════════════════════════════════
+  // JFB DEMO DATA LOADER v2
+  // Populates: Goals, Transactions (2 months), Subscriptions,
+  // Assessment scores, Previous month snapshot, Income
+  // ═══════════════════════════════════════════════
+
+  const now = new Date();
+  const yr = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  const prevMonth = new Date(yr, now.getMonth() - 1, 1);
+  const prevYr = prevMonth.getFullYear();
+  const prevMo = String(prevMonth.getMonth() + 1).padStart(2, '0');
+  const dayOfMonth = now.getDate();
+
+  // ── 1. GOALS ──
+  const demoGoals = [
+    { id: crypto.randomUUID(), name: 'Dream House', icon: 'Home', target: 40000, saved: 30000, monthlyContribution: 200, targetDate: '', monthIndex: -1 },
+    { id: crypto.randomUUID(), name: 'New Car', icon: 'Car', target: 10000, saved: 5000, monthlyContribution: 150, targetDate: '', monthIndex: -1 },
+    { id: crypto.randomUUID(), name: 'Vacation', icon: 'Plane', target: 2000, saved: 1000, monthlyContribution: 75, targetDate: '', monthIndex: -1 },
+    { id: crypto.randomUUID(), name: 'New Laptop', icon: 'Laptop', target: 2500, saved: 1875, monthlyContribution: 50, targetDate: '', monthIndex: -1 },
+  ];
+  setGoals(demoGoals);
+
+  // ── 2. SEED TRANSACTIONS ──
+  try {
+    const bd = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
+    const cats = bd.categories || [];
+    const foodCat = cats.find((c: any) => c.name === 'Food');
+    const entCat = cats.find((c: any) => c.name === 'Entertainment');
+    const shopCat = cats.find((c: any) => c.name === 'Shopping');
+    const lifeCat = cats.find((c: any) => c.name === 'Lifestyle' || c.name === 'Personal');
+    const subsCat = cats.find((c: any) => c.name === 'Subscriptions' || c.name === 'Subs');
+
+    if (!foodCat || !entCat || !shopCat) {
+      toast({ title: 'Complete Clarity first', description: 'Spending categories need to exist before loading demo data.' });
+      return;
+    }
+
+    // Helper to create a transaction
+    const tx = (amt: number, catId: string, desc: string, day: number, month: string, year: number | string, recurring = false): any => ({
+      id: crypto.randomUUID(),
+      amount: amt,
+      type: 'expense' as const,
+      categoryId: catId,
+      description: desc,
+      date: `${year}-${month}-${String(day).padStart(2, '0')}`,
+      isRecurring: recurring,
+    });
+
+    // ── CURRENT MONTH transactions (spread across full month up to today) ──
+    const currentTxs: any[] = [];
+
+    // Food - frequent, realistic grocery pattern
+    if (dayOfMonth >= 1) currentTxs.push(tx(52, foodCat.id, 'Weekly Groceries', 1, mo, yr));
+    if (dayOfMonth >= 3) currentTxs.push(tx(4, foodCat.id, 'Coffee Shop', 3, mo, yr));
+    if (dayOfMonth >= 4) currentTxs.push(tx(18, foodCat.id, 'Uber Eats', 4, mo, yr));
+    if (dayOfMonth >= 5) currentTxs.push(tx(6, foodCat.id, 'Bakery', 5, mo, yr));
+    if (dayOfMonth >= 7) currentTxs.push(tx(45, foodCat.id, 'Grocery Store', 7, mo, yr));
+    if (dayOfMonth >= 8) currentTxs.push(tx(12, foodCat.id, 'Coffee Shop', 8, mo, yr));
+    if (dayOfMonth >= 9) currentTxs.push(tx(15, foodCat.id, 'Uber Eats', 9, mo, yr));
+    if (dayOfMonth >= 11) currentTxs.push(tx(8, foodCat.id, 'Bakery', 11, mo, yr));
+    if (dayOfMonth >= 12) currentTxs.push(tx(5, foodCat.id, 'Coffee Shop', 12, mo, yr));
+    if (dayOfMonth >= 14) currentTxs.push(tx(60, foodCat.id, 'Weekly Groceries', 14, mo, yr));
+    if (dayOfMonth >= 16) currentTxs.push(tx(22, foodCat.id, 'Restaurant', 16, mo, yr));
+    if (dayOfMonth >= 18) currentTxs.push(tx(7, foodCat.id, 'Coffee Shop', 18, mo, yr));
+    if (dayOfMonth >= 20) currentTxs.push(tx(48, foodCat.id, 'Grocery Store', 20, mo, yr));
+    if (dayOfMonth >= 22) currentTxs.push(tx(14, foodCat.id, 'Uber Eats', 22, mo, yr));
+    if (dayOfMonth >= 24) currentTxs.push(tx(5, foodCat.id, 'Coffee Shop', 24, mo, yr));
+    if (dayOfMonth >= 26) currentTxs.push(tx(55, foodCat.id, 'Weekly Groceries', 26, mo, yr));
+    if (dayOfMonth >= 28) currentTxs.push(tx(9, foodCat.id, 'Bakery', 28, mo, yr));
+
+    // Entertainment - lumpy, weekend-heavy
+    if (dayOfMonth >= 2) currentTxs.push(tx(35, entCat.id, 'Cinema', 2, mo, yr));
+    if (dayOfMonth >= 9) currentTxs.push(tx(25, entCat.id, 'Concert Tickets', 9, mo, yr));
+    if (dayOfMonth >= 15) currentTxs.push(tx(18, entCat.id, 'Bowling', 15, mo, yr));
+    if (dayOfMonth >= 20) currentTxs.push(tx(35, entCat.id, 'Cinema', 20, mo, yr));
+    if (dayOfMonth >= 25) currentTxs.push(tx(15, entCat.id, 'Escape Room', 25, mo, yr));
+
+    // Shopping - a few bigger purchases
+    if (dayOfMonth >= 3) currentTxs.push(tx(89, shopCat.id, 'Zara', 3, mo, yr));
+    if (dayOfMonth >= 8) currentTxs.push(tx(45, shopCat.id, 'Amazon', 8, mo, yr));
+    if (dayOfMonth >= 14) currentTxs.push(tx(32, shopCat.id, 'H&M', 14, mo, yr));
+    if (dayOfMonth >= 19) currentTxs.push(tx(67, shopCat.id, 'Nike', 19, mo, yr));
+    if (dayOfMonth >= 27) currentTxs.push(tx(28, shopCat.id, 'Amazon', 27, mo, yr));
+
+    // Lifestyle
+    if (lifeCat) {
+      if (dayOfMonth >= 2) currentTxs.push(tx(25, lifeCat.id, 'Pharmacy', 2, mo, yr));
+      if (dayOfMonth >= 10) currentTxs.push(tx(35, lifeCat.id, 'Haircut', 10, mo, yr));
+      if (dayOfMonth >= 18) currentTxs.push(tx(15, lifeCat.id, 'Dry Cleaning', 18, mo, yr));
+      if (dayOfMonth >= 23) currentTxs.push(tx(25, lifeCat.id, 'Pharmacy', 23, mo, yr));
+    }
+
+    // Subscriptions (recurring, 1st of month or specific billing dates)
+    const subTarget = subsCat || entCat; // fallback to entertainment if no subs category
+    if (dayOfMonth >= 1) currentTxs.push(tx(10, subTarget.id, 'Spotify', 1, mo, yr, true));
+    if (dayOfMonth >= 1) currentTxs.push(tx(13, subTarget.id, 'Netflix', 1, mo, yr, true));
+    if (dayOfMonth >= 4) currentTxs.push(tx(8, subTarget.id, 'Amazon Prime', 4, mo, yr, true));
+    if (dayOfMonth >= 7) currentTxs.push(tx(10, subTarget.id, 'Apple TV+', 7, mo, yr, true));
+    if (dayOfMonth >= 15) currentTxs.push(tx(12, subTarget.id, 'Adobe CC', 15, mo, yr, true));
+    if (dayOfMonth >= 22) currentTxs.push(tx(3, subTarget.id, 'iCloud+', 22, mo, yr, true));
+    if (dayOfMonth >= 28) currentTxs.push(tx(10, subTarget.id, 'Discord Nitro', 28, mo, yr, true));
+
+    // Income transaction
+    currentTxs.push({
+      id: crypto.randomUUID(),
+      amount: bd.config?.monthlyIncome || 2500,
+      type: 'income',
+      categoryId: '',
+      description: 'Monthly Salary',
+      date: `${yr}-${mo}-01`,
+      isRecurring: true,
+    });
+
+    // ── PREVIOUS MONTH transactions (full month for comparison) ──
+    const prevTxs: any[] = [
+      // Food
+      tx(48, foodCat.id, 'Weekly Groceries', 1, prevMo, prevYr),
+      tx(5, foodCat.id, 'Coffee Shop', 2, prevMo, prevYr),
+      tx(12, foodCat.id, 'Uber Eats', 4, prevMo, prevYr),
+      tx(42, foodCat.id, 'Grocery Store', 7, prevMo, prevYr),
+      tx(8, foodCat.id, 'Coffee Shop', 9, prevMo, prevYr),
+      tx(55, foodCat.id, 'Weekly Groceries', 14, prevMo, prevYr),
+      tx(18, foodCat.id, 'Restaurant', 16, prevMo, prevYr),
+      tx(6, foodCat.id, 'Coffee Shop', 18, prevMo, prevYr),
+      tx(50, foodCat.id, 'Grocery Store', 21, prevMo, prevYr),
+      tx(15, foodCat.id, 'Uber Eats', 23, prevMo, prevYr),
+      tx(52, foodCat.id, 'Weekly Groceries', 28, prevMo, prevYr),
+      // Entertainment
+      tx(30, entCat.id, 'Cinema', 5, prevMo, prevYr),
+      tx(22, entCat.id, 'Bowling', 12, prevMo, prevYr),
+      tx(40, entCat.id, 'Concert', 19, prevMo, prevYr),
+      // Shopping
+      tx(65, shopCat.id, 'Zara', 3, prevMo, prevYr),
+      tx(38, shopCat.id, 'Amazon', 10, prevMo, prevYr),
+      tx(55, shopCat.id, 'H&M', 22, prevMo, prevYr),
+      // Lifestyle
+      ...(lifeCat ? [
+        tx(20, lifeCat.id, 'Pharmacy', 5, prevMo, prevYr),
+        tx(30, lifeCat.id, 'Haircut', 15, prevMo, prevYr),
+      ] : []),
+      // Subs (previous month)
+      tx(10, subTarget.id, 'Spotify', 1, prevMo, prevYr, true),
+      tx(13, subTarget.id, 'Netflix', 1, prevMo, prevYr, true),
+      tx(8, subTarget.id, 'Amazon Prime', 4, prevMo, prevYr, true),
+      tx(10, subTarget.id, 'Apple TV+', 7, prevMo, prevYr, true),
+      tx(12, subTarget.id, 'Adobe CC', 15, prevMo, prevYr, true),
+      tx(3, subTarget.id, 'iCloud+', 22, prevMo, prevYr, true),
+      tx(10, subTarget.id, 'Discord Nitro', 28, prevMo, prevYr, true),
+      // Previous month income
+      {
+        id: crypto.randomUUID(),
+        amount: bd.config?.monthlyIncome || 2500,
+        type: 'income',
+        categoryId: '',
+        description: 'Monthly Salary',
+        date: `${prevYr}-${prevMo}-01`,
+        isRecurring: true,
+      },
+    ];
+
+    // Merge into existing data (clear old mock, keep imported bank data)
+    const existingNonMock = (bd.transactions || []).filter((t: any) =>
+      t.description && t.description.startsWith('IMPORTED:')
+    );
+    bd.transactions = [...existingNonMock, ...prevTxs, ...currentTxs];
+    localStorage.setItem('jfb-budget-data', JSON.stringify(bd));
+
+    // ── 3. PREVIOUS MONTH SNAPSHOT (for Month vs Month) ──
+    const prevMonthKey = `${prevYr}-${prevMo}`;
+    const snapshots = JSON.parse(localStorage.getItem('jfb_month_snapshots') || '{}');
+    const expenseCats = cats.filter((c: any) => c.type === 'expense');
+    const prevCatSpending: Record<string, number> = {};
+    prevTxs.forEach((t: any) => {
+      if (t.type === 'expense') {
+        prevCatSpending[t.categoryId] = (prevCatSpending[t.categoryId] || 0) + t.amount;
+      }
+    });
+    snapshots[prevMonthKey] = {
+      month: prevMonthKey,
+      income: bd.config?.monthlyIncome || 2500,
+      categories: expenseCats.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        budget: c.monthlyBudget || 0,
+        spent: prevCatSpending[c.id] || 0,
+      })),
+      totalSpent: Object.values(prevCatSpending).reduce((a: number, b: any) => a + (b as number), 0),
+      timestamp: Date.now(),
+    };
+    localStorage.setItem('jfb_month_snapshots', JSON.stringify(snapshots));
+
+  } catch (e) {
+    console.error('Demo transaction error:', e);
+  }
+
+  // ── 4. SEED ASSESSMENT DATA ──
+  // Clarity score
+  localStorage.setItem('jfb_clarityScore', JSON.stringify({
+    total: 63,
+    spending: 22,
+    saving: 18,
+    planning: 23,
+  }));
+  localStorage.setItem('jfb_clarity_done', 'true');
+
+  // Know Yourself (Module 0) - Steady Builder persona
+  localStorage.setItem('jfb_module0_answers', JSON.stringify({
+    q1: 'b', q2: 'a', q3: 'c', q4: 'b', q5: 'a', q6: 'b',
+  }));
+  localStorage.setItem('jfb_module0_done', 'true');
+
+  // Risk Pulse (Module 1)
+  localStorage.setItem('jfb_module1_answers', JSON.stringify({
+    q1: 3, q2: 2, q3: 3, q4: 2, q5: 3,
+  }));
+  localStorage.setItem('jfb_module1_done', 'true');
+
+  // Time Lens (Module 2)
+  localStorage.setItem('jfb_module2_answers', JSON.stringify({
+    q1: 4, q2: 3, q3: 3, q4: 4, q5: 3, q6: 4,
+  }));
+  localStorage.setItem('jfb_module2_done', 'true');
+
+  // Badges
+  localStorage.setItem('jfb_badges', JSON.stringify([
+    'know-thyself', 'first-step', 'tracker',
+  ]));
+
+  // Misc flags
+  localStorage.setItem('jfb_import_shown', 'true');
+  localStorage.setItem('jfb_hasUsedWhatIf', 'true');
+  localStorage.setItem('jfb_userName', 'Explorer');
+
+  toast({ title: '🎬 Demo data loaded!', description: 'Goals, transactions (2 months), assessments, and subscriptions added. Reloading...' });
+  setSettingsOpen(false);
+  setTimeout(() => window.location.reload(), 500);
                 }}
                   className="w-full h-[44px] rounded-2xl flex items-center justify-center gap-2 text-[13px] font-medium"
                   style={{ background: 'rgba(245,158,11,0.10)', border: '1.5px solid rgba(245,158,11,0.20)', color: '#5C4F6E' }}>
                   🎬 Load Demo Goals
                 </button>
               </div>
-            )}
 
             {/* Reset button */}
             <div className="pt-4 border-t border-white/[0.15] mt-2">
