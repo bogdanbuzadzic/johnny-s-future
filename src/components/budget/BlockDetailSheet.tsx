@@ -215,14 +215,6 @@ export function BlockDetailSheet({
                 </div>
               )}
 
-              {/* Budget bar */}
-              <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', marginBottom: 12 }}>
-                <div style={{
-                  width: `${Math.min(fillPct, 100)}%`, height: '100%', borderRadius: 4,
-                  background: fillPct > 100 ? '#FF5252' : fillPct > 80 ? '#FFC107' : catColor,
-                  transition: 'width 0.4s ease',
-                }} />
-              </div>
 
               {/* 1C. Budget Slider */}
               <div style={{ marginBottom: 16 }}>
