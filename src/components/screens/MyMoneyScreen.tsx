@@ -572,32 +572,78 @@ function MyMoneyContent() {
 
   // ── Spending Health Bar ──
   const renderHealthBar = (spent: number, budget: number, blockColor: string) => {
-    const fillPct = budget > 0 ? Math.min((spent / budget) * 100, 120) : 0;
-    const remaining = Math.max(0, budget - spent);
-    const usedPct = Math.round(budget > 0 ? (spent / budget) * 100 : 0);
-    const barFill = fillPct > 100 ? '#FF5252' : fillPct > 80 ? '#FFC107' : (healthBarColors[blockColor] || '#DDDDDD');
+    const pct = budget > 0 ? (spent / budget) * 100 : 0;
+    const isOver = pct > 100;
+    const isWarning = pct > 80 && pct <= 100;
+    const catColor = blockColor;
+
+    const fillPct = Math.min(pct, 100);
+    const overPct = isOver ? Math.min((pct - 100), 30) : 0;
 
     return (
       <div className="mt-auto">
         <div style={{
-          height: 8, borderRadius: 4, overflow: 'hidden',
-          background: 'rgba(0,0,0,0.15)',
+          width: '100%',
+          height: 4,
+          borderRadius: 2,
+          background: 'rgba(255,255,255,0.15)',
+          overflow: 'hidden',
+          position: 'relative',
           marginTop: 4,
-          boxShadow: fillPct > 100 ? `0 0 8px ${hexToRgba('#FF5252', 0.4)}` : undefined,
         }}>
+          {/* Main fill in category color */}
           <motion.div
             initial={{ width: 0 }}
-            animate={{ width: `${Math.min(fillPct, 100)}%` }}
+            animate={{ width: isOver ? `${100 - (overPct / (100 + overPct)) * 100}%` : `${fillPct}%` }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
-            style={{ height: '100%', borderRadius: 4, background: barFill }}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              height: '100%',
+              background: catColor,
+              borderRadius: 2,
+              opacity: isOver ? 0.7 : isWarning ? 0.7 : 0.85,
+            }}
           />
+          {/* Over-budget portion in amber */}
+          {isOver && (
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${(overPct / (100 + overPct)) * 100}%` }}
+              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.2 }}
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                height: '100%',
+                background: '#FBBF24',
+                borderRadius: '0 2px 2px 0',
+              }}
+            />
+          )}
         </div>
-        <div className="flex justify-between mt-0.5">
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
-            {usedPct}%
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: 2,
+          fontSize: 9,
+        }}>
+          <span style={{
+            color: isOver ? '#FBBF24' : 'rgba(255,255,255,0.5)',
+            fontWeight: isOver ? 600 : 400,
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+          }}>
+            {Math.round(pct)}%
           </span>
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
-            €{Math.round(remaining)} left
+          <span style={{
+            color: isOver ? '#FBBF24' : 'rgba(255,255,255,0.5)',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+          }}>
+            {isOver
+              ? `€${Math.round(spent - budget)} over`
+              : `€${Math.round(budget - spent)} left`
+            }
           </span>
         </div>
       </div>
