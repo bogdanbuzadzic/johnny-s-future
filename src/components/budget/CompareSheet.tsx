@@ -143,6 +143,34 @@ function PlanVsActualContent({ onBack, onClose }: { onBack: () => void; onClose:
     [expenseCategories, getCategorySpent]);
 
   const totalVariance = categoryData.reduce((s, c) => s + c.delta, 0);
+  const planTotal = categoryData.reduce((s, c) => s + c.budget, 0);
+  const actualTotal = categoryData.reduce((s, c) => s + c.spent, 0);
+
+  // Ring chart calculations
+  const innerR = 50;
+  const outerR = 68;
+  const circumInner = 2 * Math.PI * innerR;
+  const circumOuter = 2 * Math.PI * outerR;
+
+  const innerSegments = useMemo(() => {
+    let offset = 0;
+    return categoryData.map(c => {
+      const dash = planTotal > 0 ? (c.budget / planTotal) * circumInner : 0;
+      const seg = { dash, offset, color: c.color };
+      offset += dash;
+      return seg;
+    });
+  }, [categoryData, planTotal, circumInner]);
+
+  const outerSegments = useMemo(() => {
+    let offset = 0;
+    return categoryData.map(c => {
+      const dash = actualTotal > 0 ? (c.spent / actualTotal) * circumOuter : 0;
+      const seg = { dash, offset, color: c.color };
+      offset += dash;
+      return seg;
+    });
+  }, [categoryData, actualTotal, circumOuter]);
 
   return (
     <div className="px-5 pb-8">
@@ -151,22 +179,78 @@ function PlanVsActualContent({ onBack, onClose }: { onBack: () => void; onClose:
         <button onClick={onClose}><X size={20} style={{ color: 'rgba(255,255,255,0.4)' }} /></button>
       </div>
 
-      <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase' }}>Overall</div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: totalVariance > 0 ? '#FBBF24' : '#86EFAC', marginTop: 4 }}>
-          {totalVariance > 0 ? '+' : ''}€{Math.round(Math.abs(totalVariance))} {totalVariance > 0 ? 'over plan' : 'under plan'}
-        </div>
+      {/* Ring Chart */}
+      <div style={{ display: 'flex', justifyContent: 'center', margin: '0 0 16px' }}>
+        <svg width={160} height={160} viewBox="0 0 160 160" style={{ transform: 'rotate(-90deg)' }}>
+          {/* Inner ring background */}
+          <circle cx={80} cy={80} r={innerR} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={12} />
+          {/* Inner ring segments (Plan) */}
+          {innerSegments.map((seg, i) => (
+            <circle key={`inner-${i}`} cx={80} cy={80} r={innerR} fill="none"
+              stroke={seg.color} strokeWidth={12} strokeOpacity={0.3}
+              strokeDasharray={`${seg.dash} ${circumInner - seg.dash}`}
+              strokeDashoffset={-seg.offset}
+            />
+          ))}
+          {/* Outer ring background */}
+          <circle cx={80} cy={80} r={outerR} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={8} />
+          {/* Outer ring segments (Actual) */}
+          {outerSegments.map((seg, i) => (
+            <circle key={`outer-${i}`} cx={80} cy={80} r={outerR} fill="none"
+              stroke={seg.color} strokeWidth={8}
+              strokeDasharray={`${seg.dash} ${circumOuter - seg.dash}`}
+              strokeDashoffset={-seg.offset}
+            />
+          ))}
+          {/* Center text */}
+          <text x={80} y={74} textAnchor="middle" fill={totalVariance > 0 ? '#FBBF24' : '#86EFAC'}
+            fontSize={20} fontWeight={800} fontFamily="JetBrains Mono, monospace"
+            style={{ transform: 'rotate(90deg)', transformOrigin: '80px 80px' }}>
+            {totalVariance > 0 ? '+' : ''}€{Math.round(Math.abs(totalVariance))}
+          </text>
+          <text x={80} y={92} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize={10}
+            style={{ transform: 'rotate(90deg)', transformOrigin: '80px 80px' }}>
+            {totalVariance > 0 ? 'over plan' : 'under plan'}
+          </text>
+        </svg>
       </div>
 
+      {/* Ring legend */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 16, fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>
+        <span>Inner = Plan</span>
+        <span>Outer = Actual</span>
+      </div>
+
+      {/* Column headers */}
+      <div style={{ display: 'flex', padding: '0 14px 6px', fontSize: 9, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.15)' }}>
+        <span style={{ flex: 1 }}>Category</span>
+        <span style={{ width: 55, textAlign: 'right' }}>Plan</span>
+        <span style={{ width: 65, textAlign: 'center' }}>Delta</span>
+        <span style={{ width: 55, textAlign: 'right' }}>Actual</span>
+      </div>
+
+      {/* Table rows */}
       <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '4px 14px' }}>
         {categoryData.map((c, i) => (
-          <div key={c.name} className="flex items-center" style={{ padding: '10px 0', borderBottom: i < categoryData.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
-            <div style={{ width: 6, height: 6, borderRadius: 3, background: c.color, marginRight: 8, flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', flex: 1 }}>{c.name}</span>
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginRight: 12 }}>€{Math.round(c.budget)} plan</span>
-            <span style={{ fontSize: 12, color: 'white', marginRight: 12 }}>€{Math.round(c.spent)} actual</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: c.delta > 0 ? '#FBBF24' : '#86EFAC', minWidth: 50, textAlign: 'right' }}>
-              {c.delta > 0 ? '+' : ''}€{Math.round(c.delta)}
+          <div key={c.name} style={{
+            display: 'flex', alignItems: 'center', padding: '10px 0',
+            borderBottom: i < categoryData.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+              <div style={{ width: 6, height: 6, borderRadius: 3, background: c.color }} />
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{c.name}</span>
+            </div>
+            <span style={{ width: 55, textAlign: 'right', fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>
+              €{Math.round(c.budget)}
+            </span>
+            <span style={{
+              width: 65, textAlign: 'center', fontSize: 14, fontWeight: 800,
+              color: c.delta > 0 ? '#FBBF24' : '#86EFAC',
+            }}>
+              {c.delta > 0 ? '+' : ''}€{Math.round(Math.abs(c.delta))}
+            </span>
+            <span style={{ width: 55, textAlign: 'right', fontSize: 12, color: 'white' }}>
+              €{Math.round(c.spent)}
             </span>
           </div>
         ))}

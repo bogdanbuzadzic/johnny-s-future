@@ -1240,90 +1240,80 @@ function MyMoneyContent() {
         </div>
       </div>
 
-      {/* THE INCOME CONTAINER */}
+      {/* SUMMARY BAR -- above green container */}
+      <div style={{
+        display: 'flex',
+        margin: '8px 16px 0',
+        background: 'rgba(45,36,64,0.9)',
+        borderRadius: 10,
+        padding: '8px 0',
+      }}>
+        {[
+          { label: 'Income', value: `€${Math.round(totalIncome * mult).toLocaleString()}`, color: 'white' },
+          { label: 'Committed', value: `€${Math.round((totalIncome - freeAmount) * mult).toLocaleString()}`, color: 'white' },
+          { label: 'Free', value: freeAmount < 0 ? `Over €${Math.abs(Math.round(freeAmount * mult)).toLocaleString()}` : `€${Math.round(freeAmount * mult).toLocaleString()}`, color: freeAmount >= 0 ? '#86EFAC' : '#FF6B6B' },
+          { label: `€${Math.round(flexBudget / daysInMonth)}/d`, value: paceStatus === 'on-track' ? '✓' : '⚠', color: paceStatus === 'on-track' ? '#86EFAC' : '#FFC107' },
+        ].map((item, i) => (
+          <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)' }}>{item.label}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* CAN I AFFORD INPUT -- above green container */}
+      <div style={{
+        margin: '8px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        background: 'rgba(255,255,255,0.5)',
+        borderRadius: 12,
+        padding: '0 12px',
+        height: 40,
+        border: '1px solid rgba(255,255,255,0.6)',
+        gap: 8,
+      }}>
+        <span style={{ fontSize: 13, color: '#5C4F6E' }}>EUR</span>
+        <input type="number" inputMode="decimal" placeholder="0" value={purchaseAmount}
+          onChange={e => setPurchaseAmount(e.target.value)}
+          className="bg-transparent outline-none text-[13px]"
+          style={{ width: 60, color: '#2D2440' }}
+        />
+        <div style={{ width: 1, height: 18, background: 'rgba(45,36,64,0.12)' }} />
+        <input type="text" placeholder="What is it?" value={purchaseDesc}
+          onChange={e => setPurchaseDesc(e.target.value)}
+          className="flex-1 bg-transparent outline-none text-[13px] min-w-0"
+          style={{ color: '#2D2440' }}
+          onKeyDown={e => { if (e.key === 'Enter' && parseFloat(purchaseAmount) > 0) setShowDecisionSheet(true); }}
+        />
+        <button
+          disabled={!(parseFloat(purchaseAmount) > 0)}
+          onClick={() => setShowDecisionSheet(true)}
+          className="flex items-center justify-center rounded-full flex-shrink-0"
+          style={{
+            width: 28, height: 28,
+            background: parseFloat(purchaseAmount) > 0 ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(45,36,64,0.1)',
+            transition: 'all 200ms',
+          }}>
+          <ArrowRight size={14} style={{ color: parseFloat(purchaseAmount) > 0 ? 'white' : '#8A7FA0' }} />
+        </button>
+      </div>
+
+      {/* THE INCOME CONTAINER -- ONLY blocks inside */}
       <div className="px-4 mb-3">
         <div className="relative rounded-[20px] overflow-hidden" style={{
           background: '#27AE60',
           border: freeAmount < 0 ? '2px solid rgba(245,158,11,0.4)' : 'none',
-          minHeight: undefined,
           padding: 10,
-          paddingTop: 52,
-          paddingBottom: 10,
           boxShadow: freeAmount < 0 ? '0 0 24px rgba(245,158,11,0.2)' : undefined,
         }}>
-          {/* Summary bar at TOP */}
-          <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between" style={{
-            height: 44,
-            background: 'rgba(0,0,0,0.3)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            padding: '0 14px',
-            borderRadius: '20px 20px 0 0',
-          }}>
-            <div className="flex items-center gap-1">
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Income</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(totalIncome * mult).toLocaleString()}</span>
-            </div>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            <div className="flex items-center gap-1">
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Committed</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round((totalIncome - freeAmount) * mult).toLocaleString()}</span>
-            </div>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            <div className="flex items-center gap-1">
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Free</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: freeAmount >= 0 ? '#90EE90' : '#FF6B6B' }}>
-                {freeAmount < 0 ? `Over €${Math.abs(Math.round(freeAmount * mult)).toLocaleString()}` : `€${Math.round(freeAmount * mult).toLocaleString()}`}
-              </span>
-            </div>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>€{Math.round(flexBudget / daysInMonth)}/d</span>
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.10)' }} />
-            <span style={{ fontSize: 11, color: paceStatus === 'on-track' ? '#90EE90' : '#FFC107' }}>
-              {paceStatus === 'on-track' ? '✓' : '⚠'}
-            </span>
-          </div>
-
           {/* INCOME watermark */}
-          <div className="absolute z-0" style={{ top: 48, left: 14 }}>
+          <div className="absolute z-0" style={{ top: 8, left: 14 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 2 }}>INCOME</span>
           </div>
 
-          {/* Playground label removed - now in WhatIfSheet */}
-
-          {/* Purchase Decision Input Bar */}
-          <div className="relative z-10 mb-2 flex items-center gap-2" style={{
-            background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-            border: '1.5px solid rgba(255,255,255,0.15)', borderRadius: 14, height: 48, padding: '0 14px',
-          }}>
-            <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>EUR</span>
-            <input type="number" inputMode="decimal" placeholder="0" value={purchaseAmount}
-              onChange={e => setPurchaseAmount(e.target.value)}
-              className="bg-transparent outline-none text-[14px]"
-              style={{ width: 70, color: 'white' }}
-            />
-            <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)' }} />
-            <input type="text" placeholder="What is it?" value={purchaseDesc}
-              onChange={e => setPurchaseDesc(e.target.value)}
-              className="flex-1 bg-transparent outline-none text-[14px] placeholder:text-white/30 min-w-0"
-              style={{ color: 'white' }}
-              onKeyDown={e => { if (e.key === 'Enter' && parseFloat(purchaseAmount) > 0) setShowDecisionSheet(true); }}
-            />
-            <button
-              disabled={!(parseFloat(purchaseAmount) > 0)}
-              onClick={() => setShowDecisionSheet(true)}
-              className="flex items-center justify-center rounded-full flex-shrink-0"
-              style={{
-                width: 32, height: 32,
-                background: parseFloat(purchaseAmount) > 0 ? 'linear-gradient(135deg, #8B5CF6, #EC4899)' : 'rgba(255,255,255,0.15)',
-                transition: 'all 200ms',
-              }}>
-              <ArrowRight size={16} className="text-white" />
-            </button>
-          </div>
-
           {/* Parent blocks: TWO COLUMNS, no Goals */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 6 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 18 }}>
             {/* Left column: Spending */}
             <div style={{ flex: '1 1 55%' }}>
               {parentBlocks.filter(b => b.id === 'spending').map(renderParentBlock)}
@@ -1336,45 +1326,7 @@ function MyMoneyContent() {
             </div>
           </div>
 
-          {/* First-visit intro notification */}
-          {showMyMoneyIntro && (
-            <div style={{ marginTop: 6 }}>
-              <JohnnyMessage variant="glass" from="Johnny"
-                onDismiss={() => {
-                  setShowMyMoneyIntro(false);
-                  localStorage.setItem('jfb_myMoney_introduced', 'true');
-                }}
-              >
-                <strong>The green is your income.</strong> Everything inside = where your money goes. The green that's left? That's €{Math.round(freeAmount * mult).toLocaleString()} — yours. Tap any block to explore.
-              </JohnnyMessage>
-            </div>
-          )}
-
-          {/* Free cash strip */}
-          <div style={{
-            marginTop: 6,
-            padding: '10px 12px',
-            borderRadius: 10,
-            background: 'rgba(255,255,255,0.06)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-          }}>
-            <motion.img src={johnnyImage} alt="Johnny" className="w-8 h-8 object-contain"
-              animate={{ y: [0, -3, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              style={{ imageRendering: 'pixelated' as any }} />
-            <div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: freeAmount >= 0 ? 'white' : '#F59E0B' }}>
-                {freeAmount >= 0 ? `€${Math.round(freeAmount * mult).toLocaleString()} free` : `€${Math.abs(Math.round(freeAmount * mult)).toLocaleString()} over`}
-              </span>
-              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }}>
-                {freeAmount >= 0 ? `€${Math.round(dailyAllowance)}/day remaining` : 'Over-committed'}
-              </div>
-            </div>
-          </div>
-
-          {/* Single circular + button */}
+          {/* FAB button */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 2px 0' }}>
             <motion.button
               whileTap={{ scale: 0.9 }}
@@ -1389,7 +1341,6 @@ function MyMoneyContent() {
               <Plus size={18} style={{ color: 'white' }} strokeWidth={2.5} />
             </motion.button>
           </div>
-
         </div>
       </div>
 
@@ -1401,6 +1352,29 @@ function MyMoneyContent() {
           </div>
         )}
       </div>
+
+      {/* JOHNNY MESSAGE -- below goals, outside green */}
+      {showMyMoneyIntro && (
+        <div style={{
+          margin: '0 16px 12px',
+          padding: '10px 14px',
+          background: 'rgba(255,255,255,0.5)',
+          border: '1px solid rgba(255,255,255,0.6)',
+          borderRadius: 14,
+          display: 'flex',
+          gap: 8,
+          alignItems: 'flex-start',
+        }}>
+          <img src={johnnyImage} alt="Johnny" style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0, imageRendering: 'pixelated' as any }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 13, color: '#2D2440', margin: 0, lineHeight: 1.5 }}>
+              <strong>The green is your income.</strong> Everything inside = where your money goes. The green that's left? That's €{Math.round(freeAmount * mult).toLocaleString()} — yours. Tap any block to explore.
+            </p>
+            <button onClick={() => { setShowMyMoneyIntro(false); localStorage.setItem('jfb_myMoney_introduced', 'true'); }}
+              style={{ fontSize: 11, color: '#8A7FA0', background: 'none', border: 'none', marginTop: 4, cursor: 'pointer' }}>Dismiss</button>
+          </div>
+        </div>
+      )}
 
       {/* FAB Menu */}
       <AnimatePresence>

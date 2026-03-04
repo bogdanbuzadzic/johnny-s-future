@@ -66,22 +66,31 @@ export function BlockDetailSheet({
     allExpenseCategories.reduce((s, c) => s + (categorySpentMap[c.id] || 0), 0),
     [allExpenseCategories, categorySpentMap]);
 
-  // Build daily totals for the last 7 days
+  // Build daily totals for current calendar week (Mon-Sun)
   const { dailyData, weekDays } = useMemo(() => {
-    const days: { dayNum: number; dayName: string; amount: number; isToday: boolean; dateStr: string }[] = [];
     const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dom = d.getDate();
+    const todayStr = format(now, 'yyyy-MM-dd');
+    // Find Monday of current week
+    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+
+    const days: { dayNum: number; dayName: string; amount: number; isToday: boolean; isFuture: boolean; dateStr: string }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
       const dateStr = format(d, 'yyyy-MM-dd');
-      const dayTxs = transactions.filter(t => t.date === dateStr);
+      const isToday = dateStr === todayStr;
+      const isFuture = d > now && !isToday;
+      const dayTxs = isFuture ? [] : transactions.filter(t => t.date === dateStr);
       const total = dayTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0);
       days.push({
-        dayNum: dom,
-        dayName: i === 0 ? 'Today' : format(d, 'EEE'),
-        amount: total,
-        isToday: i === 0,
+        dayNum: d.getDate(),
+        dayName: isToday ? 'Today' : format(d, 'EEE'),
+        amount: isFuture ? 0 : total,
+        isToday,
+        isFuture,
         dateStr,
       });
     }
@@ -255,10 +264,11 @@ export function BlockDetailSheet({
 
                     return (
                       <div key={i}
-                        onClick={() => setSelectedDay(isSelected ? null : day.dayNum)}
+                        onClick={() => !day.isFuture && setSelectedDay(isSelected ? null : day.dayNum)}
                         style={{
                           flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                          cursor: 'pointer', opacity: isSelected ? 1 : 0.85,
+                          cursor: day.isFuture ? 'default' : 'pointer',
+                          opacity: day.isFuture ? 0.35 : (isSelected ? 1 : 0.85),
                         }}
                       >
                         <span style={{ fontSize: 9, color: day.isToday ? catColor : 'rgba(255,255,255,0.3)', fontWeight: day.isToday ? 700 : 400 }}>
@@ -267,15 +277,17 @@ export function BlockDetailSheet({
                         {/* Bar area */}
                         <div style={{ position: 'relative', width: 10, height: barAreaHeight, borderRadius: 5, background: 'rgba(255,255,255,0.06)' }}>
                           {/* Budget line */}
-                          <div style={{
-                            position: 'absolute',
-                            bottom: `${budgetLinePct}%`,
-                            left: -3, right: -3,
-                            height: 2,
-                            borderTop: '2px dashed rgba(255,255,255,0.15)',
-                          }} />
+                          {!day.isFuture && (
+                            <div style={{
+                              position: 'absolute',
+                              bottom: `${budgetLinePct}%`,
+                              left: -3, right: -3,
+                              height: 2,
+                              borderTop: '2px dashed rgba(255,255,255,0.15)',
+                            }} />
+                          )}
                           {/* Fill */}
-                          {day.amount > 0 && (
+                          {day.amount > 0 && !day.isFuture && (
                             <div style={{
                               position: 'absolute', bottom: 0, left: 0, right: 0,
                               height: `${pct}%`,
@@ -290,11 +302,12 @@ export function BlockDetailSheet({
                         <span style={{
                           fontSize: 8,
                           fontFamily: 'JetBrains Mono, monospace',
-                          color: isOver ? '#FBBF24'
+                          color: day.isFuture ? 'rgba(255,255,255,0.08)'
+                            : isOver ? '#FBBF24'
                             : day.amount > 0 ? 'rgba(255,255,255,0.3)'
                             : 'rgba(255,255,255,0.12)',
                         }}>
-                          {day.amount > 0 ? `€${Math.round(day.amount)}` : '-'}
+                          {day.isFuture ? '-' : (day.amount > 0 ? `€${Math.round(day.amount)}` : '-')}
                         </span>
                         <span style={{ fontSize: 8, fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,255,255,0.2)' }}>{day.dayNum}</span>
                       </div>

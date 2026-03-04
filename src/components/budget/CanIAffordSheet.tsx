@@ -65,22 +65,14 @@ export function CanIAffordSheet({
   const hourlyRate = income / 160;
   const hoursOfWork = hourlyRate > 0 ? effectiveAmount / hourlyRate : 0;
   const workdays = Math.ceil(hoursOfWork / 8);
-  const monthsToRecover = freeAmount > 0 ? Math.ceil(effectiveAmount / freeAmount) : Infinity;
+  const recoveryMonths = freeAmount > 0 ? Math.ceil(effectiveAmount / freeAmount) : Infinity;
   const verdict = getVerdict(effectiveAmount, flexRemaining, flexBudget);
 
   const goalDelays = useMemo(() =>
     goals.filter(g => g.monthlyContribution > 0)
-      .map(g => ({ name: g.name, delay: `${parseFloat((effectiveAmount / g.monthlyContribution).toFixed(1))} mo later` }))
-      .sort((a, b) => parseFloat(b.delay) - parseFloat(a.delay)),
+      .map(g => ({ name: g.name, months: effectiveAmount / g.monthlyContribution }))
+      .sort((a, b) => b.months - a.months),
     [goals, effectiveAmount]);
-
-  const catComparison = useMemo(() => {
-    const c = expenseCategories.filter(c => c.monthlyBudget > 0)
-      .map(c => ({ name: c.name, months: Math.round(effectiveAmount / c.monthlyBudget) }))
-      .filter(c => c.months > 0)
-      .sort((a, b) => a.months - b.months);
-    return c[0] || null;
-  }, [expenseCategories, effectiveAmount]);
 
   const bestCategoryId = useMemo(() => {
     let best = expenseCategories[0];
@@ -94,12 +86,10 @@ export function CanIAffordSheet({
 
   const habitCostNum = parseFloat(habitCost) || 0;
   const habitMonthly = habitFreq === 'day' ? habitCostNum * 30.4 : habitFreq === 'week' ? habitCostNum * 4.33 : habitCostNum;
-  const paybackDays = habitMonthly > 0 ? Math.ceil(effectiveAmount / (habitMonthly / 30.4)) : 0;
+  const dailyHabitCost = habitMonthly / 30.4;
+  const paybackDays = dailyHabitCost > 0 ? Math.ceil(effectiveAmount / dailyHabitCost) : 0;
   const roiNum = parseFloat(roiValue) || 0;
   const roiPaybackMonths = roiNum > 0 ? Math.ceil(effectiveAmount / roiNum) : 0;
-
-  const hoursContext = hoursOfWork < 4 ? "Less than half a day's work" : hoursOfWork < 8 ? "About a day's work" : `${workdays} full workdays at your rate`;
-  const recoveryContext = monthsToRecover <= 1 ? "You'd recover this within a month" : monthsToRecover === Infinity ? "No free cash to recover" : `~${monthsToRecover} months at your current pace`;
 
   const inputStyle: React.CSSProperties = {
     background: 'rgba(255,255,255,0.06)',
@@ -139,10 +129,10 @@ export function CanIAffordSheet({
               <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }} />
             </div>
 
-            <div className="px-5 pb-6">
+            <div className="pb-6">
               {/* ═══ TYPE SELECTOR ═══ */}
               {!selectedType && (
-                <div>
+                <div className="px-5">
                   <h3 style={{ fontSize: 15, fontWeight: 600, color: 'white', marginBottom: 12 }}>
                     What kind of purchase?
                   </h3>
@@ -152,8 +142,8 @@ export function CanIAffordSheet({
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         width: '100%', padding: '14px 0',
+                        background: 'none', border: 'none',
                         borderBottom: '1px solid rgba(255,255,255,0.04)',
-                        background: 'none', border: 'none', borderBottomStyle: 'solid', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)',
                         cursor: 'pointer',
                       }}>
                       <div style={{ textAlign: 'left' }}>
@@ -170,7 +160,7 @@ export function CanIAffordSheet({
               {selectedType && (
                 <>
                   {/* Header */}
-                  <div style={{ marginBottom: 16 }}>
+                  <div className="px-5" style={{ marginBottom: 16 }}>
                     <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', margin: 0 }}>
                       €{effectiveAmount.toLocaleString()} — {description || 'Purchase'}
                     </h3>
@@ -186,91 +176,157 @@ export function CanIAffordSheet({
                     </div>
                   </div>
 
-                  {/* Split info */}
+                  {/* Split info for experience */}
                   {selectedType === 'experience' && splitCount > 1 && (
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>
+                    <div className="px-5" style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>
                       €{amount} / {splitCount} = <span style={{ color: 'white', fontWeight: 600 }}>€{Math.round(effectiveAmount)}</span> each
                     </div>
                   )}
 
-                  {/* Metric sections */}
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <MetricSection label="HOURS OF WORK" value={`${Math.round(hoursOfWork)} hours`} context={hoursContext} />
-                    <MetricSection label="TIME TO RECOVER"
-                      value={monthsToRecover === Infinity ? 'Cannot recover' : `~${monthsToRecover} month${monthsToRecover !== 1 ? 's' : ''}`}
-                      context={recoveryContext} />
+                  {/* ═══ PURCHASE TYPE HERO SECTIONS ═══ */}
 
-                    {/* Goal delays */}
-                    <div style={{ padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        WHAT YOU'RE GIVING UP
-                      </span>
-                      {goalDelays.length > 0 ? goalDelays.map((gd, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-                          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{gd.name}</span>
-                          <span style={{ fontSize: 13, color: '#FBBF24', fontWeight: 600 }}>{gd.delay}</span>
-                        </div>
-                      )) : (
-                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>No active goals</p>
-                      )}
-                      {catComparison && (
-                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 6 }}>
-                          Or: {catComparison.months} month{catComparison.months !== 1 ? 's' : ''} of {catComparison.name}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Johnny insight */}
-                  {amount > 0 && (
-                    <div style={{ padding: '10px 0' }}>
-                      <JohnnyMessage variant="dark" from="Johnny">
-                        €{amount} = <strong style={{ color: 'white' }}>{hoursOfWork.toFixed(1)} hours</strong> of your work.
-                        {goalDelays.length > 0 && goalDelays[0] && (
-                          <> Your {goalDelays[0].name} gets pushed back <strong style={{ color: '#FBBF24' }}>{goalDelays[0].delay}</strong>.</>
-                        )}
-                        {' '}Still worth it?
-                      </JohnnyMessage>
-                    </div>
-                  )}
-
-                  {/* Type-specific sections */}
+                  {/* HABIT: Payback hero */}
                   {selectedType === 'habit' && (
-                    <div style={{ padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>PAYBACK ANALYSIS</div>
-                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>How much do you spend on this?</div>
-                      <div className="flex gap-2 items-center mb-2">
-                        <input type="number" inputMode="decimal" placeholder="0" value={habitCost}
-                          onChange={e => setHabitCost(e.target.value)}
-                          style={{ ...inputStyle, width: 80 }} />
-                        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>€</span>
-                        {(['day', 'week', 'month'] as const).map(f => (
-                          <button key={f} onClick={() => setHabitFreq(f)} style={{
-                            padding: '6px 10px', borderRadius: 6, fontSize: 11,
-                            background: habitFreq === f ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)',
-                            border: habitFreq === f ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.06)',
-                            color: habitFreq === f ? 'white' : 'rgba(255,255,255,0.4)',
-                          }}>/{f}</button>
-                        ))}
+                    <div className="px-4 mb-3">
+                      {/* Habit input */}
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>How much do you spend on this?</div>
+                        <div className="flex gap-2 items-center">
+                          <input type="number" inputMode="decimal" placeholder="0" value={habitCost}
+                            onChange={e => setHabitCost(e.target.value)}
+                            style={{ ...inputStyle, width: 80 }} />
+                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>€</span>
+                          {(['day', 'week', 'month'] as const).map(f => (
+                            <button key={f} onClick={() => setHabitFreq(f)} style={{
+                              padding: '6px 10px', borderRadius: 6, fontSize: 11,
+                              background: habitFreq === f ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)',
+                              border: habitFreq === f ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.06)',
+                              color: habitFreq === f ? 'white' : 'rgba(255,255,255,0.4)',
+                            }}>/{f}</button>
+                          ))}
+                        </div>
                       </div>
-                      {paybackDays > 0 && (
-                        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-                          Pays for itself in <span style={{ color: '#86EFAC', fontWeight: 600 }}>{paybackDays} days</span>
+
+                      {dailyHabitCost > 0 && (
+                        <div style={{
+                          background: 'rgba(34,197,94,0.08)',
+                          border: '1px solid rgba(34,197,94,0.15)',
+                          borderRadius: 14, padding: 16, textAlign: 'center',
+                        }}>
+                          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(34,197,94,0.5)' }}>
+                            Pays for itself in
+                          </div>
+                          <div style={{ fontSize: 36, fontWeight: 800, color: '#86EFAC', marginTop: 6 }}>
+                            {paybackDays} days
+                          </div>
+                          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+                            If you spend €{dailyHabitCost.toFixed(0)}/day on this habit now
+                          </div>
+
+                          {/* Break-even bar */}
+                          <div style={{ marginTop: 14, height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${Math.min(100, (dailyHabitCost * 365 / effectiveAmount) * 20)}%`,
+                              height: '100%',
+                              background: 'linear-gradient(90deg, #86EFAC, #22C55E)',
+                              borderRadius: 4,
+                            }} />
+                          </div>
+
+                          {/* Annual savings */}
+                          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center', gap: 20 }}>
+                            <div>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: '#86EFAC' }}>
+                                €{Math.round(dailyHabitCost * 365 - effectiveAmount)}
+                              </div>
+                              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>saved/year</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: 'white' }}>
+                                €{(dailyHabitCost - (effectiveAmount / 365)).toFixed(2)}
+                              </div>
+                              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>saved/day</div>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
                   )}
 
+                  {/* ONE-TIME: Cost per use hero */}
                   {selectedType === 'one-time' && (
-                    <div style={{ padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', fontStyle: 'italic' }}>
-                        Will you still want this in 1 week? 1 month? 1 year?
+                    <div style={{
+                      margin: '0 16px 12px',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: 14, padding: 16, textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                        Cost Per Day (3 year lifespan)
+                      </div>
+                      <div style={{ fontSize: 36, fontWeight: 800, color: 'white', marginTop: 6 }}>
+                        €{(effectiveAmount / (365 * 3)).toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+                        €{(effectiveAmount / (52 * 3)).toFixed(2)}/week · €{(effectiveAmount / 36).toFixed(2)}/month
                       </div>
                     </div>
                   )}
 
+                  {/* TOOL: ROI Calculator */}
+                  {selectedType === 'tool' && (
+                    <div className="px-4 mb-3">
+                      {/* ROI input */}
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>Monthly savings from this?</div>
+                        <input type="number" inputMode="decimal" placeholder="0" value={roiValue}
+                          onChange={e => setRoiValue(e.target.value)}
+                          style={{ ...inputStyle, width: '100%' }} />
+                      </div>
+
+                      <div style={{
+                        background: 'rgba(139,92,246,0.08)',
+                        border: '1px solid rgba(139,92,246,0.15)',
+                        borderRadius: 14, padding: 16,
+                      }}>
+                        <div style={{ fontSize: 10, color: 'rgba(139,92,246,0.5)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                          If this earns or saves you...
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {[
+                            { monthly: 50, label: '€50/mo' },
+                            { monthly: 200, label: '€200/mo' },
+                            { monthly: 500, label: '€500/mo' },
+                          ].map(scenario => {
+                            const months = Math.ceil(effectiveAmount / scenario.monthly);
+                            return (
+                              <div key={scenario.monthly} style={{
+                                flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 10,
+                                padding: 10, textAlign: 'center',
+                                border: scenario.monthly === 200 ? '1px solid rgba(139,92,246,0.2)' : '1px solid rgba(255,255,255,0.08)',
+                              }}>
+                                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{scenario.label}</div>
+                                <div style={{
+                                  fontSize: 18, fontWeight: 800, marginTop: 4,
+                                  color: months <= 3 ? '#86EFAC' : months <= 12 ? '#C4B5FD' : '#FBBF24',
+                                }}>{months} mo</div>
+                                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>to pay back</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {roiPaybackMonths > 0 && (
+                          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 10, textAlign: 'center' }}>
+                            At €{roiNum}/mo → pays back in <span style={{ color: '#86EFAC', fontWeight: 600 }}>{roiPaybackMonths} months</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* EXPERIENCE: Split selector */}
                   {selectedType === 'experience' && (
-                    <div style={{ padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div className="px-5" style={{ marginBottom: 12 }}>
                       <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>SPLIT WITH FRIENDS?</div>
                       <div className="flex gap-2">
                         {[1, 2, 3, 4].map(n => (
@@ -285,23 +341,85 @@ export function CanIAffordSheet({
                     </div>
                   )}
 
-                  {selectedType === 'tool' && (
-                    <div style={{ padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>ROI CALCULATION</div>
-                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>Monthly savings from this?</div>
-                      <input type="number" inputMode="decimal" placeholder="0" value={roiValue}
-                        onChange={e => setRoiValue(e.target.value)}
-                        style={{ ...inputStyle, width: '100%' }} />
-                      {roiPaybackMonths > 0 && (
-                        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 6 }}>
-                          Pays back in <span style={{ color: '#86EFAC', fontWeight: 600 }}>{roiPaybackMonths} months</span>
-                        </div>
-                      )}
+                  {/* ═══ METRICS CARDS (2-column) ═══ */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '0 16px 12px' }}>
+                    <div style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: 12, padding: 12,
+                    }}>
+                      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Hours of Work</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: 'white', marginTop: 4 }}>{Math.round(hoursOfWork)}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{workdays} workday{workdays !== 1 ? 's' : ''}</div>
+                    </div>
+                    <div style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: 12, padding: 12,
+                    }}>
+                      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Recovery</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: recoveryMonths > 3 ? '#FBBF24' : '#86EFAC', marginTop: 4 }}>
+                        {recoveryMonths === Infinity ? '∞' : `~${recoveryMonths} mo`}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>at current pace</div>
+                    </div>
+                  </div>
+
+                  {/* ═══ GOAL DELAYS WITH BARS ═══ */}
+                  {goalDelays.length > 0 && (
+                    <div style={{ padding: '0 16px 12px' }}>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                        What Gets Delayed
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {goalDelays.map(g => {
+                          const maxDelay = Math.max(...goalDelays.map(d => d.months));
+                          const barPct = maxDelay > 0 ? (g.months / maxDelay) * 100 : 0;
+                          return (
+                            <div key={g.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', width: 80, flexShrink: 0 }}>{g.name}</span>
+                              <div style={{ flex: 1, height: 5, background: 'rgba(255,255,255,0.04)', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ width: `${barPct}%`, height: '100%', background: '#FBBF24', borderRadius: 3 }} />
+                              </div>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#FBBF24', minWidth: 55, textAlign: 'right' }}>
+                                +{Math.round(g.months)} mo
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div style={{
+                  {/* ═══ JOHNNY INSIGHT (adapts to type) ═══ */}
+                  {amount > 0 && (
+                    <div className="px-4" style={{ marginBottom: 12 }}>
+                      <JohnnyMessage variant="dark" from="Johnny">
+                        {selectedType === 'habit' && dailyHabitCost > 0 && (
+                          <>This pays for itself in <strong style={{ color: '#86EFAC' }}>{paybackDays} days</strong> and saves you <strong style={{ color: '#86EFAC' }}>€{Math.round(dailyHabitCost * 365 - effectiveAmount)}/year</strong>. Smart buy.</>
+                        )}
+                        {selectedType === 'habit' && dailyHabitCost <= 0 && (
+                          <>Enter your current habit cost above to see if this purchase pays for itself.</>
+                        )}
+                        {selectedType === 'one-time' && (
+                          <>€{(effectiveAmount / (365 * 3)).toFixed(2)}/day over 3 years.
+                          {goalDelays.length > 0 && goalDelays[0] && <> But it pushes your <strong style={{ color: '#FBBF24' }}>{goalDelays[0].name}</strong> back <strong style={{ color: '#FBBF24' }}>+{Math.round(goalDelays[0].months)} months</strong>. Worth the trade?</>}
+                          </>
+                        )}
+                        {selectedType === 'tool' && (
+                          <>If this leads to even €200/mo more income, it pays back in <strong style={{ color: '#C4B5FD' }}>{Math.ceil(effectiveAmount / 200)} months</strong>. Good investment.</>
+                        )}
+                        {selectedType === 'experience' && (
+                          <>€{effectiveAmount.toLocaleString()} = <strong style={{ color: 'white' }}>{hoursOfWork.toFixed(1)} hours</strong> of your work.
+                          {goalDelays.length > 0 && goalDelays[0] && <> Your {goalDelays[0].name} gets pushed back <strong style={{ color: '#FBBF24' }}>+{Math.round(goalDelays[0].months)} mo</strong>.</>}
+                          {' '}Still worth it?</>
+                        )}
+                      </JohnnyMessage>
+                    </div>
+                  )}
+
+                  {/* ═══ ACTIONS ═══ */}
+                  <div className="px-5" style={{
                     display: 'flex', gap: 8, padding: '12px 0',
                     borderTop: '1px solid rgba(255,255,255,0.04)',
                     marginTop: 8,
@@ -328,17 +446,5 @@ export function CanIAffordSheet({
         </>
       )}
     </AnimatePresence>
-  );
-}
-
-function MetricSection({ label, value, context }: { label: string; value: string; context: string }) {
-  return (
-    <div style={{ padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <p style={{ fontSize: 22, fontWeight: 700, color: 'white', marginTop: 4, marginBottom: 0 }}>{value}</p>
-      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 2, marginBottom: 0 }}>{context}</p>
-    </div>
   );
 }
