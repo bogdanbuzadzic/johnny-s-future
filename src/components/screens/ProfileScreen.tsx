@@ -788,7 +788,6 @@ function ProfileScreenContent() {
       t.description && t.description.startsWith('IMPORTED:')
     );
     bd.transactions = [...existingNonMock, ...prevTxs, ...currentTxs];
-    localStorage.setItem('jfb-budget-data', JSON.stringify(bd));
 
     // ── 3. PREVIOUS MONTH SNAPSHOT (for Month vs Month) ──
     const prevMonthKey = `${prevYr}-${prevMo}`;
@@ -813,6 +812,33 @@ function ProfileScreenContent() {
       timestamp: Date.now(),
     };
     localStorage.setItem('jfb_month_snapshots', JSON.stringify(snapshots));
+
+    // ── FIX CATEGORY BUDGETS to match demo spending ──
+    const catBudgetMap: Record<string, number> = {
+      'Food': 334,
+      'Entertainment': 191,
+      'Shopping': 241,
+      'Lifestyle': 170,
+      'Subscriptions': 66,
+      'Subs': 66,
+    };
+
+    bd.categories = (bd.categories || []).map((c: any) => {
+      if (c.type === 'expense' && catBudgetMap[c.name]) {
+        return { ...c, monthlyBudget: catBudgetMap[c.name] };
+      }
+      return c;
+    });
+
+    // Also ensure income and savings are set
+    bd.config = {
+      ...bd.config,
+      monthlyIncome: 2500,
+      monthlySavingsTarget: 200,
+      setupComplete: true,
+    };
+
+    localStorage.setItem('jfb-budget-data', JSON.stringify(bd));
 
   } catch (e) {
     console.error('Demo transaction error:', e);
