@@ -6,12 +6,13 @@ import { useApp } from '@/context/AppContext';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 import { toast } from 'sonner';
 import johnnyImage from '@/assets/johnny.png';
+import { InsuranceToolHome } from '@/components/insurance/InsuranceToolHome';
 
 const categoryColors: Record<string, string> = {
   Food: '#E67E22', Entertainment: '#9B59B6', Shopping: '#E74C3C', Lifestyle: '#1ABC9C',
 };
 
-type CompareMode = 'menu' | 'plan-vs-actual' | 'month-vs-month' | 'compare-plans';
+type CompareMode = 'menu' | 'plan-vs-actual' | 'month-vs-month' | 'compare-plans' | 'insurance';
 
 interface CompareSheetProps {
   open: boolean;
@@ -94,10 +95,11 @@ export function CompareSheet({ open, onClose }: CompareSheetProps) {
                   { id: 'plan-vs-actual' as CompareMode, label: 'Plan vs. Actual', desc: 'How this month is tracking' },
                   { id: 'month-vs-month' as CompareMode, label: 'Month vs. Month', desc: 'Compare two months' },
                   { id: 'compare-plans' as CompareMode, label: 'Compare Plans', desc: 'Build and compare new plans' },
+                  { id: 'insurance' as CompareMode, label: 'Do I Need Insurance?', desc: 'Evaluate if insurance is worth it for you' },
                 ].map((item, i) => (
                   <div key={item.id}
                     className="flex items-center cursor-pointer"
-                    style={{ padding: '14px 0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}
+                    style={{ padding: '14px 0', borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}
                     onClick={() => setMode(item.id)}
                   >
                     <div style={{ flex: 1 }}>
@@ -120,6 +122,10 @@ export function CompareSheet({ open, onClose }: CompareSheetProps) {
 
             {mode === 'compare-plans' && (
               <ComparePlansContent onBack={() => setMode('menu')} onClose={handleClose} />
+            )}
+
+            {mode === 'insurance' && (
+              <InsuranceToolHome onBack={() => setMode('menu')} onClose={handleClose} />
             )}
           </motion.div>
         </>
