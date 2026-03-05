@@ -445,8 +445,54 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
               {clarityData.insight}
             </motion.p>
 
+            {/* Answer Review - Clarity only */}
+            {(() => {
+              const CLARITY_CORRECT: Record<string, { short: string; correct: string }> = {
+                step2: { short: 'Bills on time', correct: 'Always on time' },
+                step9: { short: 'Pension contributions', correct: 'Yes' },
+              };
+              const reviewAnswers = Object.entries(CLARITY_CORRECT).map(([key, info]) => ({
+                questionShort: info.short,
+                userAnswer: answers[key] || '—',
+                correctAnswer: info.correct,
+                isCorrect: answers[key] === info.correct,
+              }));
+              const correctCount = reviewAnswers.filter(a => a.isCorrect).length;
+
+              return (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.75 }}
+                  className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.5)' }}>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-[13px] font-bold" style={{ color: '#2D2440' }}>Your Answers</span>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'rgba(34,197,94,0.15)', color: '#16A34A' }}>
+                      {correctCount}/{reviewAnswers.length} correct
+                    </span>
+                  </div>
+                  {reviewAnswers.map((a, i) => (
+                    <div key={i} className="flex items-start gap-2 py-1.5" style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.3)' : 'none' }}>
+                      <div className="w-4 h-4 rounded-full flex items-center justify-center mt-0.5 shrink-0"
+                        style={{ background: a.isCorrect ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)' }}>
+                        <div className="w-2 h-2 rounded-full" style={{ background: a.isCorrect ? '#16A34A' : '#EF4444' }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px]" style={{ color: '#8A7FA0' }}>{a.questionShort}</p>
+                        {a.isCorrect ? (
+                          <p className="text-[12px] font-medium" style={{ color: '#16A34A' }}>{a.userAnswer} ✓</p>
+                        ) : (
+                          <>
+                            <p className="text-[12px] line-through" style={{ color: '#EF4444' }}>{a.userAnswer}</p>
+                            <p className="text-[12px] font-medium" style={{ color: '#16A34A' }}>→ {a.correctAnswer}</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </motion.div>
+              );
+            })()}
+
             {/* Badge + Johnny combined card */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.85 }}
               className="flex items-center gap-3 rounded-2xl p-4"
               style={{ background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.6)' }}>
               {badgeImg && (
@@ -655,6 +701,16 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
 
 // ── Question Input Renderer ──
 function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: ProfileQ; value: any; onChange: (v: any) => void; expenseFreq: Record<string, string>; onFreqChange: (f: Record<string, string>) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const needsAutoFocus = q.type === 'number' || q.type === 'compound';
+
+  useEffect(() => {
+    if (needsAutoFocus) {
+      const timer = setTimeout(() => inputRef.current?.focus(), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [q.id, needsAutoFocus]);
+
   switch (q.type) {
     case 'text':
       return (
@@ -672,8 +728,8 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
         <div className="max-w-[300px] mx-auto">
           <div className="flex items-center h-[52px] rounded-[14px] px-5 frosted-input transition-all focus-within:shadow-[0_0_0_3px_rgba(139,92,246,0.1)]">
             {q.prefix && <span className="text-lg mr-2" style={{ color: '#8A7FA0' }}>{q.prefix}</span>}
-            <input type="text" inputMode="decimal" value={value || ''} onChange={e => onChange(e.target.value)}
-              placeholder="0" autoFocus
+            <input ref={inputRef} type="text" inputMode="decimal" value={value || ''} onChange={e => onChange(e.target.value)}
+              placeholder="0"
               className="flex-1 bg-transparent text-xl font-semibold outline-none placeholder:text-[#8A7FA0]" style={{ color: '#2D2440' }} />
           </div>
         </div>
@@ -881,14 +937,14 @@ function QuestionInput({ q, value, onChange, expenseFreq, onFreqChange }: { q: P
       const vals: Record<string, string> = value || {};
       return (
         <div className="space-y-3 max-w-[460px] mx-auto">
-          {(q.fields || []).map(f => (
+          {(q.fields || []).map((f, fi) => (
             <div key={f.key} className="space-y-1">
               <label className="text-xs px-1" style={{ color: '#5C4F6E' }}>{f.label}</label>
-              <div className="flex items-center h-9 rounded-[10px] px-3 frosted-input transition-all focus-within:border-[rgba(139,92,246,0.4)]">
-                {f.prefix && <span className="text-sm mr-2" style={{ color: '#8A7FA0' }}>{f.prefix}</span>}
-                <input type="text" inputMode="decimal" value={vals[f.key] || ''} placeholder="0"
+              <div className="flex items-center h-[52px] rounded-[14px] px-5 frosted-input transition-all focus-within:shadow-[0_0_0_3px_rgba(139,92,246,0.1)]">
+                {f.prefix && <span className="text-lg mr-2" style={{ color: '#8A7FA0' }}>{f.prefix}</span>}
+                <input ref={fi === 0 ? inputRef : undefined} type="text" inputMode="decimal" value={vals[f.key] || ''} placeholder="0"
                   onChange={e => onChange({ ...vals, [f.key]: e.target.value })}
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-[#8A7FA0]" style={{ color: '#2D2440' }} />
+                  className="flex-1 bg-transparent text-xl font-semibold outline-none placeholder:text-[#8A7FA0]" style={{ color: '#2D2440' }} />
               </div>
             </div>
           ))}
