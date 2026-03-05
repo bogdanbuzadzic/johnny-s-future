@@ -47,7 +47,7 @@ function useCountUp(target: number, duration = 800) {
 }
 
 // Orbital layout constants
-const ORBIT_RADIUS = 140;
+const ORBIT_RADIUS = 170;
 const START_ANGLE = -90;
 
 // Node color map
@@ -257,10 +257,23 @@ function ProfileScreenContent() {
   }, [toast]);
 
   const handleQuestComplete = useCallback(() => {
+    const prevDone = doneFlags;
+    const prevCompleteness = calculateCompleteness(prevDone);
+    const prevTier = getLevelTier(prevCompleteness);
+
     setActiveQuest(null);
-    setDoneFlags(readDone());
+    const newFlags = readDone();
+    setDoneFlags(newFlags);
     setRefreshKey(k => k + 1);
-  }, [readDone]);
+
+    const newCompleteness = calculateCompleteness(newFlags);
+    const newTier = getLevelTier(newCompleteness);
+    if (newTier.min > prevTier.min) {
+      setTimeout(() => {
+        toast({ title: '⬆️ Level Up!', description: `You're now a ${getLevelTitle(newCompleteness)}!` });
+      }, 500);
+    }
+  }, [readDone, doneFlags, toast]);
 
   const handleBadgeTap = (b: typeof BADGES[0]) => {
     const unlocked = allBadgeUnlocks[b.key];
@@ -282,16 +295,16 @@ function ProfileScreenContent() {
           const totalNodes = QUEST_NODES.length;
 
           return (
-            <div className="relative w-full" style={{ height: 420 }}>
+            <div className="relative w-full" style={{ height: 480 }}>
               {/* SVG arc connections */}
-              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 420 420" preserveAspectRatio="xMidYMid meet" style={{ zIndex: 0 }}>
+              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 480 480" preserveAspectRatio="xMidYMid meet" style={{ zIndex: 0 }}>
                 {QUEST_NODES.map((node, i) => {
                   if (i === totalNodes - 1) return null;
                   const angle1 = START_ANGLE + (i * (360 / totalNodes));
                   const angle2 = START_ANGLE + ((i + 1) * (360 / totalNodes));
                   const rad1 = (angle1 * Math.PI) / 180;
                   const rad2 = (angle2 * Math.PI) / 180;
-                  const cx = 210, cy = 210, r = ORBIT_RADIUS;
+                  const cx = 240, cy = 240, r = ORBIT_RADIUS;
                   const x1 = cx + Math.cos(rad1) * r;
                   const y1 = cy + Math.sin(rad1) * r;
                   const x2 = cx + Math.cos(rad2) * r;
