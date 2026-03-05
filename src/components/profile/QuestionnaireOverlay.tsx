@@ -445,51 +445,8 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
               {clarityData.insight}
             </motion.p>
 
-            {/* Answer Review - Clarity only */}
-            {(() => {
-              const CLARITY_CORRECT: Record<string, { short: string; correct: string }> = {
-                step2: { short: 'Bills on time', correct: 'Always on time' },
-                step9: { short: 'Pension contributions', correct: 'Yes' },
-              };
-              const reviewAnswers = Object.entries(CLARITY_CORRECT).map(([key, info]) => ({
-                questionShort: info.short,
-                userAnswer: answers[key] || '—',
-                correctAnswer: info.correct,
-                isCorrect: answers[key] === info.correct,
-              }));
-              const correctCount = reviewAnswers.filter(a => a.isCorrect).length;
 
-              return (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.75 }}
-                  className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.5)' }}>
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-[13px] font-bold" style={{ color: '#2D2440' }}>Your Answers</span>
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'rgba(34,197,94,0.15)', color: '#16A34A' }}>
-                      {correctCount}/{reviewAnswers.length} correct
-                    </span>
-                  </div>
-                  {reviewAnswers.map((a, i) => (
-                    <div key={i} className="flex items-start gap-2 py-1.5" style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.3)' : 'none' }}>
-                      <div className="w-4 h-4 rounded-full flex items-center justify-center mt-0.5 shrink-0"
-                        style={{ background: a.isCorrect ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)' }}>
-                        <div className="w-2 h-2 rounded-full" style={{ background: a.isCorrect ? '#16A34A' : '#EF4444' }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px]" style={{ color: '#8A7FA0' }}>{a.questionShort}</p>
-                        {a.isCorrect ? (
-                          <p className="text-[12px] font-medium" style={{ color: '#16A34A' }}>{a.userAnswer} ✓</p>
-                        ) : (
-                          <>
-                            <p className="text-[12px] line-through" style={{ color: '#EF4444' }}>{a.userAnswer}</p>
-                            <p className="text-[12px] font-medium" style={{ color: '#16A34A' }}>→ {a.correctAnswer}</p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </motion.div>
-              );
-            })()}
+
 
             {/* Badge + Johnny combined card */}
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.85 }}
@@ -525,6 +482,53 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
               })()}</motion.h2>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
               className="text-[15px] mb-6" style={{ color: '#8A7FA0' }}>{node.name}</motion.p>
+
+            {/* Answer Review - Module 0 (Know Yourself) only */}
+            {moduleKey === 'module0' && (() => {
+              const MODULE0_CORRECT: Record<string, { short: string; correct: string }> = {
+                q5a: { short: 'Compound interest', correct: 'More than €102' },
+                q5b: { short: 'Interest vs inflation', correct: 'Less than today' },
+                q5c: { short: 'Stock vs mutual fund', correct: 'False' },
+              };
+              const literacyAnswers = Object.entries(MODULE0_CORRECT).map(([key, info]) => ({
+                questionShort: info.short,
+                userAnswer: typeof answers[key] === 'string' ? answers[key] : (answers[key]?.label || answers[key] || '—'),
+                correctAnswer: info.correct,
+                isCorrect: (typeof answers[key] === 'string' ? answers[key] : (answers[key]?.label || '')) === info.correct,
+              }));
+              const correctCount = literacyAnswers.filter(a => a.isCorrect).length;
+
+              return (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
+                  className="w-full max-w-[320px] mt-4 rounded-2xl p-3"
+                  style={{ background: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.7)' }}>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[12px] font-bold" style={{ color: '#2D1F4E' }}>Financial Literacy Check</span>
+                    <span className="text-[11px]" style={{ color: '#8A7FA0' }}>{correctCount}/3 correct</span>
+                  </div>
+                  {literacyAnswers.map((a, i) => (
+                    <div key={i} className="flex items-center gap-2" style={{
+                      padding: '7px 0',
+                      borderBottom: i < literacyAnswers.length - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none',
+                    }}>
+                      <div className="shrink-0" style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: a.isCorrect ? '#22C55E' : '#EF4444',
+                      }} />
+                      <span className="flex-1 text-[12px]" style={{ color: '#5C4F6E' }}>{a.questionShort}</span>
+                      {a.isCorrect ? (
+                        <span className="text-[11px] font-semibold" style={{ color: '#22C55E' }}>{a.userAnswer} ✓</span>
+                      ) : (
+                        <>
+                          <span className="text-[11px] line-through" style={{ color: '#EF4444' }}>{a.userAnswer}</span>
+                          <span className="text-[11px] font-semibold" style={{ color: '#22C55E' }}>→ {a.correctAnswer}</span>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </motion.div>
+              );
+            })()}
 
             {badgeImg && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.3 }}
