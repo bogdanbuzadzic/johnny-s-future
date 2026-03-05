@@ -12,6 +12,7 @@ import type { ProfileQ } from '@/lib/profileData';
 import { useBudget } from '@/context/BudgetContext';
 import { useApp } from '@/context/AppContext';
 import { BADGE_IMAGES } from '@/lib/badgeImages';
+import { BankConnectionScreen } from '@/components/onboarding/BankConnectionScreen';
 
 const EXPENSE_ICONS: Record<string, LucideIcon> = {
   Home, Zap, Landmark, Car, Bus, Tv, Shield, ShoppingCart, Baby, MoreHorizontal,
@@ -38,6 +39,7 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [showCompletion, setShowCompletion] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
+  const [showBankConnection, setShowBankConnection] = useState(false);
   
   const [direction, setDirection] = useState<1 | -1>(1);
   const [expenseFreq, setExpenseFreq] = useState<Record<string, string>>({});
@@ -302,7 +304,15 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
   }, [answers, moduleKey, updateConfig, addCategory, addGoal, addTransaction, expenseFreq]);
 
   const handleContinue = () => {
-    if (moduleKey === 'clarity') setActiveTab(1);
+    if (moduleKey === 'clarity') {
+      if (!localStorage.getItem('jfb_bank_connected')) {
+        setShowBankConnection(true);
+        return;
+      }
+      setActiveTab(2); // Profile tab
+      onComplete();
+      return;
+    }
     onComplete();
   };
 
@@ -341,14 +351,20 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
     );
   }
 
+  // ── Bank Connection Screen ──
+  if (showBankConnection) {
+    return (
+      <BankConnectionScreen
+        onComplete={() => {
+          setActiveTab(2);
+          onComplete();
+        }}
+      />
+    );
+  }
+
   // ── Combined Completion Screen (Score + Badge) ──
   if (showCompletion) {
-    const particles = Array.from({ length: 55 }, (_, i) => ({
-      x: 5 + Math.random() * 90, startY: -10 - Math.random() * 20,
-      color: ['#8B5CF6', '#EC4899', '#FFD700', '#34C759', '#3B82F6'][i % 5],
-      delay: Math.random() * 1.2, size: i % 4 === 0 ? 6 : i % 3 === 0 ? 5 : 4,
-      drift: (Math.random() - 0.5) * 40, rotation: Math.random() * 720, isRect: i % 3 === 0,
-    }));
     const badgeKey = node.badgeKey;
     const badgeImg = BADGE_IMAGES[badgeKey];
     const isClarityModule = moduleKey === 'clarity';
@@ -356,8 +372,8 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
       const fa = { ...answers, step5_freq: expenseFreq };
       const score = calculateClarityScore(fa);
       const pillars = [
-        { label: 'Spending', score: score.spending, max: 40, color: '#E67E22' },
-        { label: 'Saving', score: score.saving, max: 35, color: '#2980B9' },
+        { label: 'Spending', score: score.spending, max: 40, color: '#F97316' },
+        { label: 'Saving', score: score.saving, max: 35, color: '#3B82F6' },
         { label: 'Planning', score: score.planning, max: 25, color: '#8B5CF6' },
       ];
       const weakest = pillars.reduce((a, b) => (a.score / a.max) < (b.score / b.max) ? a : b);
@@ -387,43 +403,72 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
 
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-6"
+        className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-6 overflow-auto"
         style={{ background: 'radial-gradient(circle at 50% 30%, rgba(139,92,246,0.2) 0%, transparent 50%), linear-gradient(180deg, #C4B5D0 0%, #D8C8E8 25%, #E8D8F0 50%, #F2E8F5 75%, #FAF4FC 100%)' }}>
-        {particles.map((p, i) => (
-          <motion.div key={i} className="absolute pointer-events-none"
-            style={{ width: p.isRect ? p.size * 2 : p.size, height: p.isRect ? p.size * 0.5 : p.size, borderRadius: p.isRect ? 1 : '50%', background: p.color, left: `${p.x}%` }}
-            initial={{ opacity: 0, y: `${p.startY}%`, x: 0, rotate: 0 }}
-            animate={{ opacity: [0, 1, 1, 0], y: [`${p.startY}%`, '120%'], x: [0, p.drift], rotate: [0, p.rotation] }}
-            transition={{ duration: 3, delay: p.delay, ease: 'easeIn' }} />
-        ))}
 
         {isClarityModule && clarityData ? (
-          <>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-center mb-1">
-              <span className="text-[64px] font-bold leading-none" style={{ color: '#2D2440' }}><ScoreCounter target={clarityData.score.total} /></span>
-              <p className="text-[22px]" style={{ color: '#8A7FA0' }}>/ 100</p>
-              <p className="text-[16px] mt-2" style={{ color: '#5C4F6E' }}>Financial Clarity Score</p>
+          <div className="w-full max-w-[340px] space-y-5 py-6">
+            {/* Score + horizontal bar */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-center">
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-[56px] font-bold leading-none" style={{ color: '#2D2440' }}><ScoreCounter target={clarityData.score.total} /></span>
+                <span className="text-[20px]" style={{ color: '#8A7FA0' }}>/100</span>
+              </div>
+              <p className="text-[14px] mt-1" style={{ color: '#5C4F6E' }}>Financial Clarity Score</p>
+              <div className="flex gap-0.5 mt-3 mx-auto" style={{ height: 8, borderRadius: 4, overflow: 'hidden', maxWidth: 280 }}>
+                {clarityData.pillars.map(p => (
+                  <motion.div key={p.label} initial={{ flex: 0 }} animate={{ flex: p.score }}
+                    transition={{ delay: 0.5, duration: 0.8 }}
+                    style={{ background: p.color, minWidth: p.score > 0 ? 4 : 0 }} />
+                ))}
+                <div style={{ flex: Math.max(0, 100 - clarityData.score.total), background: 'rgba(0,0,0,0.08)' }} />
+              </div>
             </motion.div>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="w-full max-w-[320px] space-y-2.5 mt-6">
-              {clarityData.pillars.map((p, i) => (
-                <div key={p.label}>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-[13px]" style={{ color: '#5C4F6E' }}>{p.label}</span>
-                    <span className="text-[13px]" style={{ color: '#8A7FA0' }}>{p.score}/{p.max}</span>
+
+            {/* Pillar chips */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="flex justify-center gap-2">
+              {clarityData.pillars.map(p => (
+                <div key={p.label} className="flex flex-col items-center px-3 py-2 rounded-xl"
+                  style={{ background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.6)' }}>
+                  <div className="flex items-center gap-1">
+                    <div style={{ width: 8, height: 8, borderRadius: 4, background: p.color }} />
+                    <span className="text-[14px] font-bold" style={{ color: '#2D2440' }}>{p.score}/{p.max}</span>
                   </div>
-                  <div className="w-full" style={{ height: 10, borderRadius: 5, background: 'rgba(255,255,255,0.3)' }}>
-                    <motion.div initial={{ width: 0 }} animate={{ width: `${(p.score / p.max) * 100}%` }}
-                      transition={{ delay: 0.5 + i * 0.2, duration: 0.8, ease: 'easeOut' }}
-                      style={{ height: '100%', borderRadius: 5, background: p.color }} />
-                  </div>
+                  <span className="text-[10px] mt-0.5" style={{ color: '#8A7FA0' }}>{p.label}</span>
                 </div>
               ))}
             </motion.div>
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
-              className="text-[14px] text-center italic max-w-[280px] mt-4" style={{ color: '#5C4F6E' }}>
+
+            {/* Insight */}
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
+              className="text-[13px] text-center italic" style={{ color: '#5C4F6E' }}>
               {clarityData.insight}
             </motion.p>
-          </>
+
+            {/* Badge + Johnny combined card */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}
+              className="flex items-center gap-3 rounded-2xl p-4"
+              style={{ background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.6)' }}>
+              {badgeImg && (
+                <img src={badgeImg} alt={badge?.name} className="w-12 h-12 object-contain shrink-0" style={{ imageRendering: 'pixelated' as any }} />
+              )}
+              <div>
+                <p className="text-[13px] font-bold" style={{ color: '#2D2440' }}>{badge?.name} badge unlocked!</p>
+                <p className="text-[11px] mt-1" style={{ color: '#5C4F6E' }}>
+                  {clarityData.score.total >= 70 ? 'Solid score.' : 'Good start.'}{' '}
+                  Spending awareness is your strongest area.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Continue */}
+            <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+              onClick={handleContinue}
+              className="w-full h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
+              style={{ background: 'linear-gradient(135deg, #8B5CF6, #EC4899)', boxShadow: '0 4px 16px rgba(139,92,246,0.3)' }}>
+              Continue →
+            </motion.button>
+          </div>
         ) : (
           <>
             <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
@@ -434,61 +479,52 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
               })()}</motion.h2>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
               className="text-[15px] mb-6" style={{ color: '#8A7FA0' }}>{node.name}</motion.p>
+
+            {badgeImg && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.3 }}
+                className="flex items-center gap-4 mt-6 frosted-card"
+                style={{ padding: '12px 20px', border: '1.5px solid rgba(255,215,0,0.3)' }}>
+                <img src={badgeImg} alt={badge?.name || 'Badge'} className="w-12 h-12 object-contain shrink-0" style={{ imageRendering: 'pixelated' as any }} />
+                <div>
+                  <p className="text-[15px] font-bold" style={{ color: '#2D2440' }}>{badge?.name || 'Badge Earned'}</p>
+                  <p className="text-[11px]" style={{ color: '#8A7FA0' }}>Badge unlocked!</p>
+                </div>
+              </motion.div>
+            )}
+
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }}
+              className="w-full max-w-[320px] mt-4">
+              <JohnnyMessage variant="light" from="Johnny">
+                {moduleKey === 'module0' && (
+                  <>
+                    {(() => {
+                      try {
+                        const a = JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null');
+                        const p = getPersona(a);
+                        if (!p) return <>Interesting profile. I'm learning how you think about money.</>;
+                        return (
+                          <>
+                            <strong>{p.n}</strong> types are great at sticking to plans once they have one. Your blind spot? You might delay big decisions while still "researching." I'll help you move faster.
+                          </>
+                        );
+                      } catch { return <>Interesting. I'm building your financial profile.</>; }
+                    })()}
+                  </>
+                )}
+                {moduleKey !== 'clarity' && moduleKey !== 'module0' && (
+                  <>Another piece of the puzzle. The more I know about you, the better I can help you make decisions that fit your style.</>
+                )}
+              </JohnnyMessage>
+            </motion.div>
+
+            <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1, duration: 0.3 }}
+              onClick={handleContinue}
+              className="mt-6 w-[220px] h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
+              style={{ background: 'linear-gradient(135deg, #8B5CF6, #EC4899)', boxShadow: '0 4px 16px rgba(139,92,246,0.3)' }}>
+              Continue →
+            </motion.button>
           </>
         )}
-
-        {badgeImg && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.3 }}
-            className="flex items-center gap-4 mt-6 frosted-card"
-            style={{ padding: '12px 20px', border: '1.5px solid rgba(255,215,0,0.3)' }}>
-            <img src={badgeImg} alt={badge?.name || 'Badge'} className="w-12 h-12 object-contain shrink-0" style={{ imageRendering: 'pixelated' }} />
-            <div>
-              <p className="text-[15px] font-bold" style={{ color: '#2D2440' }}>{badge?.name || 'Badge Earned'}</p>
-              <p className="text-[11px]" style={{ color: '#8A7FA0' }}>Badge unlocked!</p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Johnny's take on the results */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }}
-          className="w-full max-w-[320px] mt-4">
-          <JohnnyMessage variant="light" from="Johnny">
-            {moduleKey === 'clarity' && (
-              <>
-                <strong>
-                  {(() => { try { const cs = JSON.parse(localStorage.getItem('jfb_clarityScore') || '{}'); return cs.total || 0; } catch { return 0; } })() >= 70 ? 'Solid score.' : 'Good start.'}
-                </strong>
-                {' '}Most people score around 55. Your spending awareness is your strongest area. Let's put that to work.
-              </>
-            )}
-            {moduleKey === 'module0' && (
-              <>
-                {(() => {
-                  try {
-                    const a = JSON.parse(localStorage.getItem('jfb_module0_answers') || 'null');
-                    const p = getPersona(a);
-                    if (!p) return <>Interesting profile. I'm learning how you think about money.</>;
-                    return (
-                      <>
-                        <strong>{p.n}</strong> types are great at sticking to plans once they have one. Your blind spot? You might delay big decisions while still "researching." I'll help you move faster.
-                      </>
-                    );
-                  } catch { return <>Interesting. I'm building your financial profile.</>; }
-                })()}
-              </>
-            )}
-            {moduleKey !== 'clarity' && moduleKey !== 'module0' && (
-              <>Another piece of the puzzle. The more I know about you, the better I can help you make decisions that fit your style.</>
-            )}
-          </JohnnyMessage>
-        </motion.div>
-
-        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1, duration: 0.3 }}
-          onClick={handleContinue}
-          className="mt-6 w-[220px] h-12 rounded-[14px] text-white font-bold text-[16px] flex items-center justify-center gap-2"
-          style={{ background: 'linear-gradient(135deg, #8B5CF6, #EC4899)', boxShadow: '0 4px 16px rgba(139,92,246,0.3)' }}>
-          Continue →
-        </motion.button>
       </motion.div>
     );
   }
@@ -536,12 +572,52 @@ export function QuestionnaireOverlay({ moduleKey, onComplete, onClose }: Props) 
             <p className="text-[22px] font-bold text-center leading-[1.4] max-w-[500px] mx-auto whitespace-pre-line" style={{ color: '#2D2440' }}>
               {currentQ?.text}
             </p>
+
+            {/* Future Me circles animation for Know Yourself q6 */}
+            {moduleKey === 'module0' && currentQ?.id === 'q6' && (() => {
+              const v = value ?? 1;
+              const separation = ((7 - v) / 6) * 50; // 0 = overlap, 50 = apart
+              return (
+                <div className="flex flex-col items-center gap-6 pt-4">
+                  <div className="relative flex items-center justify-center" style={{ width: 200, height: 100 }}>
+                    <motion.div
+                      className="absolute rounded-full flex items-center justify-center"
+                      animate={{ x: -separation }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                      style={{
+                        width: 80, height: 80,
+                        background: 'rgba(139,92,246,0.25)',
+                        border: '2px solid rgba(139,92,246,0.5)',
+                      }}
+                    >
+                      <span className="text-[11px] font-semibold" style={{ color: '#5C4F6E' }}>Now</span>
+                    </motion.div>
+                    <motion.div
+                      className="absolute rounded-full flex items-center justify-center"
+                      animate={{ x: separation }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                      style={{
+                        width: 80, height: 80,
+                        background: 'rgba(236,72,153,0.2)',
+                        border: '2px solid rgba(236,72,153,0.4)',
+                      }}
+                    >
+                      <span className="text-[11px] font-semibold" style={{ color: '#5C4F6E' }}>Future</span>
+                    </motion.div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {currentQ && (
               <QuestionInput
                 q={currentQ}
                 value={value}
                 onChange={(v) => {
-                  if (AUTO_ADVANCE_TYPES.has(currentQ.type) && !isLast) {
+                  if (moduleKey === 'module0' && currentQ.id === 'q6') {
+                    // For Future Me, always use setAnswer (no auto-advance for slider)
+                    setAnswer(currentQ.id, v);
+                  } else if (AUTO_ADVANCE_TYPES.has(currentQ.type) && !isLast) {
                     handleAutoAdvanceAnswer(currentQ.id, v);
                   } else {
                     setAnswer(currentQ.id, v);
