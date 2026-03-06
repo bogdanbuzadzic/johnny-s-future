@@ -1521,7 +1521,7 @@ function MyMoneyContent() {
         open={showSubsSheet}
         onClose={() => setShowSubsSheet(false)}
         subscriptions={(() => {
-          const recurringTxs = transactions.filter(t => t.isRecurring === true);
+          const recurringTxs = transactions.filter(t => t.isRecurring === true && t.type === 'expense');
           const subMap: Record<string, { name: string; amount: number; dayOfMonth: number; isPaid: boolean; categoryId: string }> = {};
           recurringTxs.forEach(t => {
             const key = (t.description || 'Unknown').trim();
@@ -1533,7 +1533,7 @@ function MyMoneyContent() {
           return Object.values(subMap);
         })()}
         monthlyTotal={(() => {
-          const recurringTxs = transactions.filter(t => t.isRecurring === true);
+          const recurringTxs = transactions.filter(t => t.isRecurring === true && t.type === 'expense');
           const subMap: Record<string, number> = {};
           recurringTxs.forEach(t => { const k = (t.description || '').trim(); if (!subMap[k]) subMap[k] = Number(t.amount) || 0; });
           return Object.values(subMap).reduce((s, v) => s + v, 0);
