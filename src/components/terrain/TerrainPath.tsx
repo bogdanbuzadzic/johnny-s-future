@@ -808,7 +808,7 @@ export function TerrainPath() {
 
             {/* 6. Vertical dotted connector lines for expenses */}
             {points.map((p, i) => {
-              if (p.expenses <= 0 || p.isPast) return null;
+              if (p.expenses <= 0 || p.isPast || p.income > 0) return null;
               const markerX = i * DAY_WIDTH;
               const surfaceY = getTerrainYAtX(markerX, pathPoints);
               const staggerKey = `exp-${i}-0`;
