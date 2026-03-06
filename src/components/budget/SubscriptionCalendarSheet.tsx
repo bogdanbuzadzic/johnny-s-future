@@ -5,26 +5,65 @@ import { RefreshCw } from 'lucide-react';
 import { JohnnyMessage } from '@/components/ui/JohnnyMessage';
 import type { Transaction, Category } from '@/context/BudgetContext';
 
-const brandColors: Record<string, { color: string; letter: string }> = {
-  spotify: { color: '#1DB954', letter: 'S' },
-  netflix: { color: '#E50914', letter: 'N' },
-  amazon: { color: '#FF9900', letter: 'P' },
-  adobe: { color: '#6366F1', letter: 'Ai' },
-  icloud: { color: '#0078D4', letter: 'iC' },
-  discord: { color: '#5865F2', letter: 'D' },
-  appletv: { color: '#333333', letter: '▶' },
-  youtube: { color: '#FF0000', letter: 'YT' },
-  hulu: { color: '#1CE783', letter: 'H' },
-  disney: { color: '#113CCF', letter: 'D+' },
+// Brand logos
+import spotifyLogo from '@/assets/brands/spotify.png';
+import netflixLogo from '@/assets/brands/netflix.png';
+import amazonPrimeLogo from '@/assets/brands/amazon-prime.png';
+import appleTvLogo from '@/assets/brands/appletv.png';
+import icloudLogo from '@/assets/brands/icloud.png';
+
+interface BrandInfo {
+  logo: string | null;
+  fallbackColor: string;
+  fallbackLetter: string;
+}
+
+const BRAND_LOGOS: Record<string, BrandInfo> = {
+  'Spotify': { logo: spotifyLogo, fallbackColor: '#1DB954', fallbackLetter: 'S' },
+  'Netflix': { logo: netflixLogo, fallbackColor: '#E50914', fallbackLetter: 'N' },
+  'Amazon Prime': { logo: amazonPrimeLogo, fallbackColor: '#FF9900', fallbackLetter: 'P' },
+  'Apple TV+': { logo: appleTvLogo, fallbackColor: '#333333', fallbackLetter: 'A' },
+  'iCloud+': { logo: icloudLogo, fallbackColor: '#3693F3', fallbackLetter: 'iC' },
+  'iCloud': { logo: icloudLogo, fallbackColor: '#3693F3', fallbackLetter: 'iC' },
+  'Adobe CC': { logo: null, fallbackColor: '#FF0000', fallbackLetter: 'Ai' },
+  'Discord Nitro': { logo: null, fallbackColor: '#5865F2', fallbackLetter: 'D' },
 };
 
-function getBrandInfo(name: string): { color: string; letter: string } {
-  const lower = name.toLowerCase();
-  for (const [key, val] of Object.entries(brandColors)) {
-    if (lower.includes(key)) return val;
+function getBrandInfo(name: string): BrandInfo {
+  for (const [key, info] of Object.entries(BRAND_LOGOS)) {
+    if (name.toLowerCase().includes(key.toLowerCase().split(' ')[0])) {
+      return info;
+    }
   }
-  // Fallback: first letter with a muted purple
-  return { color: '#9575CD', letter: name.charAt(0).toUpperCase() };
+  return { logo: null, fallbackColor: '#9575CD', fallbackLetter: name.charAt(0).toUpperCase() };
+}
+
+function BrandIcon({ name, size }: { name: string; size: number }) {
+  const brand = getBrandInfo(name);
+  const borderRadius = size > 24 ? 8 : 6;
+
+  if (brand.logo) {
+    return (
+      <img
+        src={brand.logo}
+        alt={name}
+        style={{
+          width: size, height: size, borderRadius, objectFit: 'cover', flexShrink: 0,
+        }}
+      />
+    );
+  }
+
+  return (
+    <div style={{
+      width: size, height: size, borderRadius,
+      background: brand.fallbackColor,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size > 24 ? 12 : 9, fontWeight: 800, color: '#fff', flexShrink: 0,
+    }}>
+      {brand.fallbackLetter}
+    </div>
+  );
 }
 
 interface SubInfo {
@@ -58,13 +97,12 @@ export function SubscriptionCalendarSheet({
   const now = new Date();
   const todayDate = now.getDate();
   const daysInMonth = getDaysInMonth(now);
-  const firstDayOfWeek = getDay(startOfMonth(now)); // 0=Sun
+  const firstDayOfWeek = getDay(startOfMonth(now));
 
   const totalAllSpent = useMemo(() =>
     allExpenseCategories.reduce((s, c) => s + (categorySpentMap[c.id] || 0), 0),
     [allExpenseCategories, categorySpentMap]);
 
-  // Build calendar grid
   const calendarDays = useMemo(() => {
     const days: (number | null)[] = [];
     for (let i = 0; i < firstDayOfWeek; i++) days.push(null);
@@ -72,7 +110,6 @@ export function SubscriptionCalendarSheet({
     return days;
   }, [firstDayOfWeek, daysInMonth]);
 
-  // Map subscriptions by day
   const subsByDay = useMemo(() => {
     const map: Record<number, SubInfo[]> = {};
     subscriptions.forEach(s => {
@@ -84,8 +121,16 @@ export function SubscriptionCalendarSheet({
   }, [subscriptions]);
 
   const upcoming = subscriptions.filter(s => !s.isPaid);
-  const paid = subscriptions.filter(s => s.isPaid && s.name.toLowerCase() !== 'monthly salary');
+  // Filter out income transactions from paid list
+  const paid = subscriptions.filter(s =>
+    s.isPaid &&
+    s.name.toLowerCase() !== 'monthly salary' &&
+    s.name.toLowerCase() !== 'salary'
+  );
   const remainingCharges = upcoming.reduce((s, sub) => s + sub.amount, 0);
+
+  // Correct annual calculation: monthly total * 12
+  const totalAnnual = Math.round(monthlyTotal * 12);
 
   if (!open) return null;
 
@@ -115,7 +160,7 @@ export function SubscriptionCalendarSheet({
             </div>
 
             <div className="px-5 pb-6">
-              {/* 2A. Header */}
+              {/* 1. Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 10,
@@ -132,9 +177,9 @@ export function SubscriptionCalendarSheet({
                 </div>
               </div>
 
-              {/* 2B. Stacked Spending Bar */}
+              {/* 2. Stacked Spending Bar */}
               {allExpenseCategories.length > 0 && totalAllSpent > 0 && (
-                <div style={{ marginBottom: 12 }}>
+                <div style={{ marginBottom: 12, position: 'relative' }}>
                   <div style={{
                     height: 10, borderRadius: 5, overflow: 'hidden',
                     background: 'rgba(255,255,255,0.06)',
@@ -154,37 +199,27 @@ export function SubscriptionCalendarSheet({
                         }} />
                       );
                     })}
-                    {/* Subs overlay highlight */}
-                    <div style={{
-                      position: 'absolute', left: 0, top: 0, bottom: 0,
-                      width: totalAllSpent > 0 ? `${(monthlyTotal / totalAllSpent) * 100}%` : '0%',
-                      border: '1px solid rgba(139,92,246,0.3)',
-                      borderRadius: 5,
-                      pointerEvents: 'none',
-                    }} />
                   </div>
                 </div>
               )}
 
-              {/* 2C. Total */}
+              {/* 3. Total */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
                 <span style={{ fontSize: 24, fontWeight: 800, color: 'white', fontFamily: 'JetBrains Mono, monospace' }}>
                   €{Math.round(monthlyTotal)}/mo
                 </span>
                 <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono, monospace' }}>
-                  €{Math.round(monthlyTotal * 12)}/yr
+                  €{totalAnnual}/yr
                 </span>
               </div>
 
-              {/* 2D. Calendar Grid */}
+              {/* 4. Calendar Grid */}
               <div style={{ marginBottom: 16 }}>
-                {/* Day headers */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 4 }}>
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
                     <div key={d} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.25)', fontWeight: 600 }}>{d}</div>
                   ))}
                 </div>
-                {/* Days */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
                   {calendarDays.map((day, i) => {
                     if (day === null) return <div key={i} />;
@@ -203,24 +238,14 @@ export function SubscriptionCalendarSheet({
                         opacity: isPast ? 0.4 : 1,
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                       }}>
-                        <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,255,255,0.4)' }}>{day}</span>
-                        {daySubs.map((sub, si) => {
-                          const brand = getBrandInfo(sub.name);
-                          return (
-                            <div key={si} style={{
-                              width: 18, height: 18, borderRadius: 4,
-                              background: brand.color,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 8, fontWeight: 700, color: 'white',
-                            }}>
-                              {brand.letter}
-                            </div>
-                          );
-                        })}
+                        <span style={{ fontSize: 9, fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,255,255,0.3)' }}>{day}</span>
+                        {daySubs.map((sub, si) => (
+                          <BrandIcon key={si} name={sub.name} size={22} />
+                        ))}
                         {dayTotal > 0 && (
                           <span style={{
                             fontSize: 8, fontFamily: 'JetBrains Mono, monospace',
-                            color: 'rgba(255,255,255,0.3)',
+                            color: 'rgba(255,255,255,0.25)',
                             textDecoration: isPast ? 'line-through' : 'none',
                           }}>€{Math.round(dayTotal)}</span>
                         )}
@@ -230,41 +255,12 @@ export function SubscriptionCalendarSheet({
                 </div>
               </div>
 
-              {/* 2E. Upcoming */}
-              {upcoming.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                    UPCOMING
-                  </div>
-                  {upcoming.map((sub, i) => {
-                    const brand = getBrandInfo(sub.name);
-                    return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 8,
-                          background: brand.color,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12, fontWeight: 700, color: 'white',
-                        }}>{brand.letter}</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, color: 'white', fontWeight: 500 }}>{sub.name}</div>
-                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Day {sub.dayOfMonth}</div>
-                        </div>
-                        <span style={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: '#C4B5FD', fontWeight: 600 }}>
-                          €{sub.amount}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* 2F. Johnny Insight */}
+              {/* 5. Johnny Insight (between calendar and upcoming) */}
               <div style={{ marginBottom: 16 }}>
                 <JohnnyMessage variant="dark" from="Johnny">
                   {upcoming.length > 0 ? (
                     <>You have <strong style={{ color: '#C4B5FD' }}>€{Math.round(remainingCharges)}</strong> in subscriptions still to come this month ({upcoming.length} renewal{upcoming.length !== 1 ? 's' : ''}).
-                    {monthlyTotal > 50 && <> That's <strong style={{ color: '#FBBF24' }}>€{Math.round(monthlyTotal * 12)}/yr</strong> — worth a review.</>}
+                    {monthlyTotal > 50 && <> That's <strong style={{ color: '#FBBF24' }}>€{totalAnnual}/yr</strong> — worth a review.</>}
                     </>
                   ) : (
                     <>All subscriptions paid for this month. Total: €{Math.round(monthlyTotal)}/mo.</>
@@ -272,37 +268,52 @@ export function SubscriptionCalendarSheet({
                 </JohnnyMessage>
               </div>
 
-              {/* 2G. Paid This Month */}
+              {/* 6. Upcoming */}
+              {upcoming.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                    UPCOMING
+                  </div>
+                  {upcoming.map((sub, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <BrandIcon name={sub.name} size={32} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, color: 'white', fontWeight: 500 }}>{sub.name}</div>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Day {sub.dayOfMonth}</div>
+                      </div>
+                      <span style={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: '#C4B5FD', fontWeight: 600 }}>
+                        -€{sub.amount}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 7. Paid This Month */}
               {paid.length > 0 && (
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
                     PAID THIS MONTH
                   </div>
-                  {paid.map((sub, i) => {
-                    const brand = getBrandInfo(sub.name);
-                    return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 8,
-                          background: brand.color, opacity: 0.5,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12, fontWeight: 700, color: 'white',
-                        }}>{brand.letter}</div>
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>{sub.name}</span>
-                          <span style={{
-                            background: 'rgba(34,197,94,0.1)', color: '#22C55E',
-                            fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
-                          }}>Paid</span>
-                        </div>
-                        <span style={{
-                          fontSize: 13, fontFamily: 'JetBrains Mono, monospace',
-                          color: 'rgba(255,255,255,0.15)', fontWeight: 600,
-                          textDecoration: 'line-through',
-                        }}>€{sub.amount}</span>
+                  {paid.map((sub, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <div style={{ opacity: 0.5 }}>
+                        <BrandIcon name={sub.name} size={32} />
                       </div>
-                    );
-                  })}
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>{sub.name}</span>
+                        <span style={{
+                          background: 'rgba(34,197,94,0.1)', color: '#22C55E',
+                          fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
+                        }}>Paid</span>
+                      </div>
+                      <span style={{
+                        fontSize: 13, fontFamily: 'JetBrains Mono, monospace',
+                        color: 'rgba(255,255,255,0.15)', fontWeight: 600,
+                        textDecoration: 'line-through',
+                      }}>-€{sub.amount}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

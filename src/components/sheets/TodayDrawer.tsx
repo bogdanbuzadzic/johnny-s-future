@@ -920,7 +920,7 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
                   return (
                     <g key={`bill-${i}`}>
                       <rect x={x - 11} y={y - 24} width={22} height={22} rx={6}
-                        fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth={1} />
+                        fill="rgba(239,68,68,0.15)" stroke="rgba(239,68,68,0.3)" strokeWidth={1} />
                       <foreignObject x={x - 11} y={y - 24} width={22} height={22}>
                         <div className="w-full h-full flex items-center justify-center">
                           {p.bill.icon === 'Home' && <Home size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
@@ -1288,11 +1288,14 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
 
         {/* Johnny What If insight */}
         {activeScenarios.length > 0 && (
-          <div className="mx-5 mb-8">
+          <div className="mx-5 mb-8 relative" style={{ zIndex: 51 }}>
             <JohnnyMessage variant="dark" from="Johnny"
               actions={
                 <>
-                  <JohnnyPrimaryBtn onClick={() => { /* navigate to savings */ }}>Adjust savings</JohnnyPrimaryBtn>
+                  <JohnnyPrimaryBtn onClick={() => {
+                    onClose();
+                    window.dispatchEvent(new CustomEvent('openBudgetSettings'));
+                  }}>Adjust savings</JohnnyPrimaryBtn>
                   <JohnnySecondaryBtn onClick={() => setActiveScenarios([])}>Later</JohnnySecondaryBtn>
                 </>
               }
