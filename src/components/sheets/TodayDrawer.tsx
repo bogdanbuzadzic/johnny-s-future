@@ -1288,11 +1288,14 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
 
         {/* Johnny What If insight */}
         {activeScenarios.length > 0 && (
-          <div className="mx-5 mb-8">
+          <div className="mx-5 mb-8 relative" style={{ zIndex: 51 }}>
             <JohnnyMessage variant="dark" from="Johnny"
               actions={
                 <>
-                  <JohnnyPrimaryBtn onClick={() => { /* navigate to savings */ }}>Adjust savings</JohnnyPrimaryBtn>
+                  <JohnnyPrimaryBtn onClick={() => {
+                    onClose();
+                    window.dispatchEvent(new CustomEvent('openBudgetSettings'));
+                  }}>Adjust savings</JohnnyPrimaryBtn>
                   <JohnnySecondaryBtn onClick={() => setActiveScenarios([])}>Later</JohnnySecondaryBtn>
                 </>
               }
