@@ -84,7 +84,7 @@ export function SubscriptionCalendarSheet({
   }, [subscriptions]);
 
   const upcoming = subscriptions.filter(s => !s.isPaid);
-  const paid = subscriptions.filter(s => s.isPaid);
+  const paid = subscriptions.filter(s => s.isPaid && s.name.toLowerCase() !== 'monthly salary');
   const remainingCharges = upcoming.reduce((s, sub) => s + sub.amount, 0);
 
   if (!open) return null;

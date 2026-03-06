@@ -472,17 +472,27 @@ function ProfileScreenContent() {
           </div>
         </div>
 
-        {/* ═══ LEVEL PROGRESS ═══ */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="font-bold" style={{ color: '#2D2440' }}>{levelTitle}</span>
-            <span style={{ color: '#8A7FA0' }}>{tier.next || 'Max Level'}</span>
-          </div>
-          <div className="w-full h-2.5 rounded overflow-hidden" style={{ background: 'rgba(255,255,255,0.3)' }}>
-            <motion.div className="h-full rounded" style={{ background: 'linear-gradient(90deg, #8B5CF6, #EC4899)' }} initial={{ width: 0 }} animate={{ width: `${tierProgress}%` }} transition={{ delay: 0.3, duration: 0.6 }} />
-          </div>
-          {nextQuestName && <p className="text-xs" style={{ color: '#8A7FA0' }}>Next: Complete {nextQuestName} to level up</p>}
-        </div>
+        {/* ═══ PROGRESS BAR: Completion % ═══ */}
+        {(() => {
+          const totalModules = QUEST_NODES.filter(n => n.status !== 'coming-soon').length;
+          const completedModules = QUEST_NODES.filter(n => doneFlags[n.key]).length;
+          const pct = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+          const nextModule = QUEST_NODES.find(n => n.status !== 'coming-soon' && !doneFlags[n.key]);
+
+          return (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="font-bold" style={{ color: '#2D2440' }}>{pct}% Complete</span>
+                <span style={{ color: '#8A7FA0' }}>{completedModules} of {totalModules} done</span>
+              </div>
+              <div className="w-full h-2.5 rounded overflow-hidden" style={{ background: 'rgba(255,255,255,0.3)' }}>
+                <motion.div className="h-full rounded" style={{ background: 'linear-gradient(90deg, #8B5CF6, #EC4899)' }}
+                  initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ delay: 0.3, duration: 0.6 }} />
+              </div>
+              {nextModule && <p className="text-xs" style={{ color: '#8A7FA0' }}>Next: {nextModule.name}</p>}
+            </div>
+          );
+        })()}
 
         {/* ═══ JOHNNY'S NOTES (above badges) ═══ */}
         <div style={{

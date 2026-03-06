@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { parseISO, format } from 'date-fns';
+import { parseISO, format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { JohnnyMessage } from '@/components/ui/JohnnyMessage';
 import type { Category, Transaction } from '@/context/BudgetContext';
 import {
@@ -46,9 +46,21 @@ interface BlockDetailSheetProps {
 }
 
 export function BlockDetailSheet({
-  open, onClose, category, spent, transactions, daysInMonth, dayOfMonth, onUpdateBudget,
+  open, onClose, category, spent, transactions: rawTransactions, daysInMonth, dayOfMonth, onUpdateBudget,
   allExpenseCategories = [], categorySpentMap = {},
 }: BlockDetailSheetProps) {
+  // Filter transactions to current month only
+  const transactions = useMemo(() => {
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+    return rawTransactions.filter(t => {
+      try {
+        const txDate = parseISO(t.date);
+        return isWithinInterval(txDate, { start: monthStart, end: monthEnd });
+      } catch { return false; }
+    });
+  }, [rawTransactions]);
   const [sliderVal, setSliderVal] = useState(0);
   const [sliderDirty, setSliderDirty] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);

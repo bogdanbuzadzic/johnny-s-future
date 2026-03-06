@@ -146,6 +146,12 @@ export function MyWorldScreen({ onClose }: Props) {
   const [timelineMode, setTimelineMode] = useState<'projected' | 'actual'>('projected');
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [hintShown, setHintShown] = useState(() => localStorage.getItem('jfb_scrubberHintShown') === 'true');
+  const [showIntro, setShowIntro] = useState(() => localStorage.getItem('jfb_myworld_intro_seen') !== 'true');
+
+  const dismissIntro = () => {
+    setShowIntro(false);
+    localStorage.setItem('jfb_myworld_intro_seen', 'true');
+  };
   const [celebratedGoals, setCelebratedGoals] = useState<Set<string>>(new Set());
   const [prevStages, setPrevStages] = useState<Record<string, number>>({});
   const [stageTransitions, setStageTransitions] = useState<Set<string>>(new Set());
@@ -360,24 +366,25 @@ export function MyWorldScreen({ onClose }: Props) {
     setPrevStages(newStages);
   }, [scrubberDate, sorted]);
 
+  // Milestone notifications — only on first entry (showIntro), then dismissed permanently
   useEffect(() => {
+    if (!showIntro) return; // Only show milestone toasts on first visit
     sorted.forEach(g => {
-      const projected = getProjectedProgress(g, scrubberDate);
-      const pct = g.target > 0 ? (projected / g.target) * 100 : 0;
-      // Check 50% milestone
+      const pct = g.target > 0 ? (g.saved / g.target) * 100 : 0;
       const key50 = `jfb_milestone_${g.name}_50`;
       if (pct >= 50 && !localStorage.getItem(key50)) {
         localStorage.setItem(key50, 'true');
         setMilestoneGoal(g);
       }
-      // Check 75% milestone
       const key75 = `jfb_milestone_${g.name}_75`;
       if (pct >= 75 && !localStorage.getItem(key75)) {
         localStorage.setItem(key75, 'true');
         setMilestoneGoal(g);
       }
     });
-  }, [scrubberDate, sorted]);
+    // Dismiss intro after initial check
+    dismissIntro();
+  }, []); // Only on mount
 
   useEffect(() => {
     const newCelebrated = new Set<string>();
