@@ -878,8 +878,10 @@ export function TerrainPath() {
             })}
 
             {/* 7. Expense obstacle blocks - scaled, surface-anchored, staggered, with icons */}
+            {/* Skip expense markers on income days (salary day) so income marker shows instead */}
             {points.map((p, i) => {
               if (p.bills.length === 0 || p.isPast) return null;
+              if (p.income > 0) return null; // Don't render expense on salary days
               const markerX = i * DAY_WIDTH;
               const surfaceY = getTerrainYAtX(markerX, pathPoints);
 
