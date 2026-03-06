@@ -270,18 +270,52 @@ export function SubscriptionCalendarSheet({
 
               {/* 6. Upcoming */}
               {upcoming.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                <div style={{ padding: '0 0 20px' }}>
+                  <div style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: 1.5,
+                    textTransform: 'uppercase' as const,
+                    color: 'rgba(255,255,255,0.2)',
+                    marginBottom: 8,
+                    marginTop: 16,
+                  }}>
                     UPCOMING
                   </div>
                   {upcoming.map((sub, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div key={i} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '12px 0',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      minHeight: 48,
+                    }}>
                       <BrandIcon name={sub.name} size={32} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: 'white', fontWeight: 500 }}>{sub.name}</div>
-                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Day {sub.dayOfMonth}</div>
+                        <div style={{
+                          fontSize: 15,
+                          fontWeight: 500,
+                          color: 'rgba(255,255,255,0.7)',
+                        }}>
+                          {sub.name}
+                        </div>
+                        <div style={{
+                          fontSize: 12,
+                          color: 'rgba(255,255,255,0.2)',
+                          marginTop: 2,
+                        }}>
+                          Day {sub.dayOfMonth}
+                        </div>
                       </div>
-                      <span style={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: '#C4B5FD', fontWeight: 600 }}>
+                      <span style={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        color: '#F87171',
+                        minWidth: 60,
+                        textAlign: 'right' as const,
+                      }}>
                         -€{sub.amount}
                       </span>
                     </div>
@@ -291,27 +325,59 @@ export function SubscriptionCalendarSheet({
 
               {/* 7. Paid This Month */}
               {paid.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                <div style={{ padding: '0 0 20px' }}>
+                  <div style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: 1.5,
+                    textTransform: 'uppercase' as const,
+                    color: 'rgba(255,255,255,0.2)',
+                    marginBottom: 8,
+                    marginTop: 16,
+                  }}>
                     PAID THIS MONTH
                   </div>
                   {paid.map((sub, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div style={{ opacity: 0.5 }}>
-                        <BrandIcon name={sub.name} size={32} />
-                      </div>
+                    <div key={i} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '12px 0',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      minHeight: 48,
+                      opacity: 0.5,
+                    }}>
+                      <BrandIcon name={sub.name} size={32} />
                       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>{sub.name}</span>
                         <span style={{
-                          background: 'rgba(34,197,94,0.1)', color: '#22C55E',
-                          fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
-                        }}>Paid</span>
+                          fontSize: 15,
+                          fontWeight: 500,
+                          color: 'rgba(255,255,255,0.4)',
+                        }}>
+                          {sub.name}
+                        </span>
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: '#22C55E',
+                          background: 'rgba(34,197,94,0.1)',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                        }}>
+                          Paid
+                        </span>
                       </div>
                       <span style={{
-                        fontSize: 13, fontFamily: 'JetBrains Mono, monospace',
-                        color: 'rgba(255,255,255,0.15)', fontWeight: 600,
+                        fontSize: 16,
+                        fontWeight: 700,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        color: 'rgba(255,255,255,0.2)',
                         textDecoration: 'line-through',
-                      }}>-€{sub.amount}</span>
+                        minWidth: 60,
+                        textAlign: 'right' as const,
+                      }}>
+                        -€{sub.amount}
+                      </span>
                     </div>
                   ))}
                 </div>

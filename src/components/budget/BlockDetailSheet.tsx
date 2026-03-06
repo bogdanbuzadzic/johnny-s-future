@@ -357,20 +357,56 @@ export function BlockDetailSheet({
               </div>
 
               {/* 1F. Transaction List */}
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+              <div style={{ padding: '0 0 20px' }}>
+                <div style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: 1.5,
+                  textTransform: 'uppercase' as const,
+                  color: 'rgba(255,255,255,0.2)',
+                  marginBottom: 8,
+                  marginTop: 16,
+                }}>
                   {selectedDay !== null ? `Day ${selectedDay} transactions` : 'Recent transactions'}
                 </div>
                 {filteredTxs.length > 0 ? filteredTxs.map(tx => (
-                  <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{tx.description}</span>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>{format(parseISO(tx.date), 'MMM d')}</span>
-                      <span style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', color: '#F87171', fontWeight: 600 }}>-€{Number(tx.amount)}</span>
+                  <div key={tx.id} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 0',
+                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    minHeight: 48,
+                  }}>
+                    <span style={{
+                      fontSize: 15,
+                      fontWeight: 500,
+                      color: 'rgba(255,255,255,0.7)',
+                      flex: 1,
+                    }}>
+                      {tx.description}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{
+                        fontSize: 13,
+                        color: 'rgba(255,255,255,0.25)',
+                      }}>
+                        {format(parseISO(tx.date), 'MMM d')}
+                      </span>
+                      <span style={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        color: '#F87171',
+                        minWidth: 60,
+                        textAlign: 'right' as const,
+                      }}>
+                        -€{Number(tx.amount)}
+                      </span>
                     </div>
                   </div>
                 )) : (
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', padding: '8px 0' }}>No transactions</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', padding: '12px 0' }}>No transactions</div>
                 )}
               </div>
 
