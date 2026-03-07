@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, Zap, Shield, ShoppingCart, Smartphone, Music, Dumbbell, Wallet,
   Sparkles, ArrowUp, ArrowDown, CircleCheck, CircleX, Scissors, LucideIcon,
+  CreditCard, UtensilsCrossed, Car,
 } from 'lucide-react';
 import johnnyImage from '@/assets/johnny.png';
 import { useSimulation, TerrainSimulation } from '@/context/SimulationContext';
@@ -87,10 +88,24 @@ function readBudgetForTerrain(): BudgetTerrainData {
     const flexBudget = mi - totalFixed - savings;
 
     const billDays = [1, 15, 28, 28, 5, 10];
+    const getBillIcon = (name: string): LucideIcon => {
+      const n = name.toLowerCase();
+      if (n.includes('rent') || n.includes('mortgage') || n.includes('hous')) return Home;
+      if (n.includes('util') || n.includes('electric') || n.includes('gas') || n.includes('water') || n.includes('energy')) return Zap;
+      if (n.includes('insur') || n.includes('health')) return Shield;
+      if (n.includes('transport') || n.includes('car') || n.includes('fuel')) return Car;
+      if (n.includes('phone') || n.includes('mobile') || n.includes('internet') || n.includes('wifi')) return Smartphone;
+      if (n.includes('gym') || n.includes('fitness')) return Dumbbell;
+      if (n.includes('music') || n.includes('spotify') || n.includes('netflix') || n.includes('subscri')) return Music;
+      if (n.includes('grocer') || n.includes('food')) return UtensilsCrossed;
+      if (n.includes('shop')) return ShoppingCart;
+      return CreditCard;
+    };
+
     const bills: BillEvent[] = fixedCats.map((c: any, i: number) => ({
       name: c.name,
       amount: Number(c.monthlyBudget) || 0,
-      icon: Home,
+      icon: getBillIcon(c.name),
       date: new Date(currentYear, currentMonth, billDays[i % billDays.length]),
     }));
 
@@ -443,6 +458,14 @@ export function TerrainPath() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showTodayPill, setShowTodayPill] = useState(false);
   const [terrainRange, setTerrainRange] = useState<'1M'|'3M'|'6M'|'1Y'>('1M');
+  const [hoveredMarker, setHoveredMarker] = useState<{
+    description: string;
+    amount: number;
+    type: 'income' | 'expense';
+    date: Date;
+    x: number;
+    y: number;
+  } | null>(null);
   const [activeBubble, setActiveBubble] = useState<{
     dayIndex: number;
     amount: string;
@@ -893,7 +916,40 @@ export function TerrainPath() {
                 const markerY = surfaceY - size.h - staggerOffset;
 
                 return (
-                  <g key={`obs-${i}-${bi}`}>
+                  <g key={`obs-${i}-${bi}`} style={{ cursor: 'pointer' }}
+                    onMouseEnter={(e) => {
+                      const svg = e.currentTarget.closest('svg');
+                      const container = svg?.closest('.overflow-x-auto');
+                      if (!svg || !container) return;
+                      const containerRect = container.getBoundingClientRect();
+                      setHoveredMarker({
+                        description: bill.name,
+                        amount: -bill.amount,
+                        type: 'expense',
+                        date: p.date,
+                        x: markerX - (container.scrollLeft || 0) + containerRect.left,
+                        y: markerY + containerRect.top,
+                      });
+                    }}
+                    onMouseLeave={() => setHoveredMarker(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const svg = e.currentTarget.closest('svg');
+                      const container = svg?.closest('.overflow-x-auto');
+                      if (!svg || !container) return;
+                      const containerRect = container.getBoundingClientRect();
+                      setHoveredMarker(prev =>
+                        prev?.description === bill.name ? null : {
+                          description: bill.name,
+                          amount: -bill.amount,
+                          type: 'expense',
+                          date: p.date,
+                          x: markerX - (container.scrollLeft || 0) + containerRect.left,
+                          y: markerY + containerRect.top,
+                        }
+                      );
+                    }}
+                  >
                     <rect
                       x={markerX - size.w / 2}
                       y={markerY}
@@ -941,7 +997,40 @@ export function TerrainPath() {
                 const cy = surfaceY - r - staggerOffset;
 
                 return (
-                  <g key={`inc-${i}-${ii}`}>
+                  <g key={`inc-${i}-${ii}`} style={{ cursor: 'pointer' }}
+                    onMouseEnter={(e) => {
+                      const svg = e.currentTarget.closest('svg');
+                      const container = svg?.closest('.overflow-x-auto');
+                      if (!svg || !container) return;
+                      const containerRect = container.getBoundingClientRect();
+                      setHoveredMarker({
+                        description: inc.name,
+                        amount: inc.amount,
+                        type: 'income',
+                        date: p.date,
+                        x: markerX - (container.scrollLeft || 0) + containerRect.left,
+                        y: cy - r + containerRect.top,
+                      });
+                    }}
+                    onMouseLeave={() => setHoveredMarker(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const svg = e.currentTarget.closest('svg');
+                      const container = svg?.closest('.overflow-x-auto');
+                      if (!svg || !container) return;
+                      const containerRect = container.getBoundingClientRect();
+                      setHoveredMarker(prev =>
+                        prev?.description === inc.name ? null : {
+                          description: inc.name,
+                          amount: inc.amount,
+                          type: 'income',
+                          date: p.date,
+                          x: markerX - (container.scrollLeft || 0) + containerRect.left,
+                          y: cy - r + containerRect.top,
+                        }
+                      );
+                    }}
+                  >
                     <circle
                       cx={markerX}
                       cy={cy}
@@ -957,7 +1046,7 @@ export function TerrainPath() {
                       height={r * 2}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Wallet size={14} className="text-green-400/50" />
+                        <Wallet size={14} style={{ color: 'rgba(74,222,128,0.5)' }} />
                       </div>
                     </foreignObject>
                     <text
@@ -1045,7 +1134,66 @@ export function TerrainPath() {
             ))}
           </svg>
 
-          {/* 10. Johnny on terrain */}
+          {/* Marker tooltip */}
+          <AnimatePresence>
+            {hoveredMarker && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                style={{
+                  position: 'fixed',
+                  left: hoveredMarker.x,
+                  top: hoveredMarker.y - 8,
+                  transform: 'translate(-50%, -100%)',
+                  background: 'rgba(20,16,32,0.95)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  zIndex: 100,
+                  pointerEvents: 'none',
+                  minWidth: 120,
+                }}
+              >
+                <div style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: hoveredMarker.amount > 0 ? '#86EFAC' : '#F87171',
+                  marginBottom: 2,
+                }}>
+                  {hoveredMarker.description}
+                </div>
+                <div style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  color: '#fff',
+                }}>
+                  {hoveredMarker.amount > 0 ? '+' : '-'}€{Math.abs(hoveredMarker.amount).toLocaleString()}
+                </div>
+                <div style={{
+                  fontSize: 10,
+                  color: 'rgba(255,255,255,0.3)',
+                  marginTop: 2,
+                }}>
+                  {format(hoveredMarker.date, 'EEE, MMM d')}
+                </div>
+                <div style={{
+                  position: 'absolute',
+                  bottom: -5,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 0,
+                  height: 0,
+                  borderLeft: '5px solid transparent',
+                  borderRight: '5px solid transparent',
+                  borderTop: '5px solid rgba(20,16,32,0.95)',
+                }} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {todayIndex >= 0 && (
             <motion.div
               className="absolute pointer-events-none"
