@@ -87,7 +87,7 @@ function readBudgetForTerrain(): BudgetTerrainData {
     const savings = Number(config.monthlySavingsTarget) || 0;
     const flexBudget = mi - totalFixed - savings;
 
-    const billDays = [1, 15, 28, 28, 5, 10];
+    const billDays = [3, 5, 15, 28, 10, 20];
     const getBillIcon = (name: string): LucideIcon => {
       const n = name.toLowerCase();
       if (n.includes('rent') || n.includes('mortgage') || n.includes('hous')) return Home;
@@ -820,7 +820,7 @@ export function TerrainPath() {
                   x={markerX}
                   y={surfaceY - 22}
                   textAnchor="middle"
-                  fill="rgba(52,199,89,0.5)"
+                  fill="rgba(52,199,89,0.7)"
                   fontSize={10}
                   fontWeight={600}
                 >
@@ -956,8 +956,8 @@ export function TerrainPath() {
                       width={size.w}
                       height={size.h}
                       rx={6}
-                      fill="rgba(239,68,68,0.15)"
-                      stroke="rgba(239,68,68,0.3)"
+                       fill="rgba(239,68,68,0.35)"
+                       stroke="rgba(239,68,68,0.6)"
                       strokeWidth={1}
                     />
                     <foreignObject
@@ -967,14 +967,14 @@ export function TerrainPath() {
                       height={size.h}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Icon size={size.icon} className="text-white/50" />
+                        <Icon size={size.icon} className="text-white/80" />
                       </div>
                     </foreignObject>
                     <text
                       x={markerX}
                       y={markerY + size.h + size.font + 2}
                       textAnchor="middle"
-                      fill="rgba(255,255,255,0.35)"
+                      fill="rgba(255,255,255,0.55)"
                       fontSize={size.font}
                     >
                       €{bill.amount}
@@ -1035,8 +1035,8 @@ export function TerrainPath() {
                       cx={markerX}
                       cy={cy}
                       r={r}
-                      fill="rgba(52,199,89,0.15)"
-                      stroke="rgba(52,199,89,0.3)"
+                       fill="rgba(52,199,89,0.35)"
+                       stroke="rgba(52,199,89,0.6)"
                       strokeWidth={1}
                     />
                     <foreignObject
@@ -1046,7 +1046,7 @@ export function TerrainPath() {
                       height={r * 2}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Wallet size={14} style={{ color: 'rgba(74,222,128,0.5)' }} />
+                        <Wallet size={14} style={{ color: 'rgba(74,222,128,0.85)' }} />
                       </div>
                     </foreignObject>
                     <text
