@@ -997,7 +997,40 @@ export function TerrainPath() {
                 const cy = surfaceY - r - staggerOffset;
 
                 return (
-                  <g key={`inc-${i}-${ii}`}>
+                  <g key={`inc-${i}-${ii}`} style={{ cursor: 'pointer' }}
+                    onMouseEnter={(e) => {
+                      const svg = e.currentTarget.closest('svg');
+                      const container = svg?.closest('.overflow-x-auto');
+                      if (!svg || !container) return;
+                      const containerRect = container.getBoundingClientRect();
+                      setHoveredMarker({
+                        description: inc.name,
+                        amount: inc.amount,
+                        type: 'income',
+                        date: p.date,
+                        x: markerX - (container.scrollLeft || 0) + containerRect.left,
+                        y: cy - r + containerRect.top,
+                      });
+                    }}
+                    onMouseLeave={() => setHoveredMarker(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const svg = e.currentTarget.closest('svg');
+                      const container = svg?.closest('.overflow-x-auto');
+                      if (!svg || !container) return;
+                      const containerRect = container.getBoundingClientRect();
+                      setHoveredMarker(prev =>
+                        prev?.description === inc.name ? null : {
+                          description: inc.name,
+                          amount: inc.amount,
+                          type: 'income',
+                          date: p.date,
+                          x: markerX - (container.scrollLeft || 0) + containerRect.left,
+                          y: cy - r + containerRect.top,
+                        }
+                      );
+                    }}
+                  >
                     <circle
                       cx={markerX}
                       cy={cy}
@@ -1013,7 +1046,7 @@ export function TerrainPath() {
                       height={r * 2}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Wallet size={14} className="text-green-400/50" />
+                        <Wallet size={14} style={{ color: 'rgba(74,222,128,0.5)' }} />
                       </div>
                     </foreignObject>
                     <text
