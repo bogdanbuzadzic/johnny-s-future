@@ -87,7 +87,7 @@ function readBudgetForTerrain(): BudgetTerrainData {
     const savings = Number(config.monthlySavingsTarget) || 0;
     const flexBudget = mi - totalFixed - savings;
 
-    const billDays = [1, 15, 28, 28, 5, 10];
+    const billDays = [3, 5, 15, 28, 10, 20];
     const getBillIcon = (name: string): LucideIcon => {
       const n = name.toLowerCase();
       if (n.includes('rent') || n.includes('mortgage') || n.includes('hous')) return Home;
