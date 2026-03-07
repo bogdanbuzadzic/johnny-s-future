@@ -820,7 +820,7 @@ export function TerrainPath() {
                   x={markerX}
                   y={surfaceY - 22}
                   textAnchor="middle"
-                  fill="rgba(52,199,89,0.5)"
+                  fill="rgba(52,199,89,0.7)"
                   fontSize={10}
                   fontWeight={600}
                 >
