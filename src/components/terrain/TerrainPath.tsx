@@ -809,23 +809,36 @@ export function TerrainPath() {
               </text>
             )}
 
-            {/* Salary spike labels on income days */}
+            {/* Salary spike pill labels on income days */}
             {points.map((p, i) => {
               if (p.income <= 0 || p.isPast) return null;
               const markerX = i * DAY_WIDTH;
               const surfaceY = getTerrainYAtX(markerX, pathPoints);
+              const pillW = 70;
+              const pillH = 20;
               return (
-                <text
+                <foreignObject
                   key={`salary-label-${i}`}
-                  x={markerX}
-                  y={surfaceY - 22}
-                  textAnchor="middle"
-                  fill="rgba(52,199,89,0.7)"
-                  fontSize={10}
-                  fontWeight={600}
+                  x={markerX - pillW / 2}
+                  y={surfaceY - 44}
+                  width={pillW}
+                  height={pillH}
                 >
-                  €{p.income.toLocaleString()}
-                </text>
+                  <div style={{
+                    background: 'rgba(34,197,94,0.2)',
+                    border: '1px solid rgba(34,197,94,0.4)',
+                    color: '#22C55E',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    lineHeight: '14px',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    💰 €{p.income.toLocaleString()}
+                  </div>
+                </foreignObject>
               );
             })}
 
@@ -956,9 +969,9 @@ export function TerrainPath() {
                       width={size.w}
                       height={size.h}
                       rx={6}
-                       fill="rgba(239,68,68,0.35)"
-                       stroke="rgba(239,68,68,0.6)"
-                      strokeWidth={1}
+                      fill="rgba(239,68,68,0.55)"
+                      stroke="rgba(239,68,68,0.8)"
+                      strokeWidth={1.5}
                     />
                     <foreignObject
                       x={markerX - size.w / 2}
@@ -967,14 +980,14 @@ export function TerrainPath() {
                       height={size.h}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Icon size={size.icon} className="text-white/80" />
+                        <Icon size={size.icon} className="text-white" />
                       </div>
                     </foreignObject>
                     <text
                       x={markerX}
                       y={markerY + size.h + size.font + 2}
                       textAnchor="middle"
-                      fill="rgba(255,255,255,0.55)"
+                      fill="rgba(255,255,255,0.75)"
                       fontSize={size.font}
                     >
                       €{bill.amount}
@@ -1035,9 +1048,9 @@ export function TerrainPath() {
                       cx={markerX}
                       cy={cy}
                       r={r}
-                       fill="rgba(52,199,89,0.35)"
-                       stroke="rgba(52,199,89,0.6)"
-                      strokeWidth={1}
+                      fill="rgba(52,199,89,0.5)"
+                      stroke="rgba(52,199,89,0.8)"
+                      strokeWidth={1.5}
                     />
                     <foreignObject
                       x={markerX - r}
@@ -1046,18 +1059,9 @@ export function TerrainPath() {
                       height={r * 2}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Wallet size={14} style={{ color: 'rgba(74,222,128,0.85)' }} />
+                        <Wallet size={14} style={{ color: 'rgba(74,222,128,1)' }} />
                       </div>
                     </foreignObject>
-                    <text
-                      x={markerX}
-                      y={cy - r - 4}
-                      textAnchor="middle"
-                      fill="rgba(52,199,89,0.4)"
-                      fontSize={10}
-                    >
-                      €{inc.amount.toLocaleString()}
-                    </text>
                   </g>
                 );
               });
@@ -1231,17 +1235,44 @@ export function TerrainPath() {
             </motion.div>
           )}
 
-          {/* Date Axis */}
+          {/* Date Axis - color-coded: green=income, red=expense, gray=normal */}
           <div style={{ height: DATE_AXIS_HEIGHT, position: 'relative' }}>
             {points.map((p, i) => {
               const x = i * DAY_WIDTH;
+              const hasIncome = p.income > 0;
+              const hasExpense = p.bills.length > 0 && !hasIncome;
               const isWeekBoundary = i % 7 === 0;
               const isMonthStart = p.date.getDate() === 1 && i > 0;
               const tickH = isWeekBoundary ? 10 : 6;
 
+              // Determine color
+              let tickColor: string;
+              let labelColor: string;
+              if (p.isToday) {
+                tickColor = 'rgba(255,255,255,0.6)';
+                labelColor = '#fff';
+              } else if (hasIncome) {
+                tickColor = 'rgba(34,197,94,0.6)';
+                labelColor = '#22C55E';
+              } else if (hasExpense) {
+                tickColor = 'rgba(248,113,113,0.6)';
+                labelColor = '#F87171';
+              } else {
+                tickColor = isWeekBoundary ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)';
+                labelColor = isWeekBoundary || isMonthStart ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.12)';
+              }
+
+              // Build label
               let label: string;
               if (p.isToday) {
                 label = 'Today';
+              } else if (hasIncome) {
+                label = `${p.date.getDate()} ↑`;
+              } else if (hasExpense) {
+                // Get emoji for bill type
+                const billIcon = p.bills[0]?.icon;
+                const emoji = billIcon === Home ? '🏠' : billIcon === Zap ? '⚡' : billIcon === Car ? '🚗' : billIcon === Shield ? '🛡' : billIcon === Music ? '🎵' : billIcon === Smartphone ? '📱' : '💸';
+                label = `${p.date.getDate()} ${emoji}`;
               } else if (isMonthStart) {
                 label = format(p.date, 'MMM d');
               } else if (isWeekBoundary) {
@@ -1249,6 +1280,9 @@ export function TerrainPath() {
               } else {
                 label = p.date.getDate().toString();
               }
+
+              // Only show labels for: today, income days, expense days, week boundaries
+              const showLabel = p.isToday || hasIncome || hasExpense || isWeekBoundary || isMonthStart;
 
               return (
                 <div
@@ -1258,33 +1292,28 @@ export function TerrainPath() {
                 >
                   {p.isToday && (
                     <svg width="10" height="5" className="mb-0.5" style={{ marginTop: -2 }}>
-                      <polygon points="5,0 0,5 10,5" fill="rgba(255,255,255,0.3)" />
+                      <polygon points="5,0 0,5 10,5" fill="rgba(255,255,255,0.4)" />
                     </svg>
                   )}
                   <div
                     style={{
-                      width: p.isToday ? 2 : 1,
-                      height: tickH,
-                      backgroundColor: p.isToday
-                        ? 'rgba(255,255,255,0.5)'
-                        : isWeekBoundary
-                          ? 'rgba(255,255,255,0.2)'
-                          : 'rgba(255,255,255,0.12)',
+                      width: p.isToday ? 2 : hasIncome || hasExpense ? 2 : 1,
+                      height: hasIncome || hasExpense ? 10 : tickH,
+                      backgroundColor: tickColor,
                     }}
                   />
-                  <span
-                    className="mt-0.5 whitespace-nowrap"
-                    style={{
-                      fontSize: p.isToday || isWeekBoundary || isMonthStart ? 10 : 9,
-                      color: p.isToday
-                        ? 'rgba(255,255,255,0.5)'
-                        : isWeekBoundary || isMonthStart
-                          ? 'rgba(255,255,255,0.35)'
-                          : 'rgba(255,255,255,0.15)',
-                    }}
-                  >
-                    {label}
-                  </span>
+                  {showLabel && (
+                    <span
+                      className="mt-0.5 whitespace-nowrap"
+                      style={{
+                        fontSize: p.isToday || hasIncome || hasExpense ? 10 : isWeekBoundary ? 10 : 9,
+                        fontWeight: p.isToday || hasIncome || hasExpense ? 600 : 400,
+                        color: labelColor,
+                      }}
+                    >
+                      {label}
+                    </span>
+                  )}
                 </div>
               );
             })}
