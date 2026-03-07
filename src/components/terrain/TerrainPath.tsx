@@ -809,23 +809,36 @@ export function TerrainPath() {
               </text>
             )}
 
-            {/* Salary spike labels on income days */}
+            {/* Salary spike pill labels on income days */}
             {points.map((p, i) => {
               if (p.income <= 0 || p.isPast) return null;
               const markerX = i * DAY_WIDTH;
               const surfaceY = getTerrainYAtX(markerX, pathPoints);
+              const pillW = 70;
+              const pillH = 20;
               return (
-                <text
+                <foreignObject
                   key={`salary-label-${i}`}
-                  x={markerX}
-                  y={surfaceY - 22}
-                  textAnchor="middle"
-                  fill="rgba(52,199,89,0.7)"
-                  fontSize={10}
-                  fontWeight={600}
+                  x={markerX - pillW / 2}
+                  y={surfaceY - 44}
+                  width={pillW}
+                  height={pillH}
                 >
-                  €{p.income.toLocaleString()}
-                </text>
+                  <div style={{
+                    background: 'rgba(34,197,94,0.2)',
+                    border: '1px solid rgba(34,197,94,0.4)',
+                    color: '#22C55E',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    lineHeight: '14px',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    💰 €{p.income.toLocaleString()}
+                  </div>
+                </foreignObject>
               );
             })}
 
