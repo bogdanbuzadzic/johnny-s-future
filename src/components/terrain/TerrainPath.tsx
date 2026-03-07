@@ -1134,7 +1134,66 @@ export function TerrainPath() {
             ))}
           </svg>
 
-          {/* 10. Johnny on terrain */}
+          {/* Marker tooltip */}
+          <AnimatePresence>
+            {hoveredMarker && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                style={{
+                  position: 'fixed',
+                  left: hoveredMarker.x,
+                  top: hoveredMarker.y - 8,
+                  transform: 'translate(-50%, -100%)',
+                  background: 'rgba(20,16,32,0.95)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  zIndex: 100,
+                  pointerEvents: 'none',
+                  minWidth: 120,
+                }}
+              >
+                <div style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: hoveredMarker.amount > 0 ? '#86EFAC' : '#F87171',
+                  marginBottom: 2,
+                }}>
+                  {hoveredMarker.description}
+                </div>
+                <div style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  color: '#fff',
+                }}>
+                  {hoveredMarker.amount > 0 ? '+' : '-'}€{Math.abs(hoveredMarker.amount).toLocaleString()}
+                </div>
+                <div style={{
+                  fontSize: 10,
+                  color: 'rgba(255,255,255,0.3)',
+                  marginTop: 2,
+                }}>
+                  {format(hoveredMarker.date, 'EEE, MMM d')}
+                </div>
+                <div style={{
+                  position: 'absolute',
+                  bottom: -5,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 0,
+                  height: 0,
+                  borderLeft: '5px solid transparent',
+                  borderRight: '5px solid transparent',
+                  borderTop: '5px solid rgba(20,16,32,0.95)',
+                }} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {todayIndex >= 0 && (
             <motion.div
               className="absolute pointer-events-none"
