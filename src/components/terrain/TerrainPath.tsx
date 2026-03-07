@@ -1035,9 +1035,9 @@ export function TerrainPath() {
                       cx={markerX}
                       cy={cy}
                       r={r}
-                       fill="rgba(52,199,89,0.35)"
-                       stroke="rgba(52,199,89,0.6)"
-                      strokeWidth={1}
+                      fill="rgba(52,199,89,0.5)"
+                      stroke="rgba(52,199,89,0.8)"
+                      strokeWidth={1.5}
                     />
                     <foreignObject
                       x={markerX - r}
@@ -1046,18 +1046,9 @@ export function TerrainPath() {
                       height={r * 2}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Wallet size={14} style={{ color: 'rgba(74,222,128,0.85)' }} />
+                        <Wallet size={14} style={{ color: 'rgba(74,222,128,1)' }} />
                       </div>
                     </foreignObject>
-                    <text
-                      x={markerX}
-                      y={cy - r - 4}
-                      textAnchor="middle"
-                      fill="rgba(52,199,89,0.4)"
-                      fontSize={10}
-                    >
-                      €{inc.amount.toLocaleString()}
-                    </text>
                   </g>
                 );
               });
