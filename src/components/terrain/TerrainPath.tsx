@@ -956,8 +956,8 @@ export function TerrainPath() {
                       width={size.w}
                       height={size.h}
                       rx={6}
-                      fill="rgba(239,68,68,0.15)"
-                      stroke="rgba(239,68,68,0.3)"
+                       fill="rgba(239,68,68,0.35)"
+                       stroke="rgba(239,68,68,0.6)"
                       strokeWidth={1}
                     />
                     <foreignObject
