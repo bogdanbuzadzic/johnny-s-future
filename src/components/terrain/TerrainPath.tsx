@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, Zap, Shield, ShoppingCart, Smartphone, Music, Dumbbell, Wallet,
   Sparkles, ArrowUp, ArrowDown, CircleCheck, CircleX, Scissors, LucideIcon,
+  CreditCard, UtensilsCrossed, Car,
 } from 'lucide-react';
 import johnnyImage from '@/assets/johnny.png';
 import { useSimulation, TerrainSimulation } from '@/context/SimulationContext';
