@@ -956,9 +956,9 @@ export function TerrainPath() {
                       width={size.w}
                       height={size.h}
                       rx={6}
-                       fill="rgba(239,68,68,0.35)"
-                       stroke="rgba(239,68,68,0.6)"
-                      strokeWidth={1}
+                      fill="rgba(239,68,68,0.55)"
+                      stroke="rgba(239,68,68,0.8)"
+                      strokeWidth={1.5}
                     />
                     <foreignObject
                       x={markerX - size.w / 2}
@@ -967,14 +967,14 @@ export function TerrainPath() {
                       height={size.h}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Icon size={size.icon} className="text-white/80" />
+                        <Icon size={size.icon} className="text-white" />
                       </div>
                     </foreignObject>
                     <text
                       x={markerX}
                       y={markerY + size.h + size.font + 2}
                       textAnchor="middle"
-                      fill="rgba(255,255,255,0.55)"
+                      fill="rgba(255,255,255,0.75)"
                       fontSize={size.font}
                     >
                       €{bill.amount}
