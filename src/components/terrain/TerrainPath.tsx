@@ -88,10 +88,24 @@ function readBudgetForTerrain(): BudgetTerrainData {
     const flexBudget = mi - totalFixed - savings;
 
     const billDays = [1, 15, 28, 28, 5, 10];
+    const getBillIcon = (name: string): LucideIcon => {
+      const n = name.toLowerCase();
+      if (n.includes('rent') || n.includes('mortgage') || n.includes('hous')) return Home;
+      if (n.includes('util') || n.includes('electric') || n.includes('gas') || n.includes('water') || n.includes('energy')) return Zap;
+      if (n.includes('insur') || n.includes('health')) return Shield;
+      if (n.includes('transport') || n.includes('car') || n.includes('fuel')) return Car;
+      if (n.includes('phone') || n.includes('mobile') || n.includes('internet') || n.includes('wifi')) return Smartphone;
+      if (n.includes('gym') || n.includes('fitness')) return Dumbbell;
+      if (n.includes('music') || n.includes('spotify') || n.includes('netflix') || n.includes('subscri')) return Music;
+      if (n.includes('grocer') || n.includes('food')) return UtensilsCrossed;
+      if (n.includes('shop')) return ShoppingCart;
+      return CreditCard;
+    };
+
     const bills: BillEvent[] = fixedCats.map((c: any, i: number) => ({
       name: c.name,
       amount: Number(c.monthlyBudget) || 0,
-      icon: Home,
+      icon: getBillIcon(c.name),
       date: new Date(currentYear, currentMonth, billDays[i % billDays.length]),
     }));
 
