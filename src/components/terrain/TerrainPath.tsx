@@ -1046,7 +1046,7 @@ export function TerrainPath() {
                       height={r * 2}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Wallet size={14} style={{ color: 'rgba(74,222,128,0.5)' }} />
+                        <Wallet size={14} style={{ color: 'rgba(74,222,128,0.85)' }} />
                       </div>
                     </foreignObject>
                     <text
