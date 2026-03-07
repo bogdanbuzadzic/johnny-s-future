@@ -458,6 +458,14 @@ export function TerrainPath() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showTodayPill, setShowTodayPill] = useState(false);
   const [terrainRange, setTerrainRange] = useState<'1M'|'3M'|'6M'|'1Y'>('1M');
+  const [hoveredMarker, setHoveredMarker] = useState<{
+    description: string;
+    amount: number;
+    type: 'income' | 'expense';
+    date: Date;
+    x: number;
+    y: number;
+  } | null>(null);
   const [activeBubble, setActiveBubble] = useState<{
     dayIndex: number;
     amount: string;
