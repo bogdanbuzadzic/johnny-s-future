@@ -967,7 +967,7 @@ export function TerrainPath() {
                       height={size.h}
                     >
                       <div className="w-full h-full flex items-center justify-center">
-                        <Icon size={size.icon} className="text-white/50" />
+                        <Icon size={size.icon} className="text-white/80" />
                       </div>
                     </foreignObject>
                     <text
