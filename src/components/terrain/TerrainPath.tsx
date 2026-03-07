@@ -974,7 +974,7 @@ export function TerrainPath() {
                       x={markerX}
                       y={markerY + size.h + size.font + 2}
                       textAnchor="middle"
-                      fill="rgba(255,255,255,0.35)"
+                      fill="rgba(255,255,255,0.55)"
                       fontSize={size.font}
                     >
                       €{bill.amount}
