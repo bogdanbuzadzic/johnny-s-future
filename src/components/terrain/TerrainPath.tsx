@@ -916,7 +916,40 @@ export function TerrainPath() {
                 const markerY = surfaceY - size.h - staggerOffset;
 
                 return (
-                  <g key={`obs-${i}-${bi}`}>
+                  <g key={`obs-${i}-${bi}`} style={{ cursor: 'pointer' }}
+                    onMouseEnter={(e) => {
+                      const svg = e.currentTarget.closest('svg');
+                      const container = svg?.closest('.overflow-x-auto');
+                      if (!svg || !container) return;
+                      const containerRect = container.getBoundingClientRect();
+                      setHoveredMarker({
+                        description: bill.name,
+                        amount: -bill.amount,
+                        type: 'expense',
+                        date: p.date,
+                        x: markerX - (container.scrollLeft || 0) + containerRect.left,
+                        y: markerY + containerRect.top,
+                      });
+                    }}
+                    onMouseLeave={() => setHoveredMarker(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const svg = e.currentTarget.closest('svg');
+                      const container = svg?.closest('.overflow-x-auto');
+                      if (!svg || !container) return;
+                      const containerRect = container.getBoundingClientRect();
+                      setHoveredMarker(prev =>
+                        prev?.description === bill.name ? null : {
+                          description: bill.name,
+                          amount: -bill.amount,
+                          type: 'expense',
+                          date: p.date,
+                          x: markerX - (container.scrollLeft || 0) + containerRect.left,
+                          y: markerY + containerRect.top,
+                        }
+                      );
+                    }}
+                  >
                     <rect
                       x={markerX - size.w / 2}
                       y={markerY}
