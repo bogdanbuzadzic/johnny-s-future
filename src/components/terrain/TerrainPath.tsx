@@ -1035,8 +1035,8 @@ export function TerrainPath() {
                       cx={markerX}
                       cy={cy}
                       r={r}
-                      fill="rgba(52,199,89,0.15)"
-                      stroke="rgba(52,199,89,0.3)"
+                       fill="rgba(52,199,89,0.35)"
+                       stroke="rgba(52,199,89,0.6)"
                       strokeWidth={1}
                     />
                     <foreignObject
