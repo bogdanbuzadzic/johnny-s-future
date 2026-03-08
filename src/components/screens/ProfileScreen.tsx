@@ -671,17 +671,49 @@ function ProfileScreenContent() {
   // ── 2. SEED TRANSACTIONS ──
   try {
     const bd = JSON.parse(localStorage.getItem('jfb-budget-data') || '{}');
-    const cats = bd.categories || [];
+    if (!bd.categories) bd.categories = [];
+    if (!bd.transactions) bd.transactions = [];
+    if (!bd.config) bd.config = {};
+
+    // Ensure budget config exists
+    bd.config = {
+      ...bd.config,
+      monthlyIncome: bd.config.monthlyIncome || 2500,
+      monthlySavingsTarget: bd.config.monthlySavingsTarget || 200,
+      setupComplete: true,
+    };
+
+    // Ensure expense categories exist
+    const defaultExpenseCats = [
+      { name: 'Food', icon: 'UtensilsCrossed', monthlyBudget: 334 },
+      { name: 'Entertainment', icon: 'Film', monthlyBudget: 191 },
+      { name: 'Shopping', icon: 'ShoppingBag', monthlyBudget: 241 },
+      { name: 'Lifestyle', icon: 'Coffee', monthlyBudget: 170 },
+      { name: 'Subscriptions', icon: 'CreditCard', monthlyBudget: 66 },
+    ];
+    defaultExpenseCats.forEach(dc => {
+      const exists = bd.categories.some((c: any) => c.name === dc.name && c.type === 'expense');
+      if (!exists) {
+        bd.categories.push({
+          id: crypto.randomUUID(),
+          name: dc.name,
+          icon: dc.icon,
+          monthlyBudget: dc.monthlyBudget,
+          type: 'expense' as const,
+          sortOrder: bd.categories.length,
+        });
+      }
+    });
+
+    // Save immediately so categories exist for lookups below
+    localStorage.setItem('jfb-budget-data', JSON.stringify(bd));
+
+    const cats = bd.categories;
     const foodCat = cats.find((c: any) => c.name === 'Food');
     const entCat = cats.find((c: any) => c.name === 'Entertainment');
     const shopCat = cats.find((c: any) => c.name === 'Shopping');
     const lifeCat = cats.find((c: any) => c.name === 'Lifestyle' || c.name === 'Personal');
     const subsCat = cats.find((c: any) => c.name === 'Subscriptions' || c.name === 'Subs');
-
-    if (!foodCat || !entCat || !shopCat) {
-      toast({ title: 'Complete Clarity first', description: 'Spending categories need to exist before loading demo data.' });
-      return;
-    }
 
     // Helper to create a transaction
     const tx = (amt: number, catId: string, desc: string, day: number, month: string, year: number | string, recurring = false): any => ({
