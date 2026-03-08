@@ -594,18 +594,30 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
 
   // X-axis labels
   const xLabels = useMemo(() => {
-    const labels: { x: number; text: string }[] = [];
+    const labels: { x: number; text: string; isSalary: boolean; isBill: boolean; billIcon?: string }[] = [];
     if (timeRange === '1M') {
       const interval = Math.max(1, Math.floor(terrainPoints.length / 7));
       terrainPoints.forEach((p, i) => {
         if (i % interval === 0 || p.isToday) {
-          labels.push({ x: mapX(i), text: p.isToday ? 'Today' : p.date.getDate().toString() });
+          labels.push({ 
+            x: mapX(i), 
+            text: p.isToday ? 'Today' : p.date.getDate().toString(),
+            isSalary: !!p.isSalaryDay,
+            isBill: !!(p.bill && !p.isPast),
+            billIcon: p.bill?.icon
+          });
         }
       });
     } else if (timeRange === '3M') {
       terrainPoints.forEach((p, i) => {
         if (p.date.getDate() === 15 || p.isToday) {
-          labels.push({ x: mapX(i), text: p.isToday ? 'Today' : format(p.date, 'MMM') });
+          labels.push({ 
+            x: mapX(i), 
+            text: p.isToday ? 'Today' : format(p.date, 'MMM'),
+            isSalary: !!p.isSalaryDay,
+            isBill: !!(p.bill && !p.isPast),
+            billIcon: p.bill?.icon
+          });
         }
       });
     } else {
@@ -615,7 +627,13 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
         const m = p.date.getMonth();
         if (m !== lastMonth) {
           lastMonth = m;
-          labels.push({ x: mapX(i), text: format(p.date, 'MMM') });
+          labels.push({ 
+            x: mapX(i), 
+            text: format(p.date, 'MMM'),
+            isSalary: !!p.isSalaryDay,
+            isBill: !!(p.bill && !p.isPast),
+            billIcon: p.bill?.icon
+          });
         }
       });
     }
