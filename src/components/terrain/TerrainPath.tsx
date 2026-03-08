@@ -82,7 +82,35 @@ function readBudgetForTerrain(): BudgetTerrainData {
     const mi = Number(config.monthlyIncome) || 0;
     if (mi === 0) return empty;
 
-    const fixedCats = categories.filter((c: any) => c.type === 'fixed');
+    let fixedCats = categories.filter((c: any) => c.type === 'fixed');
+
+    // FALLBACK: If no fixed categories exist, derive bills from config values
+    if (fixedCats.length === 0) {
+      const fallbacks: Array<{ name: string; icon: string; monthlyBudget: number; type: string }> = [];
+      const rent = Number((config as any).rent) || 0;
+      const utilities = Number((config as any).utilities) || 0;
+      const transport = Number((config as any).transport) || 0;
+      const insurance = Number((config as any).insurance) || 0;
+      const subscriptions = Number((config as any).subscriptions) || 0;
+
+      if (rent > 0) fallbacks.push({ name: 'Rent', icon: 'Home', monthlyBudget: rent, type: 'fixed' });
+      if (utilities > 0) fallbacks.push({ name: 'Utilities', icon: 'Zap', monthlyBudget: utilities, type: 'fixed' });
+      if (transport > 0) fallbacks.push({ name: 'Transport', icon: 'Car', monthlyBudget: transport, type: 'fixed' });
+      if (insurance > 0) fallbacks.push({ name: 'Insurance', icon: 'Shield', monthlyBudget: insurance, type: 'fixed' });
+      if (subscriptions > 0) fallbacks.push({ name: 'Subscriptions', icon: 'Music', monthlyBudget: subscriptions, type: 'fixed' });
+
+      // If still nothing from config, use totalFixed estimate: assume rent is 60%, utilities 15%, transport 25%
+      if (fallbacks.length === 0 && mi > 0) {
+        const estimatedFixed = mi * 0.32;
+        if (estimatedFixed > 100) {
+          fallbacks.push({ name: 'Rent', icon: 'Home', monthlyBudget: Math.round(estimatedFixed * 0.6), type: 'fixed' });
+          fallbacks.push({ name: 'Utilities', icon: 'Zap', monthlyBudget: Math.round(estimatedFixed * 0.15), type: 'fixed' });
+          fallbacks.push({ name: 'Transport', icon: 'Car', monthlyBudget: Math.round(estimatedFixed * 0.25), type: 'fixed' });
+        }
+      }
+
+      fixedCats = fallbacks;
+    }
     const totalFixed = fixedCats.reduce((s: number, c: any) => s + (Number(c.monthlyBudget) || 0), 0);
     const savings = Number(config.monthlySavingsTarget) || 0;
     const flexBudget = mi - totalFixed - savings;
