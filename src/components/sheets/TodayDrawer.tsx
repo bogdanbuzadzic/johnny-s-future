@@ -920,13 +920,13 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
                     {/* Amount pill with better visibility */}
                     <rect
                       x={Math.max(4, Math.min(mapX(idx) - 32, chartWidth - 68))} 
-                      y={mapY(terrainPoints[idx].balance) - 36}
+                      y={Math.max(2, mapY(terrainPoints[idx].balance) - 36)}
                       width={64} height={18} rx={6}
                       fill="rgba(34,197,94,0.9)"
                     />
                     <text
                       x={Math.max(36, Math.min(mapX(idx), chartWidth - 36))} 
-                      y={mapY(terrainPoints[idx].balance) - 24}
+                      y={Math.max(14, mapY(terrainPoints[idx].balance) - 24)}
                       textAnchor="middle" fill="#FFFFFF" fontSize={11} fontWeight={700}>
                       €{computed.monthlyIncome.toLocaleString()}
                     </text>
