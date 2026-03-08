@@ -962,15 +962,16 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
                   if (!p.bill || p.isPast || p.isSalaryDay) return null;
                   const x = mapX(i);
                   const y = mapY(p.balance);
+                  const markerY = y - 40; // Position ABOVE the line
                   return (
                     <g key={`bill-${i}`}>
-                      <rect x={x - 11} y={y - 24} width={22} height={22} rx={6}
-                        fill="rgba(239,68,68,0.15)" stroke="rgba(239,68,68,0.3)" strokeWidth={1} />
-                      <foreignObject x={x - 11} y={y - 24} width={22} height={22}>
+                      <rect x={x - 11} y={markerY} width={22} height={22} rx={6}
+                        fill="rgba(239,68,68,0.2)" stroke="#EF4444" strokeWidth={1.5} />
+                      <foreignObject x={x - 11} y={markerY} width={22} height={22}>
                         <div className="w-full h-full flex items-center justify-center">
-                          {p.bill.icon === 'Home' && <Home size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
-                          {p.bill.icon === 'Zap' && <Zap size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
-                          {p.bill.icon === 'Bus' && <Bus size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
+                          {p.bill.icon === 'Home' && <Home size={12} style={{ color: '#fff' }} />}
+                          {p.bill.icon === 'Zap' && <Zap size={12} style={{ color: '#fff' }} />}
+                          {p.bill.icon === 'Bus' && <Bus size={12} style={{ color: '#fff' }} />}
                         </div>
                       </foreignObject>
                     </g>
