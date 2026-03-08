@@ -438,7 +438,7 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
   const mapY = useCallback((bal: number) => {
     const range = maxBal - minBal || 1;
     const norm = (bal - minBal) / range;
-    return chartHeight - 10 - norm * (chartHeight - 30);
+    return chartHeight - 10 - norm * (chartHeight - 60);
   }, [maxBal, minBal, chartHeight]);
 
   // SVG paths — pass maxBal AND minBal so all lines share the SAME Y-axis scale
