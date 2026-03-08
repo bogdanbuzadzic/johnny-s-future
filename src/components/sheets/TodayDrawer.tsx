@@ -918,53 +918,60 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
                 ))}
 
                 {/* Salary spike markers - green circles on ALL salary days */}
-                {(timeRange === '1M' || timeRange === '3M') && salaryIndices.map((idx) => (
-                  <g key={`salary-${idx}`}>
-                    {/* Green circle marker */}
-                    <circle
-                      cx={mapX(idx)}
-                      cy={mapY(terrainPoints[idx].balance)}
-                      r={14}
-                      fill="rgba(34,197,94,0.25)"
-                      stroke="#22C55E"
-                      strokeWidth={2}
-                    />
-                    <text
-                      x={mapX(idx)}
-                      y={mapY(terrainPoints[idx].balance) + 4}
-                      textAnchor="middle" fill="#22C55E" fontSize={12} fontWeight={700}>
-                      $
-                    </text>
-                    {/* Amount pill with better visibility */}
-                    <rect
-                      x={Math.max(4, Math.min(mapX(idx) - 32, chartWidth - 68))} 
-                      y={Math.max(2, mapY(terrainPoints[idx].balance) - 36)}
-                      width={64} height={18} rx={6}
-                      fill="rgba(34,197,94,0.9)"
-                    />
-                    <text
-                      x={Math.max(36, Math.min(mapX(idx), chartWidth - 36))} 
-                      y={Math.max(14, mapY(terrainPoints[idx].balance) - 24)}
-                      textAnchor="middle" fill="#FFFFFF" fontSize={11} fontWeight={700}>
-                      €{computed.monthlyIncome.toLocaleString()}
-                    </text>
-                  </g>
-                ))}
+                {(timeRange === '1M' || timeRange === '3M') && salaryIndices.map((idx) => {
+                  const peakY = mapY(terrainPoints[idx].balance);
+                  const circleY = peakY - 24;
+                  const pillY = Math.max(2, peakY - 58);
+                  const textY = Math.max(14, peakY - 46);
+                  return (
+                    <g key={`salary-${idx}`}>
+                      {/* Green circle marker - positioned ABOVE the line */}
+                      <circle
+                        cx={mapX(idx)}
+                        cy={circleY}
+                        r={12}
+                        fill="rgba(34,197,94,0.3)"
+                        stroke="#22C55E"
+                        strokeWidth={2}
+                      />
+                      <text
+                        x={mapX(idx)}
+                        y={circleY + 4}
+                        textAnchor="middle" fill="#22C55E" fontSize={11} fontWeight={700}>
+                        $
+                      </text>
+                      {/* Amount pill - well above the circle */}
+                      <rect
+                        x={Math.max(4, Math.min(mapX(idx) - 32, chartWidth - 68))} 
+                        y={pillY}
+                        width={64} height={18} rx={6}
+                        fill="#22C55E"
+                      />
+                      <text
+                        x={Math.max(36, Math.min(mapX(idx), chartWidth - 36))} 
+                        y={textY}
+                        textAnchor="middle" fill="#FFFFFF" fontSize={11} fontWeight={700}>
+                        €{computed.monthlyIncome.toLocaleString()}
+                      </text>
+                    </g>
+                  );
+                })}
 
                 {/* Bill icons (1M and 3M only) */}
                 {(timeRange === '1M' || timeRange === '3M') && terrainPoints.map((p, i) => {
                   if (!p.bill || p.isPast || p.isSalaryDay) return null;
                   const x = mapX(i);
                   const y = mapY(p.balance);
+                  const markerY = y - 40; // Position ABOVE the line
                   return (
                     <g key={`bill-${i}`}>
-                      <rect x={x - 11} y={y - 24} width={22} height={22} rx={6}
-                        fill="rgba(239,68,68,0.15)" stroke="rgba(239,68,68,0.3)" strokeWidth={1} />
-                      <foreignObject x={x - 11} y={y - 24} width={22} height={22}>
+                      <rect x={x - 11} y={markerY} width={22} height={22} rx={6}
+                        fill="rgba(239,68,68,0.2)" stroke="#EF4444" strokeWidth={1.5} />
+                      <foreignObject x={x - 11} y={markerY} width={22} height={22}>
                         <div className="w-full h-full flex items-center justify-center">
-                          {p.bill.icon === 'Home' && <Home size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
-                          {p.bill.icon === 'Zap' && <Zap size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
-                          {p.bill.icon === 'Bus' && <Bus size={12} style={{ color: 'rgba(255,255,255,0.6)' }} />}
+                          {p.bill.icon === 'Home' && <Home size={12} style={{ color: '#fff' }} />}
+                          {p.bill.icon === 'Zap' && <Zap size={12} style={{ color: '#fff' }} />}
+                          {p.bill.icon === 'Bus' && <Bus size={12} style={{ color: '#fff' }} />}
                         </div>
                       </foreignObject>
                     </g>
@@ -1065,14 +1072,12 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
               )}
 
               {/* X-axis labels with color coding */}
-              <div className="flex justify-between mt-1 px-1">
+              <div className="flex justify-between mt-2 px-2">
                 {xLabels.map((l, i) => {
-                  const color = l.isSalary ? '#22C55E' : l.isBill ? '#EF4444' : 'rgba(255,255,255,0.5)';
-                  const prefix = l.isSalary ? '↑ ' : '';
-                  const suffix = l.isBill ? (l.billIcon === 'Home' ? ' 🏠' : l.billIcon === 'Zap' ? ' ⚡' : ' 📅') : '';
+                  const color = l.isSalary ? '#22C55E' : l.isBill ? '#EF4444' : 'rgba(255,255,255,0.4)';
                   return (
-                    <span key={i} className="text-[10px] font-semibold" style={{ color }}>
-                      {prefix}{l.text}{suffix}
+                    <span key={i} className="text-[11px] font-bold" style={{ color }}>
+                      {l.isSalary && '↑'}{l.text}
                     </span>
                   );
                 })}
