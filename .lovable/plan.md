@@ -1,67 +1,111 @@
 
 
-# Fix: Terrain Bill Markers Never Appear
+# Plan: Insurance Decision Tool
 
-## Problem
-In `src/components/terrain/TerrainPath.tsx`, the `readBudgetForTerrain()` function filters for `c.type === 'fixed'` categories, but Clarity never creates categories with that type — resulting in no expense markers rendering on the terrain.
+## Overview
 
-## Solution
+Add an Insurance Decision Tool as a new module in the Compare sheet, with 3 sub-tools: Risk Profile wizard, Worth-It Calculator, and Deductible Optimizer. This involves modifying `CompareSheet.tsx` and creating 4 new files.
 
-**File: `src/components/terrain/TerrainPath.tsx`**
+---
 
-Replace lines 85-114 (the existing fixedCats fallback logic) with the improved version that:
+## Step 1: Add Entry Point in CompareSheet
 
-1. **Checks Clarity localStorage first** — Read `jfb_clarity_answers` for rent/utilities/transport values
-2. **Falls back to config values** — Check `config.rent`, `config.housing`, etc.
-3. **Last resort: estimate from income** — Rent ~24%, utilities ~5%, transport ~3%
-4. **Add debug log** — Print fixedCats count and names to console for verification
+**File: `src/components/budget/CompareSheet.tsx`**
 
-### Code Changes
+- Extend `CompareMode` type to include `'insurance'`
+- Add 4th menu item: "Do I Need Insurance?" with desc "Evaluate if insurance is worth it for you"
+- Fix `borderBottom` condition from `i < 2` to `i < 3` (now 4 items)
+- Add `{mode === 'insurance' && <InsuranceToolHome ... />}` route
+- Import `InsuranceToolHome` from new file
+- `maxHeight` for insurance mode: `85vh` (already handled by the non-menu fallback)
 
-**Replace lines 85-114:**
-```tsx
-let fixedCats = categories.filter((c: any) => c.type === 'fixed');
+---
 
-// If no fixed categories exist, generate estimated bills from income
-if (fixedCats.length === 0 && mi > 0) {
-  // Try to read Clarity answers for actual values
-  let rentVal = 0, utilVal = 0, transVal = 0;
-  try {
-    const clarityRaw = localStorage.getItem('jfb_clarity_answers');
-    if (clarityRaw) {
-      const ca = JSON.parse(clarityRaw);
-      rentVal = Number(ca.rent || ca.housing || ca.q4 || 0);
-      utilVal = Number(ca.utilities || ca.bills || ca.q5 || 0);
-      transVal = Number(ca.transport || ca.commute || ca.q6 || 0);
-    }
-  } catch {}
+## Step 2: Insurance Tool Home
 
-  // Also check config for these values
-  if (rentVal === 0) rentVal = Number(config.rent || config.housing || 0);
-  if (utilVal === 0) utilVal = Number(config.utilities || config.bills || 0);
-  if (transVal === 0) transVal = Number(config.transport || config.commute || 0);
+**New file: `src/components/insurance/InsuranceToolHome.tsx`**
 
-  // Last resort: estimate from income
-  if (rentVal === 0 && utilVal === 0 && transVal === 0) {
-    rentVal = Math.round(mi * 0.24);
-    utilVal = Math.round(mi * 0.05);
-    transVal = Math.round(mi * 0.03);
-  }
+Landing screen with internal state `activeView: 'home' | 'profile' | 'worth-it' | 'deductible'`.
 
-  const generated: any[] = [];
-  if (rentVal > 0) generated.push({ name: 'Rent', icon: 'Home', monthlyBudget: rentVal, type: 'fixed' });
-  if (utilVal > 0) generated.push({ name: 'Utilities', icon: 'Zap', monthlyBudget: utilVal, type: 'fixed' });
-  if (transVal > 0) generated.push({ name: 'Transport', icon: 'Car', monthlyBudget: transVal, type: 'fixed' });
+- When `activeView === 'home'`: shows header, Johnny intro (dark variant using `JohnnyMessage`), and 3 tool cards (Shield/Scale/GitCompare icons)
+- Risk Profile card: shows "Complete" badge or "Start" based on `jfb_insurance_profile` in localStorage
+- Worth-It and Deductible cards: locked if no profile, unlocked if profile exists
+- Each card click sets `activeView` to the sub-tool
+- Sub-views render `RiskProfileWizard`, `WorthItCalculator`, or `DeductibleOptimizer` with `onBack` returning to home
 
-  fixedCats = generated;
-}
+Card styling: dark background `rgba(255,255,255,0.04)`, border `rgba(255,255,255,0.06)`, rounded 14px, padding 16px, icon + title + description layout.
 
-const totalFixed = fixedCats.reduce((s: number, c: any) => s + (Number(c.monthlyBudget) || 0), 0);
+---
 
-console.log('Terrain fixedCats:', fixedCats.length, fixedCats.map((c: any) => c.name), 'income:', mi);
-```
+## Step 3: Risk Profile Wizard
 
-## Scope
-- **ONLY** modifying the `readBudgetForTerrain()` function
-- No changes to marker rendering, SVG elements, or other functions
+**New file: `src/components/insurance/RiskProfileWizard.tsx`**
+
+6-step wizard with progress bar. Each step renders a question with segmented pill buttons or radio options.
+
+- Steps: Net Worth, Annual Income, Dependents, Emergency Savings, Housing, Risk Tolerance
+- Pre-populates from budget config (`monthlyIncome * 12`) if available
+- Pre-populates from existing `jfb_insurance_profile` if editing
+- Segmented button styling: flex-wrap pills, violet highlight when selected
+- Navigation: Back/Next buttons, step indicator "Step X of 6"
+- On finish: saves to `localStorage('jfb_insurance_profile')`, shows completion message, calls `onBack()`
+- Privacy note on step 1
+
+---
+
+## Step 4: Worth-It Calculator
+
+**New file: `src/components/insurance/WorthItCalculator.tsx`**
+
+Input section:
+- Insurance category: 2-column card grid (8 types with lucide icons)
+- Value at Risk: currency input with category-specific help text
+- Annual Premium: currency input with monthly/annual toggle
+- Deductible: currency input (shown only for applicable categories)
+
+Results section (shown after "Analyze" button):
+- Loads risk profile from localStorage
+- Calculates `proportionalLoss = (valueAtRisk - deductible) / netWorth` adjusted by risk tolerance
+- Verdict: SKIP (<5%), CONSIDER (5-20%), BUY (20-50%), ESSENTIAL (>50%)
+- Verdict card: colored left border, icon, title, proportional loss bar, explanation text
+- Special cases: extended warranty < €1000, life insurance + no dependents
+- Johnny insight adapts to verdict
+- "What to do instead" card for SKIP verdict
+- Integration: if BUY/ESSENTIAL, Johnny suggests adding premium to Fixed expenses
+
+---
+
+## Step 5: Deductible Optimizer
+
+**New file: `src/components/insurance/DeductibleOptimizer.tsx`**
+
+Input: two side-by-side columns (Plan A low deductible, Plan B high deductible) with premium, deductible, and OOP max inputs.
+
+Results:
+- Scenario table: No claims / One claim / Multiple claims with cost for each plan and savings
+- Financial domination check: if Plan A costs more in every scenario, show amber warning
+- Key insight card with break-even years calculation
+- Emergency fund context from risk profile
+- Johnny insight adapts to recommendation
+
+---
+
+## Step 6: Cross-Tool Integration
+
+- Pre-populate Risk Profile annual income from `config.monthlyIncome * 12`
+- Worth-It and Deductible tools check `jfb_insurance_profile` exists before allowing use
+- History storage in `jfb_insurance_history` (array, for future use)
+- BUY/ESSENTIAL verdict: Johnny CTA to add premium to Fixed expenses
+
+---
+
+## Files Changed
+
+| File | Action |
+|------|--------|
+| `src/components/budget/CompareSheet.tsx` | Modified (add insurance mode + import) |
+| `src/components/insurance/InsuranceToolHome.tsx` | New |
+| `src/components/insurance/RiskProfileWizard.tsx` | New |
+| `src/components/insurance/WorthItCalculator.tsx` | New |
+| `src/components/insurance/DeductibleOptimizer.tsx` | New |
 
