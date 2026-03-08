@@ -918,38 +918,44 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
                 ))}
 
                 {/* Salary spike markers - green circles on ALL salary days */}
-                {(timeRange === '1M' || timeRange === '3M') && salaryIndices.map((idx) => (
-                  <g key={`salary-${idx}`}>
-                    {/* Green circle marker */}
-                    <circle
-                      cx={mapX(idx)}
-                      cy={mapY(terrainPoints[idx].balance)}
-                      r={14}
-                      fill="rgba(34,197,94,0.25)"
-                      stroke="#22C55E"
-                      strokeWidth={2}
-                    />
-                    <text
-                      x={mapX(idx)}
-                      y={mapY(terrainPoints[idx].balance) + 4}
-                      textAnchor="middle" fill="#22C55E" fontSize={12} fontWeight={700}>
-                      $
-                    </text>
-                    {/* Amount pill with better visibility */}
-                    <rect
-                      x={Math.max(4, Math.min(mapX(idx) - 32, chartWidth - 68))} 
-                      y={Math.max(2, mapY(terrainPoints[idx].balance) - 36)}
-                      width={64} height={18} rx={6}
-                      fill="rgba(34,197,94,0.9)"
-                    />
-                    <text
-                      x={Math.max(36, Math.min(mapX(idx), chartWidth - 36))} 
-                      y={Math.max(14, mapY(terrainPoints[idx].balance) - 24)}
-                      textAnchor="middle" fill="#FFFFFF" fontSize={11} fontWeight={700}>
-                      €{computed.monthlyIncome.toLocaleString()}
-                    </text>
-                  </g>
-                ))}
+                {(timeRange === '1M' || timeRange === '3M') && salaryIndices.map((idx) => {
+                  const peakY = mapY(terrainPoints[idx].balance);
+                  const circleY = peakY - 24;
+                  const pillY = Math.max(2, peakY - 58);
+                  const textY = Math.max(14, peakY - 46);
+                  return (
+                    <g key={`salary-${idx}`}>
+                      {/* Green circle marker - positioned ABOVE the line */}
+                      <circle
+                        cx={mapX(idx)}
+                        cy={circleY}
+                        r={12}
+                        fill="rgba(34,197,94,0.3)"
+                        stroke="#22C55E"
+                        strokeWidth={2}
+                      />
+                      <text
+                        x={mapX(idx)}
+                        y={circleY + 4}
+                        textAnchor="middle" fill="#22C55E" fontSize={11} fontWeight={700}>
+                        $
+                      </text>
+                      {/* Amount pill - well above the circle */}
+                      <rect
+                        x={Math.max(4, Math.min(mapX(idx) - 32, chartWidth - 68))} 
+                        y={pillY}
+                        width={64} height={18} rx={6}
+                        fill="#22C55E"
+                      />
+                      <text
+                        x={Math.max(36, Math.min(mapX(idx), chartWidth - 36))} 
+                        y={textY}
+                        textAnchor="middle" fill="#FFFFFF" fontSize={11} fontWeight={700}>
+                        €{computed.monthlyIncome.toLocaleString()}
+                      </text>
+                    </g>
+                  );
+                })}
 
                 {/* Bill icons (1M and 3M only) */}
                 {(timeRange === '1M' || timeRange === '3M') && terrainPoints.map((p, i) => {
