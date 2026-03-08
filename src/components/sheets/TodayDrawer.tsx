@@ -438,7 +438,7 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
   const mapY = useCallback((bal: number) => {
     const range = maxBal - minBal || 1;
     const norm = (bal - minBal) / range;
-    return chartHeight - 10 - norm * (chartHeight - 30);
+    return chartHeight - 10 - norm * (chartHeight - 60);
   }, [maxBal, minBal, chartHeight]);
 
   // SVG paths — pass maxBal AND minBal so all lines share the SAME Y-axis scale
@@ -594,18 +594,30 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
 
   // X-axis labels
   const xLabels = useMemo(() => {
-    const labels: { x: number; text: string }[] = [];
+    const labels: { x: number; text: string; isSalary: boolean; isBill: boolean; billIcon?: string }[] = [];
     if (timeRange === '1M') {
       const interval = Math.max(1, Math.floor(terrainPoints.length / 7));
       terrainPoints.forEach((p, i) => {
         if (i % interval === 0 || p.isToday) {
-          labels.push({ x: mapX(i), text: p.isToday ? 'Today' : p.date.getDate().toString() });
+          labels.push({ 
+            x: mapX(i), 
+            text: p.isToday ? 'Today' : p.date.getDate().toString(),
+            isSalary: !!p.isSalaryDay,
+            isBill: !!(p.bill && !p.isPast),
+            billIcon: p.bill?.icon
+          });
         }
       });
     } else if (timeRange === '3M') {
       terrainPoints.forEach((p, i) => {
         if (p.date.getDate() === 15 || p.isToday) {
-          labels.push({ x: mapX(i), text: p.isToday ? 'Today' : format(p.date, 'MMM') });
+          labels.push({ 
+            x: mapX(i), 
+            text: p.isToday ? 'Today' : format(p.date, 'MMM'),
+            isSalary: !!p.isSalaryDay,
+            isBill: !!(p.bill && !p.isPast),
+            billIcon: p.bill?.icon
+          });
         }
       });
     } else {
@@ -615,7 +627,13 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
         const m = p.date.getMonth();
         if (m !== lastMonth) {
           lastMonth = m;
-          labels.push({ x: mapX(i), text: format(p.date, 'MMM') });
+          labels.push({ 
+            x: mapX(i), 
+            text: format(p.date, 'MMM'),
+            isSalary: !!p.isSalaryDay,
+            isBill: !!(p.bill && !p.isPast),
+            billIcon: p.bill?.icon
+          });
         }
       });
     }
@@ -920,13 +938,13 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
                     {/* Amount pill with better visibility */}
                     <rect
                       x={Math.max(4, Math.min(mapX(idx) - 32, chartWidth - 68))} 
-                      y={mapY(terrainPoints[idx].balance) - 36}
+                      y={Math.max(2, mapY(terrainPoints[idx].balance) - 36)}
                       width={64} height={18} rx={6}
                       fill="rgba(34,197,94,0.9)"
                     />
                     <text
                       x={Math.max(36, Math.min(mapX(idx), chartWidth - 36))} 
-                      y={mapY(terrainPoints[idx].balance) - 24}
+                      y={Math.max(14, mapY(terrainPoints[idx].balance) - 24)}
                       textAnchor="middle" fill="#FFFFFF" fontSize={11} fontWeight={700}>
                       €{computed.monthlyIncome.toLocaleString()}
                     </text>
@@ -1049,15 +1067,11 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
               {/* X-axis labels with color coding */}
               <div className="flex justify-between mt-1 px-1">
                 {xLabels.map((l, i) => {
-                  const pointIdx = Math.round(i * (terrainPoints.length - 1) / Math.max(xLabels.length - 1, 1));
-                  const point = terrainPoints[pointIdx];
-                  const isSalary = point?.isSalaryDay;
-                  const isBill = point?.bill && !point?.isPast;
-                  const color = isSalary ? '#22C55E' : isBill ? '#EF4444' : 'rgba(255,255,255,0.35)';
-                  const prefix = isSalary ? '↑' : '';
-                  const suffix = isBill ? (point?.bill?.icon === 'Home' ? '🏠' : point?.bill?.icon === 'Zap' ? '⚡' : '📅') : '';
+                  const color = l.isSalary ? '#22C55E' : l.isBill ? '#EF4444' : 'rgba(255,255,255,0.5)';
+                  const prefix = l.isSalary ? '↑ ' : '';
+                  const suffix = l.isBill ? (l.billIcon === 'Home' ? ' 🏠' : l.billIcon === 'Zap' ? ' ⚡' : ' 📅') : '';
                   return (
-                    <span key={i} className="text-[10px] font-medium" style={{ color }}>
+                    <span key={i} className="text-[10px] font-semibold" style={{ color }}>
                       {prefix}{l.text}{suffix}
                     </span>
                   );
