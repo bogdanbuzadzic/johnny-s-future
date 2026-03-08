@@ -836,6 +836,26 @@ function ProfileScreenContent() {
     };
     localStorage.setItem('jfb_month_snapshots', JSON.stringify(snapshots));
 
+    // ── ENSURE FIXED CATEGORIES EXIST (needed for terrain markers) ──
+    const fixedCatsToEnsure = [
+      { name: 'Rent', icon: 'Home', monthlyBudget: 600, type: 'fixed' as const },
+      { name: 'Utilities', icon: 'Zap', monthlyBudget: 120, type: 'fixed' as const },
+      { name: 'Transport', icon: 'Car', monthlyBudget: 80, type: 'fixed' as const },
+    ];
+    fixedCatsToEnsure.forEach(fc => {
+      const exists = bd.categories.some((c: any) => c.name === fc.name && c.type === 'fixed');
+      if (!exists) {
+        bd.categories.push({
+          id: crypto.randomUUID(),
+          name: fc.name,
+          icon: fc.icon,
+          monthlyBudget: fc.monthlyBudget,
+          type: fc.type,
+          sortOrder: bd.categories.length,
+        });
+      }
+    });
+
     // ── FIX CATEGORY BUDGETS to match demo spending ──
     const catBudgetMap: Record<string, number> = {
       'Food': 334,

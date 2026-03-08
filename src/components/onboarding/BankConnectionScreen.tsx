@@ -54,6 +54,26 @@ function loadDemoData() {
     bd.transactions = txs;
 
     // Fix category budgets to match demo spending
+    // ── ENSURE FIXED CATEGORIES EXIST (needed for terrain markers) ──
+    const fixedCatsToEnsure = [
+      { name: 'Rent', icon: 'Home', monthlyBudget: 600, type: 'fixed' as const },
+      { name: 'Utilities', icon: 'Zap', monthlyBudget: 120, type: 'fixed' as const },
+      { name: 'Transport', icon: 'Car', monthlyBudget: 80, type: 'fixed' as const },
+    ];
+    fixedCatsToEnsure.forEach(fc => {
+      const exists = bd.categories.some((c: any) => c.name === fc.name && c.type === 'fixed');
+      if (!exists) {
+        bd.categories.push({
+          id: crypto.randomUUID(),
+          name: fc.name,
+          icon: fc.icon,
+          monthlyBudget: fc.monthlyBudget,
+          type: fc.type,
+          sortOrder: bd.categories.length,
+        });
+      }
+    });
+
     const catBudgetMap: Record<string, number> = {
       Food: 334, Entertainment: 191, Shopping: 241, Lifestyle: 170, Subscriptions: 66, Subs: 66,
     };
