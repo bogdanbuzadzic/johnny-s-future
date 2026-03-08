@@ -626,7 +626,10 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
   const dailyBurn = computed.flexBudget > 0 ? Math.round(computed.flexBudget / getDaysInMonth(new Date())) : 0;
 
   // Salary spike label position
-  const salaryIdx = terrainPoints.findIndex((p, i) => i > 0 && p.isSalaryDay);
+    const salaryIndices = terrainPoints
+      .map((p, i) => ({ p, i }))
+      .filter(({ p, i }) => i > 0 && p.isSalaryDay)
+      .map(({ i }) => i);
 
   // Fork paths
   const forkLinePath = useMemo(() => {
