@@ -933,7 +933,7 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
 
                 {/* Bill icons (1M and 3M only) */}
                 {(timeRange === '1M' || timeRange === '3M') && terrainPoints.map((p, i) => {
-                  if (!p.bill || p.isPast) return null;
+                  if (!p.bill || p.isPast || p.isSalaryDay) return null;
                   const x = mapX(i);
                   const y = mapY(p.balance);
                   return (
