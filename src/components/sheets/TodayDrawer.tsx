@@ -626,7 +626,10 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
   const dailyBurn = computed.flexBudget > 0 ? Math.round(computed.flexBudget / getDaysInMonth(new Date())) : 0;
 
   // Salary spike label position
-  const salaryIdx = terrainPoints.findIndex((p, i) => i > 0 && p.isSalaryDay);
+    const salaryIndices = terrainPoints
+      .map((p, i) => ({ p, i }))
+      .filter(({ p, i }) => i > 0 && p.isSalaryDay)
+      .map(({ i }) => i);
 
   // Fork paths
   const forkLinePath = useMemo(() => {
@@ -896,25 +899,41 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
                   </text>
                 ))}
 
-                {/* Salary spike label */}
-                {salaryIdx >= 0 && (timeRange === '1M' || timeRange === '3M') && (
-                  <g>
-                    <rect
-                      x={mapX(salaryIdx) - 28} y={mapY(terrainPoints[salaryIdx].balance) - 18}
-                      width={56} height={16} rx={4}
-                      fill="rgba(39,174,96,0.2)"
+                {/* Salary spike markers - green circles on ALL salary days */}
+                {(timeRange === '1M' || timeRange === '3M') && salaryIndices.map((idx) => (
+                  <g key={`salary-${idx}`}>
+                    {/* Green circle marker */}
+                    <circle
+                      cx={mapX(idx)}
+                      cy={mapY(terrainPoints[idx].balance)}
+                      r={14}
+                      fill="rgba(34,197,94,0.25)"
+                      stroke="#22C55E"
+                      strokeWidth={2}
                     />
                     <text
-                      x={mapX(salaryIdx)} y={mapY(terrainPoints[salaryIdx].balance) - 7}
-                      textAnchor="middle" fill="#34C759" fontSize={10} fontWeight={600}>
+                      x={mapX(idx)}
+                      y={mapY(terrainPoints[idx].balance) + 4}
+                      textAnchor="middle" fill="#22C55E" fontSize={12} fontWeight={700}>
+                      $
+                    </text>
+                    {/* Amount pill above */}
+                    <rect
+                      x={mapX(idx) - 28} y={mapY(terrainPoints[idx].balance) - 32}
+                      width={56} height={16} rx={4}
+                      fill="rgba(34,197,94,0.2)"
+                    />
+                    <text
+                      x={mapX(idx)} y={mapY(terrainPoints[idx].balance) - 21}
+                      textAnchor="middle" fill="#22C55E" fontSize={10} fontWeight={600}>
                       €{computed.monthlyIncome.toLocaleString()}
                     </text>
                   </g>
-                )}
+                ))}
 
                 {/* Bill icons (1M and 3M only) */}
                 {(timeRange === '1M' || timeRange === '3M') && terrainPoints.map((p, i) => {
-                  if (!p.bill || p.isPast) return null;
+                  if (!p.bill || p.isPast || p.isSalaryDay) return null;
                   const x = mapX(i);
                   const y = mapY(p.balance);
                   return (
