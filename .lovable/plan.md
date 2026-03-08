@@ -1,111 +1,48 @@
 
 
-# Plan: Insurance Decision Tool
+# Fix: Position Markers Above Line & Improve X-Axis
 
-## Overview
+## Problems (from screenshot)
+1. **Income markers positioned at line** — Pills need to be clearly ABOVE the peak of the income spike
+2. **Expense markers positioned poorly** — Red squares should be positioned ABOVE the downward line segment, not at the balance point
+3. **X-axis dates cramped and unclear** — Need cleaner spacing and larger text
 
-Add an Insurance Decision Tool as a new module in the Compare sheet, with 3 sub-tools: Risk Profile wizard, Worth-It Calculator, and Deductible Optimizer. This involves modifying `CompareSheet.tsx` and creating 4 new files.
+## Solution
 
----
+### File: `src/components/sheets/TodayDrawer.tsx`
 
-## Step 1: Add Entry Point in CompareSheet
+**Change 1: Position income markers ABOVE the line peak (~lines 924-950)**
+- Move the green circle marker UP by subtracting from Y position
+- Position the €2,500 pill further above the circle
+```tsx
+// Circle at y - 20 (above the line peak)
+cy={mapY(terrainPoints[idx].balance) - 20}
+// Pill at y - 55 (well above the circle)
+y={Math.max(2, mapY(terrainPoints[idx].balance) - 55)}
+```
 
-**File: `src/components/budget/CompareSheet.tsx`**
+**Change 2: Position expense markers ABOVE the line (~lines 960-971)**
+- Move red squares UP by subtracting more from Y
+```tsx
+// Red square at y - 35 (above the downward slope)
+<rect x={x - 11} y={y - 45} .../>
+<foreignObject x={x - 11} y={y - 45} .../>
+```
 
-- Extend `CompareMode` type to include `'insurance'`
-- Add 4th menu item: "Do I Need Insurance?" with desc "Evaluate if insurance is worth it for you"
-- Fix `borderBottom` condition from `i < 2` to `i < 3` (now 4 items)
-- Add `{mode === 'insurance' && <InsuranceToolHome ... />}` route
-- Import `InsuranceToolHome` from new file
-- `maxHeight` for insurance mode: `85vh` (already handled by the non-menu fallback)
+**Change 3: Improve X-axis labels (~lines 1067-1079)**
+- Increase font size from 10px to 11px
+- Remove emoji clutter, use cleaner colored dots or just colored text
+- Add more spacing with wider justify
+```tsx
+<div className="flex justify-between mt-2 px-2">
+  <span key={i} className="text-[11px] font-bold" style={{ color }}>
+    {l.text}
+  </span>
+</div>
+```
 
----
-
-## Step 2: Insurance Tool Home
-
-**New file: `src/components/insurance/InsuranceToolHome.tsx`**
-
-Landing screen with internal state `activeView: 'home' | 'profile' | 'worth-it' | 'deductible'`.
-
-- When `activeView === 'home'`: shows header, Johnny intro (dark variant using `JohnnyMessage`), and 3 tool cards (Shield/Scale/GitCompare icons)
-- Risk Profile card: shows "Complete" badge or "Start" based on `jfb_insurance_profile` in localStorage
-- Worth-It and Deductible cards: locked if no profile, unlocked if profile exists
-- Each card click sets `activeView` to the sub-tool
-- Sub-views render `RiskProfileWizard`, `WorthItCalculator`, or `DeductibleOptimizer` with `onBack` returning to home
-
-Card styling: dark background `rgba(255,255,255,0.04)`, border `rgba(255,255,255,0.06)`, rounded 14px, padding 16px, icon + title + description layout.
-
----
-
-## Step 3: Risk Profile Wizard
-
-**New file: `src/components/insurance/RiskProfileWizard.tsx`**
-
-6-step wizard with progress bar. Each step renders a question with segmented pill buttons or radio options.
-
-- Steps: Net Worth, Annual Income, Dependents, Emergency Savings, Housing, Risk Tolerance
-- Pre-populates from budget config (`monthlyIncome * 12`) if available
-- Pre-populates from existing `jfb_insurance_profile` if editing
-- Segmented button styling: flex-wrap pills, violet highlight when selected
-- Navigation: Back/Next buttons, step indicator "Step X of 6"
-- On finish: saves to `localStorage('jfb_insurance_profile')`, shows completion message, calls `onBack()`
-- Privacy note on step 1
-
----
-
-## Step 4: Worth-It Calculator
-
-**New file: `src/components/insurance/WorthItCalculator.tsx`**
-
-Input section:
-- Insurance category: 2-column card grid (8 types with lucide icons)
-- Value at Risk: currency input with category-specific help text
-- Annual Premium: currency input with monthly/annual toggle
-- Deductible: currency input (shown only for applicable categories)
-
-Results section (shown after "Analyze" button):
-- Loads risk profile from localStorage
-- Calculates `proportionalLoss = (valueAtRisk - deductible) / netWorth` adjusted by risk tolerance
-- Verdict: SKIP (<5%), CONSIDER (5-20%), BUY (20-50%), ESSENTIAL (>50%)
-- Verdict card: colored left border, icon, title, proportional loss bar, explanation text
-- Special cases: extended warranty < €1000, life insurance + no dependents
-- Johnny insight adapts to verdict
-- "What to do instead" card for SKIP verdict
-- Integration: if BUY/ESSENTIAL, Johnny suggests adding premium to Fixed expenses
-
----
-
-## Step 5: Deductible Optimizer
-
-**New file: `src/components/insurance/DeductibleOptimizer.tsx`**
-
-Input: two side-by-side columns (Plan A low deductible, Plan B high deductible) with premium, deductible, and OOP max inputs.
-
-Results:
-- Scenario table: No claims / One claim / Multiple claims with cost for each plan and savings
-- Financial domination check: if Plan A costs more in every scenario, show amber warning
-- Key insight card with break-even years calculation
-- Emergency fund context from risk profile
-- Johnny insight adapts to recommendation
-
----
-
-## Step 6: Cross-Tool Integration
-
-- Pre-populate Risk Profile annual income from `config.monthlyIncome * 12`
-- Worth-It and Deductible tools check `jfb_insurance_profile` exists before allowing use
-- History storage in `jfb_insurance_history` (array, for future use)
-- BUY/ESSENTIAL verdict: Johnny CTA to add premium to Fixed expenses
-
----
-
-## Files Changed
-
-| File | Action |
-|------|--------|
-| `src/components/budget/CompareSheet.tsx` | Modified (add insurance mode + import) |
-| `src/components/insurance/InsuranceToolHome.tsx` | New |
-| `src/components/insurance/RiskProfileWizard.tsx` | New |
-| `src/components/insurance/WorthItCalculator.tsx` | New |
-| `src/components/insurance/DeductibleOptimizer.tsx` | New |
+## Visual Result
+- Green income circles and €2,500 pills float clearly above salary spikes
+- Red expense squares float above the declining line segments
+- X-axis shows clean, well-spaced date labels with green/red color coding
 
