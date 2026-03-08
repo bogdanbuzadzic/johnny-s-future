@@ -1067,15 +1067,11 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
               {/* X-axis labels with color coding */}
               <div className="flex justify-between mt-1 px-1">
                 {xLabels.map((l, i) => {
-                  const pointIdx = Math.round(i * (terrainPoints.length - 1) / Math.max(xLabels.length - 1, 1));
-                  const point = terrainPoints[pointIdx];
-                  const isSalary = point?.isSalaryDay;
-                  const isBill = point?.bill && !point?.isPast;
-                  const color = isSalary ? '#22C55E' : isBill ? '#EF4444' : 'rgba(255,255,255,0.35)';
-                  const prefix = isSalary ? '↑' : '';
-                  const suffix = isBill ? (point?.bill?.icon === 'Home' ? '🏠' : point?.bill?.icon === 'Zap' ? '⚡' : '📅') : '';
+                  const color = l.isSalary ? '#22C55E' : l.isBill ? '#EF4444' : 'rgba(255,255,255,0.5)';
+                  const prefix = l.isSalary ? '↑ ' : '';
+                  const suffix = l.isBill ? (l.billIcon === 'Home' ? ' 🏠' : l.billIcon === 'Zap' ? ' ⚡' : ' 📅') : '';
                   return (
-                    <span key={i} className="text-[10px] font-medium" style={{ color }}>
+                    <span key={i} className="text-[10px] font-semibold" style={{ color }}>
                       {prefix}{l.text}{suffix}
                     </span>
                   );
