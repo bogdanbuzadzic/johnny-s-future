@@ -917,15 +917,17 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
                       textAnchor="middle" fill="#22C55E" fontSize={12} fontWeight={700}>
                       $
                     </text>
-                    {/* Amount pill above */}
+                    {/* Amount pill with better visibility */}
                     <rect
-                      x={mapX(idx) - 28} y={mapY(terrainPoints[idx].balance) - 32}
-                      width={56} height={16} rx={4}
-                      fill="rgba(34,197,94,0.2)"
+                      x={Math.max(4, Math.min(mapX(idx) - 32, chartWidth - 68))} 
+                      y={mapY(terrainPoints[idx].balance) - 36}
+                      width={64} height={18} rx={6}
+                      fill="rgba(34,197,94,0.9)"
                     />
                     <text
-                      x={mapX(idx)} y={mapY(terrainPoints[idx].balance) - 21}
-                      textAnchor="middle" fill="#22C55E" fontSize={10} fontWeight={600}>
+                      x={Math.max(36, Math.min(mapX(idx), chartWidth - 36))} 
+                      y={mapY(terrainPoints[idx].balance) - 24}
+                      textAnchor="middle" fill="#FFFFFF" fontSize={11} fontWeight={700}>
                       €{computed.monthlyIncome.toLocaleString()}
                     </text>
                   </g>
