@@ -1072,14 +1072,12 @@ function DrawerContent({ onClose, autoOpenWhatIf }: { onClose: () => void; autoO
               )}
 
               {/* X-axis labels with color coding */}
-              <div className="flex justify-between mt-1 px-1">
+              <div className="flex justify-between mt-2 px-2">
                 {xLabels.map((l, i) => {
-                  const color = l.isSalary ? '#22C55E' : l.isBill ? '#EF4444' : 'rgba(255,255,255,0.5)';
-                  const prefix = l.isSalary ? '↑ ' : '';
-                  const suffix = l.isBill ? (l.billIcon === 'Home' ? ' 🏠' : l.billIcon === 'Zap' ? ' ⚡' : ' 📅') : '';
+                  const color = l.isSalary ? '#22C55E' : l.isBill ? '#EF4444' : 'rgba(255,255,255,0.4)';
                   return (
-                    <span key={i} className="text-[10px] font-semibold" style={{ color }}>
-                      {prefix}{l.text}{suffix}
+                    <span key={i} className="text-[11px] font-bold" style={{ color }}>
+                      {l.isSalary && '↑'}{l.text}
                     </span>
                   );
                 })}
